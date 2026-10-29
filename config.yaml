@@ -1,0 +1,76 @@
+timezone: Asia/Kolkata
+post_times: ["06:00", "18:00"]        # IST. Add more (e.g. "12:00", "21:00") to post more often.
+                                      # If you add slots, also add matching cron lines in clipper.yml.
+
+schedule:
+  max_wait_min: 25                    # runner starts early and waits up to this long for the exact slot
+  catchup_hours: 6                    # a slot missed by up to this long is still posted (heals dropped/late cron runs)
+
+queue:
+  clips_per_episode: 3
+  refill_when_below: 3                # keeps >= 1 full episode of buffer, so a YouTube block never misses a slot
+                                      # (set 1 to analyse the next episode only when the queue is empty)
+
+clip:
+  min_s: 15
+  max_s: 45
+  min_gap_s: 90                       # picks from one episode must be this far apart
+  captions: true                      # burned-in word-group captions + on-screen title
+
+render:
+  foreground_scale: 1.16              # 1.0-1.35; modest zoom for landscape sources, not face tracking
+
+discovery:
+  scan_latest: 10                     # latest uploads checked per channel
+  min_duration_min: 20
+  min_age_days: 2                     # Most-Replayed data needs time to build
+  max_age_days: 30
+  caption_langs: ["en", "hi"]
+  max_episode_attempts: 3             # unusable episode -> adapt and try the next one
+
+qa:
+  max_black_pct: 25                 # clips with more black frames than this are never posted
+  max_silence_pct: 45                 # ...or more silence than this
+
+learning:
+  explore_rate: 0.25                  # 25% of the time pick channels round-robin, otherwise by avg views
+
+llm:                                  # Gemini (set the GEMINI_API_KEY secret)
+  enabled: true
+  model: gemini-3.8-flash             # Gemini 2.5 models retire in Oct 2026
+  fallback_models: [gemini-3.6-flash, gemini-3.5-flash, gemini-3.5-flash-lite]
+                                      # if all of these 404, the newest flash model is auto-discovered
+  candidates: 20                      # distinct moments sent to Gemini for judging
+  variants: 3                         # different start/end framings per moment (Gemini picks the best)
+  video_verify: true                  # Gemini WATCHES the top candidates (public YouTube URL + offsets)
+  verify_top: 8
+  polish_captions: true               # Gemini fixes misheard words / names / punctuation in captions
+  final_qa: true                      # Gemini watches the FINAL rendered clip before it is posted
+
+instagram:
+  graph_version: v25.0                # bump when Meta retires the version
+  max_hashtags: 5
+  hashtags: ["#podcast", "#reels", "#business"]
+  cta: "Follow for daily podcast clips"
+
+# permission must be true ONLY for creators who allowed you to repost (written permission,
+# an official clipping programme, or a licence). permission: false channels are ignored.
+channels:
+  - name: Raj Shamani
+    handle: "@RajShamani"
+    ig_handle: "@rajshamani"
+    permission: false
+  - name: Ranveer Allahbadia
+    handle: "@BeerBiceps"
+    ig_handle: "@beerbiceps"
+    permission: false
+  - name: Lex Fridman
+    handle: "@lexfridman"
+    ig_handle: "@lexfridman"
+    permission: false
+  - name: The Diary of a CEO
+    handle: "@TheDiaryOfACEO"
+    ig_handle: "@diaryofaceo"
+    permission: false
+
+check_video_id: aqz-KE-bpKQ         # open-licensed video used by the `check-live` self-test

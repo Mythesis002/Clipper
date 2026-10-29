@@ -1,0 +1,5 @@
+yt-dlp
+bgutil-ytdlp-pot-provider
+numpy
+requests
+pyyaml

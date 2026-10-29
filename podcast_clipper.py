@@ -1,0 +1,1440 @@
+#!/usr/bin/env python3
+"""
+podcast_clipper.py - automated podcast -> Instagram Reels pipeline, built for GitHub Actions.
+
+Design: the repo stores only a small JSON state file (state/state.json). Videos are NOT stored.
+A clip is just {video_id, start, end, words, title, caption}. It is downloaded + rendered at the
+moment it is posted, so every run can start on a clean, stateless runner.
+
+Commands
+  tick      the one Actions runs: (refill if empty) -> wait for slot -> post -> (refill) -> metrics
+  produce   analyse one new episode and queue its best 3 segments   (--dry-run to only print)
+  publish   post the next queued clip                              (--force: no slot wait/guard)
+  metrics   pull Instagram insights for posted reels (feeds the learning loop)
+  status    show queue + results
+  check     verify tokens / tools / YouTube access / Gemini
+
+Only process channels you have permission to clip (see config.yaml).
+"""
+
+import argparse
+import base64
+import json
+import logging
+import os
+import random
+import re
+import shutil
+import subprocess
+import sys
+import textwrap
+import time
+from bisect import bisect_left, bisect_right
+from collections import Counter
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import numpy as np
+import requests
+import yaml
+import yt_dlp
+from yt_dlp.utils import download_range_func
+
+BASE = Path(__file__).resolve().parent
+WORK = BASE / "work"
+STATE_FILE = BASE / "state" / "state.json"
+GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
+log = logging.getLogger("clipper")
+
+
+# =============================================================================
+# Utilities: config, state, logging helpers
+# =============================================================================
+def load_config(path=None):
+    with open(path or BASE / "config.yaml", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    # Catch common configuration mistakes before an automated run can publish.
+    required = ("channels", "clip", "queue", "discovery", "llm", "instagram")
+    missing = [k for k in required if k not in cfg]
+    if missing:
+        raise ValueError("config.yaml missing required sections: " + ", ".join(missing))
+    if int(cfg["clip"].get("min_s", 0)) < 5 or int(cfg["clip"].get("max_s", 0)) < int(cfg["clip"].get("min_s", 0)):
+        raise ValueError("clip.min_s/max_s are invalid")
+    if not isinstance(cfg["channels"], list):
+        raise ValueError("channels must be a list")
+    for ch in cfg["channels"]:
+        if not ch.get("name") or not ch.get("handle"):
+            raise ValueError("every channel needs name and handle")
+    return cfg
+
+
+def load_state():
+    if STATE_FILE.exists():
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    return {"episodes": {}, "clips": [], "next_id": 1}
+
+
+def save_state(st):
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = STATE_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(STATE_FILE)
+
+
+def now_utc():
+    return datetime.now(timezone.utc)
+
+
+def now_iso():
+    return now_utc().isoformat(timespec="seconds")
+
+
+def hms(t):
+    t = int(t)
+    return f"{t // 3600}:{t % 3600 // 60:02d}:{t % 60:02d}"
+
+
+def gha(level, msg):
+    """GitHub Actions annotation (shows up on the run page / in the notification email)."""
+    if os.environ.get("GITHUB_ACTIONS"):
+        print(f"::{level}::{msg}")
+
+
+def graph(cfg):
+    return f"https://graph.facebook.com/{cfg['instagram'].get('graph_version', 'v25.0')}"
+
+
+def jr(state, event, **detail):
+    """Run journal: what the system decided and why (kept in state.json, shown in the run summary)."""
+    j = state.setdefault("journal", [])
+    j.append({"t": now_iso(), "event": event, **detail})
+    del j[:-80]
+
+
+def views_of(clip):
+    m = clip.get("metrics") or {}
+    return m.get("views", m.get("plays"))
+
+
+# =============================================================================
+# 1. DISCOVER
+# =============================================================================
+def ydl_opts(cfg, **extra):
+    o = {"quiet": True, "no_warnings": True, "retries": 5, "extractor_retries": 3,
+         "socket_timeout": 30}
+    cookies = os.environ.get("YT_COOKIES_FILE") or cfg.get("cookies_file")
+    if cookies and Path(cookies).exists():
+        o["cookiefile"] = cookies
+    if os.environ.get("YT_PROXY"):
+        o["proxy"] = os.environ["YT_PROXY"]
+    o.update(extra)
+    return o
+
+
+def list_recent(cfg, handle, n):
+    opts = ydl_opts(cfg, extract_flat=True, playlistend=n, skip_download=True)
+    with yt_dlp.YoutubeDL(opts) as y:
+        info = y.extract_info(f"https://www.youtube.com/{handle}/videos", download=False)
+    return info.get("entries") or []
+
+
+def full_info(cfg, video_id):
+    with yt_dlp.YoutubeDL(ydl_opts(cfg, skip_download=True)) as y:
+        return y.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+
+
+def channel_stats(state):
+    """channel -> {'n': reels with metrics, 'avg_views': mean views}"""
+    acc = {}
+    for c in state["clips"]:
+        v = views_of(c)
+        if c["status"] == "posted" and v is not None:
+            acc.setdefault(c["channel"], []).append(v)
+    return {k: {"n": len(v), "avg_views": sum(v) / len(v)} for k, v in acc.items()}
+
+
+def order_channels(cfg, state, rng=random):
+    """Learning loop: channels whose clips earn more views are scanned first.
+    Channels with no data are explored first; `explore_rate` of the time we round-robin."""
+    chans = [c for c in cfg["channels"] if c.get("permission")]
+    stats = channel_stats(state)
+    last = {}
+    for ep in state["episodes"].values():
+        last[ep["channel"]] = max(last.get(ep["channel"], ""), ep["processed_at"])
+    if rng.random() < cfg["learning"]["explore_rate"]:
+        return sorted(chans, key=lambda c: last.get(c["name"], ""))
+    return sorted(chans, key=lambda c: (c["name"] in stats,
+                                        -stats.get(c["name"], {}).get("avg_views", 0),
+                                        last.get(c["name"], "")))
+
+
+def done_ids(state):
+    """Episodes not to pick again. A transient failure carries retry_after and becomes eligible later."""
+    now = now_iso()
+    return {v for v, e in state["episodes"].items() if not (e.get("retry_after") and e["retry_after"] < now)}
+
+
+SKIP_TITLE = re.compile(r"\b(trailer|teaser|promo|shorts?|announcement)\b", re.I)
+
+
+def pick_episode(cfg, state):
+    chans = order_channels(cfg, state)
+    if not chans:
+        raise SystemExit("No channel has permission: true in config.yaml - nothing to do.")
+    done = done_ids(state)
+    d = cfg["discovery"]
+    for ch in chans:
+        log.info("scanning %s", ch["name"])
+        try:
+            entries = list_recent(cfg, ch["handle"], d["scan_latest"])
+        except Exception as ex:
+            log.warning("could not list %s: %s", ch["name"], ex)
+            continue
+        scored = []
+        for e in entries:
+            vid, dur = e.get("id"), e.get("duration")
+            if not vid or vid in done or SKIP_TITLE.search(e.get("title") or ""):
+                continue
+            if dur is not None and dur < d["min_duration_min"] * 60:
+                continue
+            try:
+                info = full_info(cfg, vid)
+            except Exception as ex:
+                log.warning("info failed for %s: %s", vid, str(ex)[:200])
+                continue
+            if (info.get("duration") or 0) < d["min_duration_min"] * 60:
+                continue
+            if info.get("live_status") in ("is_live", "is_upcoming"):
+                continue
+            ts = info.get("timestamp")
+            age = (time.time() - ts) / 86400 if ts else 999
+            if not (d["min_age_days"] <= age <= d["max_age_days"]):
+                continue
+            if not info.get("heatmap"):
+                log.info("  %s: no Most-Replayed data yet", vid)
+                continue
+            scored.append(((info.get("view_count") or 0) / max(age, 1), info))
+        if scored:
+            scored.sort(key=lambda x: -x[0])
+            return ch, scored[0][1]
+    return None, None
+
+
+# =============================================================================
+# 2. ANALYSE
+# =============================================================================
+def parse_json3(data):
+    """YouTube json3 captions -> [(start_seconds, word)]."""
+    words = []
+    for ev in data.get("events", []):
+        segs = ev.get("segs")
+        if not segs:
+            continue
+        base = ev.get("tStartMs", 0)
+        dur = ev.get("dDurationMs", 0)
+        if len(segs) == 1:                        # manual captions: a whole phrase per event
+            toks = segs[0].get("utf8", "").replace("\n", " ").split()
+            for i, w in enumerate(toks):
+                words.append(((base + dur * i / max(len(toks), 1)) / 1000.0, w))
+            continue
+        for s in segs:                            # auto captions: per-word offsets
+            w = s.get("utf8", "").replace("\n", " ").strip()
+            if w:
+                words.append(((base + s.get("tOffsetMs", 0)) / 1000.0, w))
+    words.sort(key=lambda x: x[0])
+    return words
+
+
+def caption_candidates(info, langs):
+    """json3 caption tracks, best first.
+    Manual subtitles beat auto captions; the video's OWN language beats everything
+    (so a Hindi podcast never gets auto-translated English captions burned in);
+    YouTube's machine translations (tlang=) are a last resort."""
+    own = (info.get("language") or "").split("-")[0] or None
+    wanted = [own] if own else [x for x in langs if x]
+    out = []
+    for pool_rank, pool in enumerate(("subtitles", "automatic_captions")):
+        for key, fmts in (info.get(pool) or {}).items():
+            is_orig = key.endswith("-orig")
+            base = key.removesuffix("-orig")
+            lang_rank = next((i for i, l in enumerate(wanted)
+                              if base == l or base.startswith(l + "-")), None)
+            if lang_rank is None and not (is_orig and own is None):
+                continue
+            for fmt in fmts or []:
+                if fmt.get("ext") != "json3" or not fmt.get("url"):
+                    continue
+                translated = "tlang=" in fmt["url"]
+                out.append(((translated, pool_rank, 0 if is_orig else 1, lang_rank or 0),
+                            pool, key, fmt))
+    out.sort(key=lambda x: x[0])
+    return out
+
+
+def dedupe_words(words):
+    """Drop exact repeats (same word within 50 ms) that rolling captions sometimes produce."""
+    out = []
+    for t, w in words:
+        if out and out[-1][1] == w and abs(out[-1][0] - t) < 0.05:
+            continue
+        out.append((t, w))
+    return out
+
+
+def fetch_words(cfg, info):
+    langs = cfg["discovery"].get("caption_langs", ["en"])
+    for _, pool, key, fmt in caption_candidates(info, langs):
+        try:
+            r = requests.get(fmt["url"], timeout=40)
+            r.raise_for_status()
+            words = dedupe_words(parse_json3(r.json()))
+            if len(words) > 200:
+                log.info("transcript: %s/%s (%d words)", pool, key, len(words))
+                return words
+        except Exception as ex:
+            log.warning("caption fetch failed (%s/%s): %s", pool, key, ex)
+    log.warning("no usable transcript - heatmap-only mode (no captions, grid cut points)")
+    return []
+
+
+def phrase_starts(words, pause=0.45, weak_pause=0.25):
+    """Times where a new phrase/sentence begins. A strong pause or sentence punctuation always
+    counts; a shorter pause counts when the next word is a question/hook word ("why", "how",
+    "never"...), because speakers pause only briefly before a rhetorical question."""
+    if not words:
+        return []
+    starters = QUESTION_WORDS | HOOK_WORDS
+    starts = [words[0][0]]
+    for i in range(1, len(words)):
+        pt, pw = words[i - 1]
+        gap = words[i][0] - (pt + min(0.6, 0.07 * len(pw) + 0.15))
+        w = re.sub(r"\W", "", words[i][1].lower())
+        if gap >= pause or pw[-1] in ".?!\u0964" or (gap >= weak_pause and w in starters):
+            starts.append(words[i][0])
+    return starts
+
+
+def heat_per_second(heatmap, duration):
+    """Most-Replayed heatmap -> normalised 0..1 value for every second."""
+    mids = np.array([(h["start_time"] + h["end_time"]) / 2 for h in heatmap])
+    vals = np.array([h["value"] for h in heatmap], dtype=float)
+    y = np.interp(np.arange(int(duration)), mids, vals)
+    med, k = np.median(y), max(1, int(len(y) * 0.03))
+    y[:k] = med                                   # intro is always inflated: neutralise
+    y[len(y) - k:] = med                          # ...and so is the outro
+    return (y - y.min()) / (y.max() - y.min() + 1e-9)
+
+
+HOOK_WORDS = {"never", "biggest", "secret", "mistake", "truth", "nobody", "stop", "worst",
+              "best", "rich", "failed", "fired", "broke", "lie", "wrong", "scam", "crore",
+              "lakh", "million", "billion", "hardest", "shocking", "real", "why", "regret",
+              "sabse", "galti", "sach", "jhooth", "paisa", "ameer"}
+QUESTION_WORDS = {"why", "how", "what", "when", "who", "kya", "kaise", "kyun", "kyu", "kab"}
+FILLER_START = {"and", "but", "so", "because", "also", "or", "then", "which", "that", "aur",
+                "lekin", "toh", "par", "kyunki", "matlab", "like", "yeah", "right"}
+
+
+def hook_score(opening_text):
+    """Conservative opening heuristic. It is a ranking signal, never a viral predictor."""
+    text = re.sub(r"\s+", " ", opening_text or "").strip()
+    toks = re.findall(r"[\w'%]+", text.lower())[:18]
+    if not toks:
+        return 0.0
+    score = 0.42
+    # Penalise openings that clearly depend on the previous sentence.
+    if toks[0] in FILLER_START:
+        score -= 0.20
+    if toks[0] in {"this", "that", "it", "they", "he", "she", "because", "which", "and"}:
+        score -= 0.08
+    # Questions can create curiosity, but are not automatically good hooks.
+    if toks[0] in QUESTION_WORDS or "?" in text[:140]:
+        score += 0.10
+    # Specificity is useful; avoid giving large bonuses to clickbait vocabulary.
+    if any(re.search(r"\d", t) for t in toks):
+        score += 0.10
+    if any(t in HOOK_WORDS for t in toks):
+        score += 0.06
+    # A tiny fragment is often an unusable cut; an overly long setup is also weak.
+    if len(toks) < 4:
+        score -= 0.14
+    elif 6 <= len(toks) <= 15:
+        score += 0.08
+    if len(text) > 150 and not any(mark in text for mark in ".?!।"):
+        score -= 0.06
+    return float(min(max(score, 0.0), 1.0))
+
+
+def trimmed_end(wt, words, e):
+    """Pull a window end back to just after the last spoken word (no dead air)."""
+    i = bisect_left(wt, e) - 1
+    if i < 0:
+        return e
+    t, w = words[i]
+    return min(e, t + min(0.6, 0.07 * len(w) + 0.15) + 0.35)
+
+
+def score_candidates(cfg, heat, words, duration):
+    mn, mx = cfg["clip"]["min_s"], cfg["clip"]["max_s"]
+    wt = [w[0] for w in words]
+    starts = phrase_starts(words)
+    raw = []
+    if starts:
+        for s in starts:
+            if s + mn > duration:
+                break
+            j0, j1 = bisect_left(starts, s + mn), bisect_right(starts, s + mx)
+            for j in range(j0, j1):
+                e = trimmed_end(wt, words, min(starts[j], duration))
+                if e - s >= mn - 1:
+                    raw.append((s, e))
+    else:                                         # no transcript: fixed grid
+        for s in range(0, int(duration) - mx, 5):
+            for L in (15, 20, 25, 30):
+                if mn <= L <= mx:
+                    raw.append((float(s), float(s + L)))
+
+    def hmean(c):
+        a = min(int(c[0]), len(heat) - 1)
+        return heat[a:max(a + 1, min(int(c[1]), len(heat)))].mean()
+
+    raw.sort(key=lambda c: -hmean(c))
+    out = []
+    for s, e in raw[:800]:
+        a, b = int(s), min(int(e), len(heat))
+        seg = heat[a:b]
+        if len(seg) < 5:
+            continue
+        # Heatmap is evidence from the original long-form audience, not a short-form
+        # success label. Keep it influential but do not let it drown out the opening.
+        heat_part = 0.55 * float(seg.mean()) + 0.20 * float(seg.max()) + 0.25 * float(seg[:5].mean())
+        i0, i1 = bisect_left(wt, s), bisect_left(wt, e)
+        text = " ".join(w for _, w in words[i0:i1])
+        hook = hook_score(" ".join(w for _, w in words[i0:i0 + 18])) if words else 0.3
+        dens = min((i1 - i0) / (e - s) / 2.8, 1.0) if words else 0.6
+        # Balanced pre-rank: hook matters almost as much as replay evidence.
+        pre = 0.42 * heat_part + 0.40 * hook + 0.18 * dens
+        out.append({"start": float(s), "end": float(e), "heat": float(heat_part),
+                    "hook": hook, "density": float(dens), "pre": float(pre), "text": text})
+    out.sort(key=lambda c: -c["pre"])
+    return out
+
+
+def diversify(cands, k, gap, variants=1):
+    """Shortlist for the LLM: up to k distinct MOMENTS (>= gap seconds apart), each with up to
+    `variants` different framings (starts >= 3 s apart) so Gemini can pick the best opening."""
+    groups = []
+    for c in cands:                                   # cands are sorted best-first by pre-score
+        for g in groups:
+            a = g[0]
+            if not (c["end"] + gap <= a["start"] or c["start"] >= a["end"] + gap):
+                if len(g) < variants and all(abs(c["start"] - x["start"]) >= 3 for x in g):
+                    g.append(c)
+                break
+        else:
+            if len(groups) < k:
+                groups.append([c])
+    return [c for g in groups for c in g]
+
+
+# ---------------------------------------------------------------- Gemini
+class GeminiError(Exception):
+    pass
+
+
+_MODEL_CACHE = {}
+
+
+def gemini_key():
+    return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+
+
+def pick_flash_models(models_json):
+    """models.list -> usable text 'flash' models, newest version first (non-lite before lite)."""
+    found = []
+    for m in models_json.get("models", []):
+        name = m.get("name", "").removeprefix("models/")
+        if "generateContent" not in m.get("supportedGenerationMethods", []):
+            continue
+        mm = re.fullmatch(r"gemini-(\d+(?:\.\d+)*)-flash(-lite)?", name)
+        if mm:
+            ver = tuple(int(x) for x in mm.group(1).split("."))
+            found.append((ver, 0 if mm.group(2) else 1, name))
+    found.sort(reverse=True)
+    return [n for _, _, n in found]
+
+
+def _gemini_post(model, body, key, timeout=180):
+    url = f"{GEMINI_BASE}/models/{model}:generateContent"
+    r = None
+    for attempt in range(4):
+        r = requests.post(url, json=body, headers={"x-goog-api-key": key}, timeout=timeout)
+        if r.status_code in (429, 500, 502, 503, 504) and attempt < 3:
+            try:
+                wait = float(r.headers.get("Retry-After") or 0)
+            except ValueError:
+                wait = 0
+            time.sleep(min(wait or 2 * 3 ** attempt, 60))        # 2s, 6s, 18s
+            continue
+        break
+    return r
+
+
+def gemini_text(cfg, parts, temperature=0.2, max_tokens=8192):
+    """Call Gemini (REST). Retries 429/5xx; on 404 walks the fallback chain, then auto-discovers
+    the newest flash model from models.list (so a retired model name never breaks the pipeline)."""
+    key = gemini_key()
+    if not key:
+        raise GeminiError("no GEMINI_API_KEY")
+    body = {"contents": [{"role": "user", "parts": parts}],
+            "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens,
+                                 "responseMimeType": "application/json"}}
+    llm = cfg["llm"]
+    queue = ([_MODEL_CACHE["model"]] if "model" in _MODEL_CACHE else []) \
+        + [llm["model"]] + list(llm.get("fallback_models", []))
+    tried, discovered = set(), False
+    while True:
+        queue = [m for m in dict.fromkeys(queue) if m not in tried]
+        if not queue:
+            if discovered:
+                raise GeminiError("no working Gemini model (all returned 404)")
+            discovered = True
+            lr = requests.get(f"{GEMINI_BASE}/models", params={"pageSize": 200},
+                              headers={"x-goog-api-key": key}, timeout=30)
+            if not lr.ok:
+                raise GeminiError(f"models.list failed: HTTP {lr.status_code} {lr.text[:200]}")
+            queue = pick_flash_models(lr.json())
+            log.info("auto-discovered Gemini models: %s", queue[:4])
+            continue
+        model = queue.pop(0)
+        tried.add(model)
+        r = _gemini_post(model, body, key)
+        if r.status_code == 404:
+            log.warning("Gemini model %s not found - trying next", model)
+            continue
+        if not r.ok:
+            raise GeminiError(f"HTTP {r.status_code}: {r.text[:300]}")
+        data = r.json()
+        block = (data.get("promptFeedback") or {}).get("blockReason")
+        if block:
+            raise GeminiError(f"prompt blocked: {block}")
+        cands = data.get("candidates") or []
+        if not cands:
+            raise GeminiError("no candidates in response")
+        out_parts = (cands[0].get("content") or {}).get("parts") or []
+        text = "".join(p.get("text", "") for p in out_parts if not p.get("thought"))
+        if not text.strip():
+            raise GeminiError(f"empty response (finishReason={cands[0].get('finishReason')})")
+        _MODEL_CACHE["model"] = model
+        return text
+
+
+def parse_json(text):
+    """Tolerant JSON extraction: plain JSON, ```json fences, or JSON buried in prose."""
+    t = text.strip()
+    t = re.sub(r"^```(?:json)?\s*|\s*```$", "", t, flags=re.I)
+    try:
+        return json.loads(t)
+    except ValueError:
+        pass
+    for pat in (r"\[.*\]", r"\{.*\}"):
+        m = re.search(pat, t, re.S)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except ValueError:
+                continue
+    raise GeminiError("response was not valid JSON")
+
+
+def _score(x, default=None):
+    try:
+        return min(max(float(x), 0.0), 10.0)
+    except (TypeError, ValueError):
+        return default
+
+
+def _truthy(x):
+    return x is True or (isinstance(x, str) and x.strip().lower() == "true")
+
+
+def build_rerank_prompt(ep_title, cands):
+    payload = [{"id": i, "t": hms(c["start"]), "text": c["text"][:1000]} for i, c in enumerate(cands)]
+    return (
+        f"You are a short-form video editor choosing clips from a podcast episode: {ep_title!r}.\n"
+        "Candidates are usually 15-45s segments (auto-transcript, may be Hindi/Hinglish, punctuation may be imperfect).\n"
+        "Score each 0-10: hook (would the first 3 seconds stop a scroll), standalone (makes sense "
+        "with zero context), emotion (surprise, humour, controversy, insight, vulnerability). "
+        "Set reject=true if it needs earlier context, has no payoff, or contains hate, harassment, "
+        "defamation of named people, or explicit content. Also write: title (max 8 words, on-screen "
+        "text, same language as the clip, curiosity-driven, never misleading), caption_hook (one "
+        "line under 100 chars), hashtags (4 topical, no generic spam).\n"
+        "Reply with ONLY a JSON array, one object per candidate id: "
+        '[{"id":0,"hook":0,"standalone":0,"emotion":0,"reject":false,"title":"",'
+        '"caption_hook":"","hashtags":["#x"]}]\n\n' + json.dumps(payload, ensure_ascii=False))
+
+
+def apply_rerank(cands, data):
+    """Merge Gemini's answer into candidates. Defensive: bad ids/scores/types are ignored."""
+    if isinstance(data, dict):
+        data = data.get("clips") or data.get("results") or []
+    applied = 0
+    for d in data if isinstance(data, list) else []:
+        if not isinstance(d, dict):
+            continue
+        try:
+            i = int(d["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not 0 <= i < len(cands):
+            continue
+        h, s, e = (_score(d.get(k)) for k in ("hook", "standalone", "emotion"))
+        if None in (h, s, e):
+            continue
+        c = cands[i]
+        c["llm"] = (h * 0.45 + s * 0.35 + e * 0.20) / 10
+        c["reject"] = _truthy(d.get("reject"))
+        c["title"] = str(d.get("title") or "").strip()[:80]
+        c["caption_hook"] = str(d.get("caption_hook") or "").strip()[:140]
+        tags = d.get("hashtags") if isinstance(d.get("hashtags"), list) else []
+        clean = [re.sub(r"\W", "", str(t)) for t in tags if isinstance(t, (str, int)) and not isinstance(t, bool)]
+        c["hashtags"] = ["#" + t for t in clean if t][:6]
+        applied += 1
+    return applied
+
+
+def llm_rerank(cfg, cands, ep_title):
+    """Stage 1 (text): Gemini judges hook / standalone clarity / emotion, writes title + hashtags."""
+    if not cfg["llm"]["enabled"] or not gemini_key():
+        log.info("Gemini rerank off (disabled or no GEMINI_API_KEY) - heuristics only")
+        return cands
+    try:
+        data = parse_json(gemini_text(cfg, [{"text": build_rerank_prompt(ep_title, cands)}]))
+        n = apply_rerank(cands, data)
+        log.info("Gemini scored %d/%d candidates (model %s)", n, len(cands), _MODEL_CACHE.get("model"))
+    except Exception as ex:
+        log.warning("Gemini rerank failed, heuristics only: %s", ex)
+    return cands
+
+
+VERIFY_PROMPT = (
+    "Watch this short podcast segment (video AND audio; often 15-45 seconds). Score 0-10: hook (does the first "
+    "3 seconds grab attention), standalone (clear with zero context), delivery (energy, emotion, "
+    "laughter, clarity of voice), visual (framing, nothing distracting). Set reject=true if it "
+    "starts or ends badly mid-sentence, has long silence, crosstalk/inaudible speech, or unsafe "
+    'content. Reply with ONLY a JSON object: {"hook":0,"standalone":0,"delivery":0,"visual":0,'
+    '"reject":false}')
+
+
+def video_verify(cfg, video_id, cands):
+    """Stage 2 (optional): Gemini WATCHES the top candidates (public YouTube URL + time offsets)."""
+    llm = cfg["llm"]
+    if not (llm.get("video_verify") and gemini_key()):
+        return cands
+    ranked = sorted([c for c in cands if not c.get("reject")], key=lambda c: -final_score(c))
+    for c in ranked[: llm.get("verify_top", 6)]:
+        try:
+            parts = [{"fileData": {"fileUri": f"https://www.youtube.com/watch?v={video_id}"},
+                      "videoMetadata": {"startOffset": f"{int(c['start'])}s",
+                                        "endOffset": f"{int(c['end']) + 1}s"}},
+                     {"text": VERIFY_PROMPT}]
+            d = parse_json(gemini_text(cfg, parts))
+            if isinstance(d, list) and d:
+                d = d[0]
+            h, s, dl, v = (_score(d.get(k)) for k in ("hook", "standalone", "delivery", "visual"))
+            if None in (h, s, dl, v):
+                continue
+            c["vid"] = (h * 0.35 + s * 0.25 + dl * 0.30 + v * 0.10) / 10
+            if _truthy(d.get("reject")):
+                c["reject"] = True
+        except Exception as ex:
+            log.warning("video verify failed for %s: %s", hms(c["start"]), ex)
+    return cands
+
+
+def retime(words, text):
+    """Spread corrected tokens over the original word timeline (by character position)."""
+    new, old = text.split(), [w for _, w in words]
+    if not new or not old:
+        return None
+    if len(new) == len(old):
+        return [(t, nw) for (t, _), nw in zip(words, new)]
+    old_pos = np.cumsum([0] + [len(w) + 1 for w in old[:-1]]).astype(float)
+    new_pos = np.cumsum([0] + [len(w) + 1 for w in new[:-1]]).astype(float)
+    total_old, total_new = old_pos[-1] + len(old[-1]) + 1, new_pos[-1] + len(new[-1]) + 1
+    times = np.interp(new_pos / total_new * total_old, old_pos, [t for t, _ in words])
+    return [(float(t), w) for t, w in zip(times, new)]
+
+
+def caption_change_ok(old_words, new_words, min_overlap=0.55, max_len_change=0.25):
+    """Guard against hallucinated caption rewrites: same length (+-25%) and mostly the same words."""
+    if not new_words or not old_words:
+        return False
+    if abs(len(new_words) - len(old_words)) / len(old_words) > max_len_change:
+        return False
+    norm = lambda w: re.sub(r"\W", "", w.lower())  # noqa: E731
+    o, n = Counter(norm(w) for _, w in old_words), Counter(norm(w) for _, w in new_words)
+    return sum((o & n).values()) / len(old_words) >= min_overlap
+
+
+def polish_captions(cfg, picks, ep_title):
+    """Gemini fixes mis-heard words/names/numbers, casing and punctuation in the chosen clips' captions.
+    Timing is kept (tokens are re-spread over the original timeline); unsafe rewrites are discarded."""
+    if not (cfg["llm"].get("polish_captions") and cfg["clip"]["captions"] and gemini_key()):
+        return 0
+    items = [{"id": i, "text": " ".join(w for _, w in p["words"])} for i, p in enumerate(picks) if p.get("words")]
+    if not items:
+        return 0
+    prompt = (
+        f"These are auto-generated captions (speech recognition errors likely) from clips of a podcast titled "
+        f"{ep_title!r}. For each item fix misheard words, names, brands and numbers using context, and add "
+        "natural casing and punctuation (. , ? !). Keep the SAME language and script as the input (never "
+        "translate, never switch Hinglish to Devanagari or the reverse), keep the same sentences and order, "
+        'add nothing. Reply with ONLY a JSON array: [{"id":0,"text":"..."}]\n\n'
+        + json.dumps(items, ensure_ascii=False))
+    try:
+        data = parse_json(gemini_text(cfg, [{"text": prompt}], temperature=0.1))
+    except Exception as ex:
+        log.warning("caption polish failed, using raw captions: %s", ex)
+        return 0
+    n = 0
+    for d in data if isinstance(data, list) else []:
+        try:
+            p = picks[int(d["id"])]
+            new = retime(p["words"], str(d["text"]))
+        except (KeyError, TypeError, ValueError, IndexError):
+            continue
+        if new and caption_change_ok(p["words"], new):
+            p["words"], p["polished"] = new, True
+            n += 1
+        else:
+            log.info("caption rewrite for clip %s rejected by safety guard", d.get("id"))
+    log.info("polished captions for %d/%d clips", n, len(items))
+    return n
+
+
+def final_score(c):
+    """Weighted blend of whatever evidence exists: data-driven pre-score, Gemini text, Gemini video."""
+    parts = [(c["pre"], 0.45)]
+    if "llm" in c:
+        parts.append((c["llm"], 0.30))
+    if "vid" in c:
+        parts.append((c["vid"], 0.25))
+    return sum(v * w for v, w in parts) / sum(w for _, w in parts)
+
+
+def select_top(cands, n, min_gap):
+    for c in cands:
+        c["final"] = final_score(c)
+    chosen = []
+    for c in sorted(cands, key=lambda c: -c["final"]):
+        if c.get("reject"):
+            continue
+        if all(c["end"] + min_gap <= k["start"] or c["start"] >= k["end"] + min_gap for k in chosen):
+            chosen.append(c)
+        if len(chosen) == n:
+            break
+    return chosen                                 # best first
+
+
+def make_caption(cfg, ch, info, cand):
+    ig = cfg["instagram"]
+    first = cand.get("caption_hook") or cand.get("title") or info["title"]
+    credit = f"\U0001F399\uFE0F {ch['name']}" + (f" ({ch['ig_handle']})" if ch.get("ig_handle") else "")
+    tags = (cand.get("hashtags") or []) + list(ch.get("hashtags") or ig["hashtags"])
+    tags = list(dict.fromkeys(t if t.startswith("#") else "#" + t for t in tags))[:ig["max_hashtags"]]
+    parts = [first, "", credit, f"Full episode on YouTube: {info['webpage_url']}"]
+    if ig.get("cta"):
+        parts += ["", ig["cta"]]
+    parts += ["", " ".join(tags)]
+    return "\n".join(parts)[:2200]
+
+
+# =============================================================================
+# 3. PRODUCE (discover -> analyse -> queue; no video is downloaded here)
+# =============================================================================
+def analyse_episode(cfg, ch, info):
+    """heatmap + transcript + heuristics + Gemini(text) + Gemini(video) -> best clips with polished captions."""
+    words = fetch_words(cfg, info)
+    heat = heat_per_second(info["heatmap"], info["duration"])
+    cands = score_candidates(cfg, heat, words, info["duration"])
+    cands = diversify(cands, cfg["llm"]["candidates"], cfg["clip"]["min_gap_s"],
+                      variants=cfg["llm"].get("variants", 3) if gemini_key() else 1)
+    cands = llm_rerank(cfg, cands, info["title"])
+    cands = video_verify(cfg, info["id"], cands)
+    picks = select_top(cands, cfg["queue"]["clips_per_episode"], cfg["clip"]["min_gap_s"])
+    wt = [w[0] for w in words]
+    for p in picks:
+        i0, i1 = bisect_left(wt, p["start"]), bisect_left(wt, p["end"] + 0.2)
+        p["words"] = list(words[i0:i1])
+    polish_captions(cfg, picks, info["title"])
+    return picks
+
+
+def probe_download(cfg, vid, pick):
+    """Plan -> verify: prove a 3 s section of this episode can really be downloaded BEFORE queueing it."""
+    try:
+        raw = download_section(cfg, vid, pick["start"], pick["start"] + 3.0, f"probe_{vid}")
+        Path(raw).unlink(missing_ok=True)
+        return True
+    except Exception as ex:
+        log.warning("download probe failed for %s: %s", vid, str(ex)[:200])
+        return False
+
+
+def produce(cfg, dry_run=False):
+    """Pick an episode, analyse it, verify it is downloadable, queue its clips. If an episode turns out
+    unusable, adapt: record why and move on to the next one (up to max_episode_attempts)."""
+    state = load_state()
+    for attempt in range(cfg["discovery"].get("max_episode_attempts", 3)):
+        ch, info = pick_episode(cfg, state)
+        if not info:
+            gha("warning", "No suitable episode found (all scanned videos filtered, or YouTube blocked).")
+            jr(state, "no_episode", attempt=attempt)
+            if not dry_run:
+                save_state(state)
+            return 0
+        log.info("episode: %s | %s (%ds, %s views)", ch["name"], info["title"], info["duration"],
+                 info.get("view_count"))
+        picks = analyse_episode(cfg, ch, info)
+        for p in picks:
+            log.info("pick %s-%s final=%.3f heat=%.2f hook=%.2f llm=%s vid=%s | %s", hms(p["start"]),
+                     hms(p["end"]), p["final"], p["heat"], p["hook"], p.get("llm"), p.get("vid"),
+                     p["text"][:90])
+        if dry_run:
+            return len(picks)
+        meta = {"channel": ch["name"], "title": info["title"], "url": info["webpage_url"],
+                "views": info.get("view_count"), "processed_at": now_iso()}
+        if not picks:
+            state["episodes"][info["id"]] = {**meta, "clips": 0, "note": "no usable clips"}
+            jr(state, "episode_skipped", video=info["id"], reason="no usable clips")
+            save_state(state)
+            continue
+        if not probe_download(cfg, info["id"], picks[0]):
+            retry = (now_utc() + timedelta(hours=12)).isoformat(timespec="seconds")
+            state["episodes"][info["id"]] = {**meta, "clips": 0, "note": "download probe failed",
+                                             "retry_after": retry}
+            jr(state, "episode_skipped", video=info["id"], reason="download probe failed; retry in 12h")
+            save_state(state)
+            continue
+        for p in picks:
+            state["clips"].append({
+                "id": state["next_id"], "video_id": info["id"], "channel": ch["name"],
+                "start": round(p["start"], 2), "end": round(p["end"], 2), "score": round(p["final"], 4),
+                "features": {k: round(p[k], 3) for k in ("heat", "hook", "density") if k in p}
+                            | {k: round(p[k], 3) for k in ("llm", "vid") if k in p},
+                "title": p.get("title", ""), "caption": make_caption(cfg, ch, info, p),
+                "polished": bool(p.get("polished")),
+                "words": [[round(t, 2), w] for t, w in p["words"]],
+                "status": "queued", "attempts": 0, "created_at": now_iso()})
+            state["next_id"] += 1
+        state["episodes"][info["id"]] = {**meta, "clips": len(picks)}
+        jr(state, "episode_queued", video=info["id"], channel=ch["name"], clips=len(picks))
+        save_state(state)
+        log.info("queued %d clips", len(picks))
+        return len(picks)
+    return 0
+
+
+def queued(state):
+    return [c for c in state["clips"] if c["status"] == "queued"]
+
+
+# =============================================================================
+# 4. RENDER (happens at post time)
+# =============================================================================
+def ass_time(t):
+    t = max(t, 0)
+    return f"{int(t // 3600)}:{int(t % 3600 // 60):02d}:{t % 60:05.2f}"
+
+
+def group_words(ws, max_words=4, max_gap=0.7):
+    """[(t, word)] -> caption groups. Breaks at sentence punctuation, pauses and every max_words."""
+    groups, cur = [], []
+    for t, w in ws:
+        if cur and t - cur[-1][0] > max_gap:
+            groups.append(cur)
+            cur = []
+        cur.append((t, w))
+        if len(cur) >= max_words or w[-1:] in ".?!\u0964":
+            groups.append(cur)
+            cur = []
+    if cur:
+        groups.append(cur)
+    return groups
+
+
+def clean_cap(w):
+    return w.replace("{", "").replace("}", "").replace("\\", "").replace("\n", " ").upper()
+
+
+def build_ass(words, start, end, title, path):
+    """Title on top + word-by-word highlighted captions (the spoken word is yellow)."""
+    ws = [(t - start, w) for t, w in words if start - 0.05 <= t < end]
+    head = (
+        "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n"
+        "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+        "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, "
+        "Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        "Style: Default,Noto Sans,68,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,1,0,0,0,100,100,"
+        "0,0,1,6,2,2,60,60,420,1\n"
+        "Style: Title,Noto Sans,64,&H0000E5FF,&H000000FF,&H00000000,&H64000000,1,0,0,0,100,100,"
+        "0,0,1,6,2,8,70,70,360,1\n\n"
+        "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
+    lines = []
+    if title:
+        wrapped = "\\N".join(textwrap.wrap(clean_cap(title), 22)[:3])
+        lines.append(f"Dialogue: 1,{ass_time(0)},{ass_time(end - start)},Title,,0,0,0,,{wrapped}")
+    groups = group_words(ws)
+    for gi, g in enumerate(groups):
+        next_start = groups[gi + 1][0][0] if gi + 1 < len(groups) else None
+        for i, (t, w) in enumerate(g):
+            if i + 1 < len(g):
+                en = min(g[i + 1][0], t + 1.0)
+            else:
+                en = t + min(0.9, max(0.4, 0.07 * len(w) + 0.25))
+                if next_start is not None:
+                    en = min(en, next_start)
+            en = max(en, t + 0.08)
+            text = " ".join(
+                f"{{\\c&H00E5FF&}}{clean_cap(x)}{{\\c&HFFFFFF&}}" if j == i else clean_cap(x)
+                for j, (_, x) in enumerate(g))
+            lines.append(f"Dialogue: 0,{ass_time(t)},{ass_time(en)},Default,,0,0,0,,{text}")
+    Path(path).write_text(head + "\n".join(lines) + "\n", encoding="utf-8")
+
+
+def source_url(video_id):
+    """Where to cut from. CLIPPER_SOURCE_URL (a local file) is a test hook, never set in production."""
+    return os.environ.get("CLIPPER_SOURCE_URL") or f"https://www.youtube.com/watch?v={video_id}"
+
+
+def probe_media(path):
+    r = subprocess.run(["ffprobe", "-v", "error", "-print_format", "json", "-show_streams",
+                        "-show_format", str(path)], capture_output=True, text=True)
+    if r.returncode:
+        raise RuntimeError("ffprobe failed: " + r.stderr[-200:])
+    j = json.loads(r.stdout)
+    v = [s for s in j["streams"] if s["codec_type"] == "video"]
+    a = [s for s in j["streams"] if s["codec_type"] == "audio"]
+    return {"duration": float(j["format"].get("duration") or 0),
+            "w": v[0]["width"] if v else 0, "h": v[0]["height"] if v else 0,
+            "has_video": bool(v), "has_audio": bool(a)}
+
+
+DL_FORMAT = "bv*[height<=1080]+ba/b[height<=1080]"
+DL_STRATEGIES = [                                  # tried in order; the last one that worked goes first
+    ("default", None, DL_FORMAT),
+    ("tv-client", {"youtube": {"player_client": ["tv"]}}, DL_FORMAT),
+    ("ios-client", {"youtube": {"player_client": ["ios"]}}, DL_FORMAT),
+    ("mweb-client", {"youtube": {"player_client": ["mweb"]}}, DL_FORMAT),
+    ("any-format", None, "b"),
+]
+_STRATEGY_CACHE = {}
+
+
+def download_section(cfg, vid, s, e, stem):
+    """Fetch ONLY [s, e]. Walks a ladder of yt-dlp strategies; every result is verified with ffprobe."""
+    WORK.mkdir(exist_ok=True)
+    src = source_url(vid)
+    local = Path(src.removeprefix("file://")) if (src.startswith("file://") or Path(src).exists()) else None
+    if local:                                       # test hook: cut a local file with ffmpeg
+        out = WORK / f"{stem}_raw.mp4"
+        subprocess.run(["ffmpeg", "-y", "-ss", f"{s:.3f}", "-i", str(local), "-t", f"{e - s:.3f}",
+                        "-c:v", "libx264", "-c:a", "aac", str(out)],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return out
+
+    last = None
+    for name, extractor_args, fmt in sorted(DL_STRATEGIES, key=lambda x: x[0] != _STRATEGY_CACHE.get("ok")):
+        for old in WORK.glob(f"{stem}_raw*"):
+            old.unlink()
+        opts = ydl_opts(cfg, format=fmt, merge_output_format="mp4",
+                        outtmpl=str(WORK / f"{stem}_raw.%(ext)s"),
+                        download_ranges=download_range_func(None, [(s, e)]),
+                        force_keyframes_at_cuts=True)
+        if extractor_args:
+            opts["extractor_args"] = extractor_args
+        try:
+            with yt_dlp.YoutubeDL(opts) as y:
+                y.download([src])
+            raws = sorted(WORK.glob(f"{stem}_raw*"), key=lambda p: p.stat().st_mtime)
+            if not raws:
+                raise RuntimeError("section download produced no file")
+            m = probe_media(raws[-1])
+            want = e - s
+            if not (m["has_video"] and m["has_audio"]):
+                raise RuntimeError(f"download missing a stream: {m}")
+            if not (want - 2.0 <= m["duration"] <= want + 4.0):
+                raise RuntimeError(f"section length {m['duration']:.1f}s, expected ~{want:.1f}s")
+            if _STRATEGY_CACHE.get("ok") != name:
+                log.info("download strategy that works: %s", name)
+            _STRATEGY_CACHE["ok"] = name
+            return raws[-1]
+        except Exception as ex:
+            last = ex
+            log.warning("download strategy %s failed: %s", name, str(ex)[:200])
+    raise RuntimeError(f"could not download section (tried {len(DL_STRATEGIES)} strategies): {last}")
+
+
+def compose_clip(cfg, raw, clip, s, e, stem):
+    """1080x1920, blurred background, title + captions, loudness-normalised."""
+    # Keep the source legible while reducing the tiny-landscape-in-a-vertical-canvas
+    # effect. The foreground is enlarged modestly and centered over a blurred fill.
+    # This is not face tracking; for off-centre speakers, use a vertical source or
+    # manually adjust the source before publishing.
+    fg_scale = float(cfg.get("render", {}).get("foreground_scale", 1.16))
+    fg_scale = min(max(fg_scale, 1.0), 1.35)
+    fg_width = int(1080 * fg_scale)
+    fc = ("[0:v]split=2[a][b];"
+          "[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
+          "boxblur=8:3,scale=1080:1920,eq=brightness=-0.08[bg];"
+          f"[b]scale={fg_width}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2[v0]")
+    if cfg["clip"]["captions"] and (clip.get("words") or clip.get("title")):
+        build_ass(clip.get("words") or [], s, e, clip.get("title"), WORK / f"{stem}.ass")
+        fc += f";[v0]subtitles={stem}.ass[v]"
+    else:
+        fc += ";[v0]null[v]"
+    out = WORK / f"{stem}.mp4"
+    cmd = ["ffmpeg", "-y", "-i", Path(raw).name, "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0",
+           "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:v", "libx264", "-preset", "veryfast",
+           "-crf", "20", "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-b:a", "160k",
+           "-ar", "44100", "-movflags", "+faststart", "-t", f"{e - s:.2f}", out.name]
+    r = subprocess.run(cmd, cwd=WORK, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if r.returncode:
+        raise RuntimeError("ffmpeg failed: " + r.stderr.decode(errors="ignore")[-400:])
+    m = probe_media(out)
+    if (m["w"], m["h"]) != (1080, 1920) or not m["has_audio"]:
+        raise RuntimeError(f"bad output {m}")
+    if not (3 <= m["duration"] <= 90) or abs(m["duration"] - (e - s)) > 1.0:
+        raise RuntimeError(f"output duration {m['duration']:.1f}s, expected ~{e - s:.1f}s")
+    if out.stat().st_size > 250 * 1024 * 1024:
+        raise RuntimeError("output larger than 250 MB")
+    return out
+
+
+def render_clip(cfg, clip):
+    """Download only [start,end], then compose the vertical clip. Raises on any bad result."""
+    vid, s, e = clip["video_id"], clip["start"], clip["end"] + 0.15
+    stem = f"{vid}_{int(s)}"
+    WORK.mkdir(exist_ok=True)
+    for old in WORK.glob(f"{stem}*"):
+        old.unlink()
+    raw = download_section(cfg, vid, s, e, stem)
+    out = compose_clip(cfg, raw, clip, s, e, stem)
+    Path(raw).unlink(missing_ok=True)
+    (WORK / f"{stem}.ass").unlink(missing_ok=True)
+    return out
+
+
+# =============================================================================
+# 4b. QA AGENT: reviews the finished clip before anything is posted
+# =============================================================================
+def qa_checks(cfg, path):
+    """Deterministic checks with ffmpeg: mostly-black or mostly-silent clips never go out."""
+    q = cfg.get("qa", {})
+    dur = probe_media(path)["duration"] or 1.0
+    r = subprocess.run(["ffmpeg", "-v", "info", "-i", str(path), "-vf", "blackdetect=d=0.4:pix_th=0.08",
+                        "-af", "silencedetect=noise=-45dB:d=1.2", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    black = sum(float(x) for x in re.findall(r"black_duration:([\d.]+)", r.stderr))
+    silence = sum(float(x) for x in re.findall(r"silence_duration: ([\d.]+)", r.stderr))
+    issues = []
+    if black / dur * 100 > q.get("max_black_pct", 25):
+        issues.append(f"{black / dur:.0%} of the clip is black frames")
+    if silence / dur * 100 > q.get("max_silence_pct", 45):
+        issues.append(f"{silence / dur:.0%} of the clip is silent")
+    return {"black_pct": round(black / dur * 100, 1), "silence_pct": round(silence / dur * 100, 1),
+            "issues": issues}
+
+
+QA_PROMPT = (
+    "You are the final QA editor for an Instagram Reel cut from a podcast. Watch it WITH SOUND. Check: "
+    "(1) it starts and ends cleanly, not in the middle of a word or sentence; (2) a viewer with no prior context can understand the setup and payoff; (3) the first 1-3 seconds earn attention without misleading clickbait; (4) the burned-in captions "
+    "match what is said, are readable and in sync; (3) the yellow title on top fits the content; (4) the "
+    "audio is clear; (5) a stranger with no context would understand it and want to keep watching; "
+    "(6) nothing unsafe: hate, harassment, explicit content, dangerous misinformation, defamation of a "
+    'named person. Reply with ONLY JSON: {"approve":true,"score":0,"unsafe":false,"issues":[""]}. '
+    "approve=false only for serious problems. score is 0-10 overall quality.")
+
+
+def gemini_qa(cfg, path):
+    """Gemini watches a small preview of the FINAL rendered clip. Returns None if unavailable."""
+    if not (cfg["llm"].get("final_qa") and gemini_key()):
+        return None
+    prev = Path(path).with_name(Path(path).stem + "_preview.mp4")
+    try:
+        subprocess.run(["ffmpeg", "-y", "-i", str(path), "-vf", "scale=360:640", "-r", "12", "-c:v", "libx264",
+                        "-preset", "veryfast", "-crf", "33", "-c:a", "aac", "-b:a", "48k", "-ac", "1",
+                        "-t", "45", str(prev)], check=True, capture_output=True)
+        if prev.stat().st_size > 14 * 1024 * 1024:
+            return None
+        data = base64.b64encode(prev.read_bytes()).decode()
+        d = parse_json(gemini_text(cfg, [{"inlineData": {"mimeType": "video/mp4", "data": data}},
+                                         {"text": QA_PROMPT}]))
+        if isinstance(d, list) and d:
+            d = d[0]
+        approve = d.get("approve")
+        return {"approve": not (approve is False or (isinstance(approve, str) and approve.strip().lower() == "false")),
+                "score": _score(d.get("score"), 7.0), "unsafe": _truthy(d.get("unsafe")),
+                "issues": [str(x) for x in (d.get("issues") or []) if str(x).strip()][:5]}
+    except Exception as ex:
+        log.warning("Gemini QA unavailable, continuing without it: %s", str(ex)[:200])
+        return None
+    finally:
+        prev.unlink(missing_ok=True)
+
+
+def qa_review(cfg, path):
+    """-> {'verdict': pass | soft_fail | hard_fail, 'score', 'issues'}.
+    hard_fail = never post (technical problem or unsafe). soft_fail = Gemini disapproves."""
+    try:
+        chk = qa_checks(cfg, path)
+    except Exception as ex:
+        # Fail closed: if the technical gate itself failed, do not silently treat the
+        # render as approved. This prevents broken output from reaching the publisher.
+        log.warning("technical QA could not run: %s", ex)
+        return {"verdict": "hard_fail", "score": 0,
+                "issues": [f"technical QA could not complete: {str(ex)[:180]}"]}
+    if chk["issues"]:
+        return {"verdict": "hard_fail", "score": 0, "issues": chk["issues"]}
+    g = gemini_qa(cfg, path)
+    if g is None:
+        return {"verdict": "pass", "score": None, "issues": []}
+    if g["unsafe"]:
+        return {"verdict": "hard_fail", "score": g["score"], "issues": ["unsafe content"] + g["issues"]}
+    if not g["approve"]:
+        return {"verdict": "soft_fail", "score": g["score"], "issues": g["issues"]}
+    return {"verdict": "pass", "score": g["score"], "issues": g["issues"]}
+
+
+# =============================================================================
+# 5. PUBLISH (Instagram Graph API, resumable upload) + insights
+# =============================================================================
+def post_reel(cfg, video_path, caption):
+    ig_id, token = os.environ["IG_USER_ID"], os.environ["IG_ACCESS_TOKEN"]
+    g = graph(cfg)
+    r = requests.post(f"{g}/{ig_id}/media", data={
+        "media_type": "REELS", "upload_type": "resumable", "caption": caption,
+        "share_to_feed": "true", "access_token": token}, timeout=60)
+    if not r.ok:
+        raise RuntimeError(f"container create failed: {r.text[:300]}")
+    container = r.json()
+    data = Path(video_path).read_bytes()
+    u = requests.post(container["uri"], data=data, timeout=600, headers={
+        "Authorization": f"OAuth {token}", "offset": "0", "file_size": str(len(data))})
+    if not u.ok:
+        raise RuntimeError(f"upload failed: {u.text[:300]}")
+    for _ in range(72):
+        s = requests.get(f"{g}/{container['id']}", timeout=30, params={
+            "fields": "status_code,status", "access_token": token}).json()
+        if s.get("status_code") == "FINISHED":
+            break
+        if s.get("status_code") in ("ERROR", "EXPIRED"):
+            raise RuntimeError(f"Instagram processing failed: {s}")
+        time.sleep(5)
+    else:
+        raise TimeoutError("Instagram processing timed out")
+    p = requests.post(f"{g}/{ig_id}/media_publish", timeout=60, data={
+        "creation_id": container["id"], "access_token": token})
+    if not p.ok:
+        raise RuntimeError(f"publish failed: {p.text[:300]}")
+    return p.json()["id"]
+
+
+def due_slot(cfg, state, now=None):
+    """The posting slot that still needs a post -> (slot_datetime, seconds_until_slot), or None.
+    Looks `max_wait_min` ahead (the runner starts early and waits) and `catchup_hours` back, so a late,
+    skipped or failed GitHub cron run is healed by the next one. A post near a slot counts as that slot's post."""
+    tz = ZoneInfo(cfg["timezone"])
+    now = now or datetime.now(tz)
+    sch = cfg["schedule"]
+    wait_s, catch_s = sch["max_wait_min"] * 60, sch["catchup_hours"] * 3600
+    posted = [datetime.fromisoformat(c["posted_at"]) for c in state["clips"]
+              if c["status"] == "posted" and c.get("posted_at")]
+    due = []
+    for hhmm in cfg["post_times"]:
+        h, m = map(int, hhmm.split(":"))
+        for day in (-1, 0, 1):
+            slot = (now + timedelta(days=day)).replace(hour=h, minute=m, second=0, microsecond=0)
+            ahead = (slot - now).total_seconds()
+            if not -catch_s <= ahead <= wait_s:
+                continue
+            lo, hi = slot - timedelta(seconds=wait_s + 300), slot + timedelta(seconds=catch_s)
+            if any(lo <= p <= hi for p in posted):
+                continue
+            due.append((slot, ahead))
+    return min(due, key=lambda x: x[0]) if due else None
+
+
+def _fail(state, clip, ex, stage):
+    clip["attempts"] += 1
+    clip["error"] = f"{stage}: {str(ex)[:350]}"
+    if clip["attempts"] >= 3:
+        clip["status"] = "failed"
+    jr(state, "clip_failed", clip=clip["id"], stage=stage, error=clip["error"][:200])
+    save_state(state)
+    gha("error", f"Clip {clip['id']} failed at {stage} (attempt {clip['attempts']}): {clip['error']}")
+    log.error("clip %s failed at %s: %s", clip["id"], stage, ex)
+
+
+def _post_clip(cfg, state, clip, path):
+    try:
+        media_id = post_reel(cfg, path, clip["caption"])
+    except Exception as ex:
+        _fail(state, clip, ex, "instagram")
+        return False
+    clip.update(status="posted", media_id=media_id, posted_at=now_iso(), error=None)
+    clip.pop("words", None)                       # not needed any more, keeps the state file small
+    jr(state, "posted", clip=clip["id"], media=media_id, channel=clip["channel"],
+       qa=(clip.get("qa") or {}).get("verdict"))
+    save_state(state)
+    shutil.rmtree(WORK, ignore_errors=True)
+    log.info("posted clip %s -> media id %s", clip["id"], media_id)
+    return True
+
+
+def publish_next(cfg, wait=True, force=False):
+    """Post one clip for the slot that is due. For each candidate clip: render -> QA review -> post.
+    A clip that cannot be rendered/posted or fails QA falls through to the next one in the same slot."""
+    state = load_state()
+    slot = None
+    if not force:
+        slot = due_slot(cfg, state)
+        if slot is None:
+            log.info("no posting slot is due right now")
+            return True
+    q = queued(state)
+    if not q:
+        gha("warning", "Posting slot reached but the queue is empty.")
+        jr(state, "slot_missed", reason="queue empty")
+        save_state(state)
+        return False
+    if slot and wait and slot[1] > 0:
+        log.info("waiting %.0f s for the %s slot", slot[1], slot[0].strftime("%H:%M"))
+        time.sleep(slot[1])
+    if slot:
+        jr(state, "slot_due", slot=slot[0].isoformat(timespec="minutes"))
+
+    soft = []                                     # (score, clip, path) that Gemini disapproved
+    for clip in q[:3]:
+        log.info("candidate clip %d (%s %s-%s)", clip["id"], clip["channel"], hms(clip["start"]), hms(clip["end"]))
+        try:
+            path = render_clip(cfg, clip)
+        except Exception as ex:
+            _fail(state, clip, ex, "render")
+            continue
+        review = qa_review(cfg, path)
+        clip["qa"] = {"verdict": review["verdict"], "score": review["score"], "issues": review["issues"]}
+        if review["verdict"] == "hard_fail":
+            clip.update(status="rejected", error="QA: " + "; ".join(review["issues"])[:300])
+            jr(state, "clip_rejected", clip=clip["id"], issues=review["issues"])
+            save_state(state)
+            gha("warning", f"Clip {clip['id']} rejected by QA: {review['issues']}")
+            continue
+        if review["verdict"] == "soft_fail":
+            soft.append((review["score"] or 0, clip, path))
+            continue
+        if _post_clip(cfg, state, clip, path):
+            for _, c, _ in soft:
+                c.update(status="rejected", error="QA: " + "; ".join(c["qa"]["issues"])[:300])
+            save_state(state)
+            return True
+
+    if soft:                                      # nothing passed cleanly: best of the disapproved, if decent
+        soft.sort(key=lambda x: -x[0])
+        score, clip, path = soft[0]
+        if score >= 5:
+            log.warning("no clip passed QA cleanly - posting the best one (QA score %.1f)", score)
+            jr(state, "qa_fallback_post", clip=clip["id"], score=score)
+            if _post_clip(cfg, state, clip, path):
+                for _, c, _ in soft[1:]:
+                    c.update(status="rejected", error="QA: " + "; ".join(c["qa"]["issues"])[:300])
+                save_state(state)
+                return True
+        for _, c, _ in soft:
+            if c["status"] == "queued":
+                c.update(status="rejected", error="QA: " + "; ".join(c["qa"]["issues"])[:300])
+    jr(state, "slot_missed", reason="no clip could be posted")
+    save_state(state)
+    return False
+
+
+def fetch_metrics(cfg, media_id):
+    token, g, out = os.environ["IG_ACCESS_TOKEN"], graph(cfg), {}
+    for m in ("views", "reach", "likes", "comments", "shares", "saved",
+              "ig_reels_avg_watch_time"):
+        try:
+            r = requests.get(f"{g}/{media_id}/insights", timeout=30,
+                             params={"metric": m, "access_token": token})
+            if r.ok:
+                out[m] = r.json()["data"][0]["values"][0]["value"]
+        except Exception:
+            pass
+    return out
+
+
+def update_metrics(cfg):
+    state, changed, n = load_state(), False, 0
+    for c in state["clips"]:
+        if c["status"] != "posted" or not c.get("media_id") or n >= 10:
+            continue
+        age_h = (now_utc() - datetime.fromisoformat(c["posted_at"])).total_seconds() / 3600
+        if not 24 <= age_h <= 24 * 10:
+            continue
+        if c.get("metrics_at") and (now_utc() - datetime.fromisoformat(c["metrics_at"])
+                                    ).total_seconds() < 20 * 3600:
+            continue
+        m = fetch_metrics(cfg, c["media_id"])
+        n += 1
+        if m:
+            c["metrics"], c["metrics_at"], changed = m, now_iso(), True
+    if changed:
+        save_state(state)
+    return changed
+
+
+# =============================================================================
+# 6. ORCHESTRATION, STATUS, CHECK
+# =============================================================================
+def tick(cfg, force=False):
+    ok = True
+    if not queued(load_state()):
+        try:
+            produce(cfg)                          # nothing to post yet: analyse first
+        except Exception:
+            log.exception("initial produce failed")
+    if not publish_next(cfg, wait=True, force=force):
+        ok = False
+    if len(queued(load_state())) < cfg["queue"]["refill_when_below"]:
+        log.info("queue is low -> finding the next episode")
+        try:
+            produce(cfg)
+        except Exception:
+            log.exception("refill failed")
+    try:
+        update_metrics(cfg)
+    except Exception:
+        log.exception("metrics update failed")
+    write_summary()
+    return ok
+
+
+def status_table(limit=15):
+    state = load_state()
+    rows = ["| id | status | channel | window | views | reach | saves | shares |",
+            "|---:|---|---|---|---:|---:|---:|---:|"]
+    for c in state["clips"][-limit:][::-1]:
+        m = c.get("metrics") or {}
+        rows.append(f"| {c['id']} | {c['status']} | {c['channel']} | "
+                    f"{hms(c['start'])}-{hms(c['end'])} | {views_of(c) or ''} | "
+                    f"{m.get('reach', '')} | {m.get('saved', '')} | {m.get('shares', '')} |")
+    q = len(queued(state))
+    total = sum(views_of(c) or 0 for c in state["clips"])
+    jl = [f"- `{j['t'][5:16]}` **{j['event']}** " + ", ".join(f"{k}={v}" for k, v in j.items()
+                                                           if k not in ("t", "event"))[:160]
+          for j in state.get("journal", [])[-8:]]
+    return (f"**Queue:** {q} waiting · **Total views tracked:** {total}\n\n" + "\n".join(rows)
+            + ("\n\n**Agent journal (latest)**\n" + "\n".join(jl) if jl else ""))
+
+
+def write_summary():
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if path:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write("## Podcast clipper\n" + status_table() + "\n")
+
+
+def check(cfg, live=False):
+    ok = True
+
+    def line(good, text, required=True):
+        nonlocal ok
+        print(("OK   " if good else ("FAIL " if required else "info ")) + text)
+        if required:
+            ok &= bool(good)
+
+    line(shutil.which("ffmpeg"), "ffmpeg")
+    line(shutil.which("ffprobe"), "ffprobe")
+    for var in ("IG_USER_ID", "IG_ACCESS_TOKEN"):
+        line(os.environ.get(var), f"env {var}")
+    n = len([c for c in cfg["channels"] if c.get("permission")])
+    line(n, f"{n} channel(s) with permission: true")
+    if os.environ.get("IG_USER_ID") and os.environ.get("IG_ACCESS_TOKEN"):
+        r = requests.get(f"{graph(cfg)}/{os.environ['IG_USER_ID']}", timeout=30, params={
+            "fields": "username", "access_token": os.environ["IG_ACCESS_TOKEN"]})
+        line(r.ok, ("Instagram account: " + r.json().get("username", "?")) if r.ok
+             else "Instagram token: " + r.text[:200])
+    if gemini_key():
+        try:
+            txt = gemini_text(cfg, [{"text": 'Reply with exactly this JSON: {"ok": true}'}])
+            line(parse_json(txt).get("ok") is True, f"Gemini works (model {_MODEL_CACHE.get('model')})")
+        except Exception as ex:
+            line(False, f"Gemini: {ex}", required=False)
+    else:
+        line(False, "GEMINI_API_KEY not set (optional: heuristics-only mode)", required=False)
+    if live:                                        # real network probes (what unit tests cannot cover)
+        vid = cfg.get("check_video_id", "aqz-KE-bpKQ")     # Blender's open-licensed "Big Buck Bunny"
+        try:
+            info = full_info(cfg, vid)
+            line(True, f"YouTube video info works: {info['title'][:50]!r} ({info['duration']}s)")
+            line(info.get("heatmap"), "Most-Replayed heatmap present", required=False)
+            s0 = float(min(30, info["duration"] * 0.3))
+            clip = {"video_id": vid, "start": s0, "end": s0 + 8, "title": "Self check",
+                    "words": [[s0 + i * 0.5, f"test{i}"] for i in range(14)]}
+            t0 = time.time()
+            out = render_clip(cfg, clip)
+            m = probe_media(out)
+            qa = qa_checks(cfg, out)
+            line(not qa["issues"], f"technical QA: black {qa['black_pct']}% silent {qa['silence_pct']}% "
+                                   f"{qa['issues'] or ''}", required=False)
+            g = gemini_qa(cfg, out)
+            if g is not None:
+                line(g["approve"], f"Gemini watched the final clip: score {g['score']}, {g['issues'] or 'no issues'}",
+                     required=False)
+            line(m["h"] == 1920 and m["has_audio"],
+                 f"REAL section download + 9:16 render works ({m['w']}x{m['h']}, {m['duration']:.1f}s, "
+                 f"took {time.time() - t0:.0f}s)")
+            shutil.rmtree(WORK, ignore_errors=True)
+        except Exception as ex:
+            line(False, "YouTube download path FAILED (datacenter IP blocked? add YT_COOKIES / YT_PROXY "
+                        f"or use a self-hosted runner): {str(ex)[:300]}")
+        permitted = [c for c in cfg["channels"] if c.get("permission")]
+        if permitted:
+            try:
+                entries = list_recent(cfg, permitted[0]["handle"], 3)
+                line(entries, f"channel listing works ({permitted[0]['name']}: {len(entries)} videos)")
+            except Exception as ex:
+                line(False, f"channel listing failed: {str(ex)[:200]}")
+    return ok
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+    ap.add_argument("command", choices=["tick", "produce", "publish", "metrics", "status", "check"])
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--force", action="store_true", help="post now, skip slot wait + duplicate guard")
+    ap.add_argument("--live", action="store_true", help="check: also probe YouTube for real")
+    ap.add_argument("--config")
+    args = ap.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
+                        handlers=[logging.StreamHandler(sys.stdout)])
+    cfg = load_config(args.config)
+    ok = True
+    if args.command == "tick":
+        ok = tick(cfg, force=args.force)
+    elif args.command == "produce":
+        produce(cfg, dry_run=args.dry_run)
+    elif args.command == "publish":
+        ok = publish_next(cfg, wait=not args.force, force=args.force)
+    elif args.command == "metrics":
+        update_metrics(cfg)
+    elif args.command == "status":
+        print(status_table(30))
+    else:
+        ok = check(cfg, live=args.live)
+    sys.exit(0 if ok else 1)
+
+
+if __name__ == "__main__":
+    main()

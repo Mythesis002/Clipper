@@ -1,0 +1,72 @@
+# Podcast clipper (GitHub Actions + Gemini)
+
+Automates an authorized podcast-to-Reels workflow: candidate discovery, transcript/heatmap scoring,
+Gemini ranking, vertical rendering, technical QA, Instagram publishing and performance tracking.
+It can help find promising clips; it cannot guarantee virality or predict views reliably. Treat scores
+as ranking signals and review initial outputs before enabling unattended publishing.
+
+The current renderer uses a blurred vertical background plus a modestly enlarged centered foreground.
+It does not do true face tracking, dynamic reaction cuts, or automatic B-roll selection. Off-centre
+speakers and two-person podcasts still need review.
+
+## Put it on GitHub and prove it works (15 minutes)
+1. Create a repo, commit every file in this folder (including the hidden `.github` folder), push.
+2. Settings -> Secrets and variables -> Actions -> New repository secret:
+   | Secret | Needed | What |
+   |---|---|---|
+   | `IG_USER_ID`, `IG_ACCESS_TOKEN` | yes | Instagram Business/Creator account; use a long-lived *Page* token |
+   | `GEMINI_API_KEY` | recommended | Google AI Studio key |
+   | `YT_COOKIES` | if YouTube blocks | contents of a Netscape cookies.txt from a throw-away Google account |
+   | `YT_PROXY` | if YouTube blocks | e.g. `http://user:pass@host:port` (residential) |
+3. Settings -> Actions -> General -> Workflow permissions -> **Read and write**.
+4. In `config.yaml` set `permission: true` ONLY for creators whose content you are authorized to republish. Do not enable the example channels without permission/licensing. For best reliability, test using your own or explicitly licensed source videos first.
+5. Actions -> **podcast-clipper** -> Run workflow, in this order:
+   1. **check-live** - the real self-test. It checks ffmpeg, your Instagram token, Gemini, then downloads a
+      real 8-second section of an open-licensed video from YouTube on GitHub's machine and renders it to
+      1080x1920. Nothing is posted. Every line must say OK.
+   2. **produce** with *dry_run* ticked - analyses a real episode and prints the 3 chosen clips in the log.
+   3. **tick** with *force* ticked - renders and posts ONE real Reel now. Check Instagram.
+6. After that the cron schedules run by themselves (05:50 / 17:50 IST start and wait for the exact slot; 07:50 / 19:50 IST are catch-up runs).
+   A manual `tick` without *force* does nothing unless a slot is due; a forced post counts as the nearest slot's post.
+
+## If check-live says the YouTube download FAILED
+GitHub's servers use datacenter IPs and YouTube often answers yt-dlp with "Sign in to confirm you're not a
+bot". The workflow already starts a PO-token provider. Next steps, easiest first: (1) add `YT_COOKIES`,
+(2) add `YT_PROXY`, (3) use a self-hosted runner (your PC / a VPS) by changing `runs-on` to `self-hosted`.
+
+## How it works (an agent loop, not a script)
+**Plan -> verify -> adapt**, with a fallback at every step:
+1. **Choose** - Most-Replayed heatmap + transcript phrase boundaries + a conservative opening heuristic; Gemini (text) judges up to 20 distinct moments with alternate framings; Gemini (video) can review top candidates. Heuristics alone still work if Gemini is down, but selection quality is lower.
+2. **Captions** - Gemini fixes mis-heard words, names and punctuation (a safety guard discards rewrites that change meaning); captions are burned in word-by-word with the spoken word highlighted, plus an on-screen title.
+3. **Verify before queueing** - a 3-second test download proves the episode is really downloadable. If not, the agent records why, schedules a retry in 12 h and moves to the next episode.
+4. **Download ladder** - if YouTube rejects one yt-dlp client it automatically tries the others (default, tv, ios, mweb, any-format) and remembers which one works.
+5. **QA before posting** - ffmpeg rejects mostly-black / mostly-silent clips; Gemini can review the *finished* clip. If technical QA itself fails, the clip is now rejected rather than silently passing. AI review is fallible, so inspect initial renders yourself.
+6. **Slot catch-up** - four cron runs a day (two primary, two backup). If GitHub drops or delays a run, the next one posts the missed slot (up to 6 h late) and never posts a slot twice.
+7. **Buffer** - the queue always holds at least one episode ahead (`refill_when_below: 3`), so a YouTube outage does not miss a post.
+8. **Learning** - Instagram insights steer which channels are scanned first. Every decision is written to a journal shown in each run's summary.
+
+Posting is still not *guaranteed*: if YouTube blocks every download strategy for days, or Instagram revokes your token, the run fails loudly (red X + email from GitHub) instead of silently.
+
+## Files
+`podcast_clipper.py` the pipeline - `config.yaml` all settings - `.github/workflows/clipper.yml` schedule and manual runs -
+`state/state.json` queue and results (created and committed by the workflow).
+
+## Honest money maths
+Instagram does not pay accounts for reposted/unoriginal content. Income must come from elsewhere (clipping
+campaigns that pay per 1,000 views, affiliate links, your own product, brand deals). At about $1 per 1,000
+views, $1,000/month needs about 1,000,000 views/month (roughly 17,000 per post at 2 posts/day).
+
+## Creator quality checklist
+
+Before switching from test mode to unattended posting, review at least 10 rendered clips and check:
+- The first 1-3 seconds communicate a clear idea and do not depend on prior context.
+- The segment includes its setup and payoff; the cut does not truncate a word or key answer.
+- The speaker's face is large enough and not cut off; this renderer uses a centered crop/zoom, not face tracking.
+- Captions are accurate, synchronized, readable on a phone, and do not cover the speaker's mouth.
+- The title is specific and truthful, not a promise the clip fails to deliver.
+- Audio is clear and balanced; there are no black frames, long silences, or abrupt endings.
+- Rights/permission and platform eligibility have been confirmed.
+
+## How to improve using analytics
+
+Compare posts at similar ages (for example, 24 hours and 7 days). Review reach, average watch time, completion/retention where available, shares, saves and follows. Do not compare raw views of posts with very different ages or source audiences. Test one major variable at a time (hook style, crop, caption density, or duration), and keep a record of the result.
