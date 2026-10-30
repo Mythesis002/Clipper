@@ -64,6 +64,19 @@ jobs:
       - name: Regression tests
         run: python -m unittest discover -s tests -v
 
+      - name: Optional pyannote speaker diarization dependency
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          DIARIZATION_ENABLED: ${{ vars.ENABLE_DIARIZATION }}
+        run: |
+          if [ "$DIARIZATION_ENABLED" = "true" ] && [ -n "$HF_TOKEN" ]; then
+            python -m pip install -r requirements-diarization.txt
+          elif [ "$DIARIZATION_ENABLED" = "true" ]; then
+            echo "::warning::ENABLE_DIARIZATION is true but HF_TOKEN is missing; speaker diarization will be skipped."
+          else
+            echo "Speaker diarization is disabled; keeping the lightweight base environment."
+          fi
+
       - name: PO-token provider for yt-dlp (helps on datacenter IPs; non-fatal if it fails)
         continue-on-error: true
         run: docker run -d --name pot -p 4416:4416 brainicism/bgutil-ytdlp-pot-provider
@@ -88,6 +101,7 @@ jobs:
           FORCE: ${{ inputs.force }}
           CLIP_ID: ${{ inputs.clip_id }}
           MEDIA_ID: ${{ inputs.media_id }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           ARGS=""
           [ "$DRY" = "true" ] && ARGS="$ARGS --dry-run"
