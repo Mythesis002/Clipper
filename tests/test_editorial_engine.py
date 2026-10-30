@@ -153,26 +153,26 @@ class EditorialEngineTests(unittest.TestCase):
             source = work / "source.mp4"
             made = subprocess.run(
                 ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-                 "-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=24:duration=2",
-                 "-f", "lavfi", "-i", "sine=frequency=440:duration=2",
+                 "-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=24:duration=4",
+                 "-f", "lavfi", "-i", "sine=frequency=440:duration=4",
                  "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(source)],
                 capture_output=True, text=True, timeout=45,
             )
             self.assertEqual(made.returncode, 0, made.stderr)
             clip = {"words": [], "title": None}
-            track = {"points": [(0.0, 250), (0.8, 650), (1.6, 400)], "max_x": 2200}
+            track = {"points": [(0.0, 250), (1.8, 650), (3.6, 400)], "max_x": 2200}
             with patch("podcast_clipper.WORK", work), patch(
                 "podcast_clipper.detect_face_crop_points", return_value=track
             ):
                 output = compose_clip(
                     {"render": {"face_reframe": True, "foreground_scale": 1.16},
                      "clip": {"captions": False}},
-                    source, clip, 0.0, 1.8, "full-render-test",
+                    source, clip, 0.0, 3.8, "full-render-test",
                 )
             media = probe_media(output)
             self.assertEqual((media["w"], media["h"]), (1080, 1920))
             self.assertTrue(media["has_audio"])
-            self.assertAlmostEqual(media["duration"], 1.8, delta=0.5)
+            self.assertAlmostEqual(media["duration"], 3.8, delta=0.5)
 
 if __name__ == "__main__":
     unittest.main()
