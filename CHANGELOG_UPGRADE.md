@@ -60,3 +60,13 @@ This is not yet a full professional NLE/AI editor: it has no continuous active-s
 ### Important boundaries
 
 The current face track follows a visible face position; it does not identify people or conclusively match a diarized voice to a face. The diarization output is used as conservative layout evidence, not as a multi-camera edit decision. No universal view or retention benchmark is hard-coded as a prediction of virality.
+
+
+
+## Gemini API model pinning and timeout reliability
+
+- Pinned Gemini requests to `gemini-2.5-flash`; the runtime no longer falls through to other model IDs or auto-discovers a different Flash model.
+- Added startup validation so a different `llm.model` is caught before the pipeline runs.
+- Added bounded retries for connection/read timeouts and transient HTTP 408/429/5xx responses.
+- Uses shorter read timeouts for text requests and a longer allowance for video inputs; retries stay on the same model.
+- Added regression coverage for model pinning, disabled model discovery, and timeout retry behavior.
