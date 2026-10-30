@@ -212,13 +212,13 @@ class PipelineQualityTests(unittest.TestCase):
 
 
     def test_env_value_strips_secret_whitespace(self):
-        with patch.dict("os.environ", {"CLIPPER_TEST_SECRET": "  secret-value\\r\\n"}):
+        with patch.dict("os.environ", {"CLIPPER_TEST_SECRET": "  secret-value\r\n"}):
             self.assertEqual(clipper.env_value("CLIPPER_TEST_SECRET"), "secret-value")
 
     def test_gemini_key_ignores_whitespace_primary_and_uses_trimmed_fallback(self):
         with patch.dict("os.environ", {
-            "GEMINI_API_KEY": "  \\n",
-            "GOOGLE_API_KEY": "  fallback-key\\r\\n",
+            "GEMINI_API_KEY": "  \n",
+            "GOOGLE_API_KEY": "  fallback-key\r\n",
         }, clear=True):
             self.assertEqual(clipper.gemini_key(), "fallback-key")
 
