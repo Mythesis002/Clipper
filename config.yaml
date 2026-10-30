@@ -21,6 +21,10 @@ render:
   foreground_scale: 1.16              # used by the safe full-frame fallback layout
   face_reframe: true                  # full-height 9:16 crop only when one face is detected consistently
 
+diarization:
+  enabled: false                      # opt in: requires HF_TOKEN and pyannote Community-1 access approval
+  model: pyannote/speaker-diarization-community-1
+
 discovery:
   scan_latest: 10                     # latest uploads checked per channel
   min_duration_min: 20
@@ -37,7 +41,9 @@ qa:
   ai_unavailable: manual_review      # never auto-publish if the final AI review is unavailable
 
 learning:
-  explore_rate: 0.25                  # 25% of the time pick channels round-robin, otherwise by avg views
+  explore_rate: 0.25                  # keep exploring while testing source formats
+  min_channel_samples: 3              # require this many mature Reels before ranking a channel by quality
+  min_format_samples: 4               # require this many posts before learning a hook/duration prior
 
 llm:                                  # Gemini (set the GEMINI_API_KEY secret)
   enabled: true

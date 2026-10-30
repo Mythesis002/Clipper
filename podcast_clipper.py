@@ -14,6 +14,10 @@ Commands
   status    show queue + results
   check     verify tokens / tools / YouTube access / Gemini
 
+Optional:
+  set diarization.enabled=true, HF_TOKEN, and accept the model terms to use
+  pyannote Community-1 speaker diarization on rendered clip audio.
+
 Only process channels you have permission to clip (see config.yaml).
 """
 
@@ -40,6 +44,11 @@ import requests
 import yaml
 import yt_dlp
 from yt_dlp.utils import download_range_func
+
+from editorial_engine import (
+    apply_format_priors, editorial_signals, enrich_candidates_with_context,
+    format_priors, performance_quality, speaker_summary,
+)
 
 BASE = Path(__file__).resolve().parent
 WORK = BASE / "work"
@@ -69,6 +78,13 @@ def load_config(path=None):
             raise ValueError(f"config.yaml section {key!r} must be a mapping")
     if "qa" in cfg and not isinstance(cfg["qa"], dict):
         raise ValueError("config.yaml section 'qa' must be a mapping")
+    if "diarization" in cfg:
+        if not isinstance(cfg["diarization"], dict):
+            raise ValueError("config.yaml section 'diarization' must be a mapping")
+        if type(cfg["diarization"].get("enabled", False)) is not bool:
+            raise ValueError("diarization.enabled must be true or false")
+        if cfg["diarization"].get("model", "pyannote/speaker-diarization-community-1") != "pyannote/speaker-diarization-community-1":
+            raise ValueError("only pyannote/speaker-diarization-community-1 is currently supported")
 
     try:
         min_s, max_s = int(cfg["clip"]["min_s"]), int(cfg["clip"]["max_s"])
@@ -120,6 +136,9 @@ def load_config(path=None):
     explore = float(cfg["learning"].get("explore_rate", -1))
     if not 0 <= explore <= 1:
         raise ValueError("learning.explore_rate must be between 0 and 1")
+    for key, default in (("min_channel_samples", 3), ("min_format_samples", 4)):
+        if int(cfg["learning"].get(key, default)) < 1:
+            raise ValueError(f"learning.{key} must be a positive integer")
 
     qa = cfg.get("qa", {})
     for key in ("max_black_pct", "max_silence_pct"):
@@ -210,13 +229,36 @@ def full_info(cfg, video_id):
 
 
 def channel_stats(state):
-    """channel -> {'n': reels with metrics, 'avg_views': mean views}"""
+    """Bayesian-shrunk per-channel performance score plus view count for diagnostics."""
     acc = {}
     for c in state["clips"]:
+        if c.get("status") != "posted":
+            continue
         v = views_of(c)
-        if c["status"] == "posted" and v is not None:
-            acc.setdefault(c["channel"], []).append(v)
-    return {k: {"n": len(v), "avg_views": sum(v) / len(v)} for k, v in acc.items()}
+        score = c.get("performance_score")
+        bucket = acc.setdefault(c.get("channel", "unknown"), {"views": [], "quality": []})
+        if v is not None:
+            bucket["views"].append(float(v))
+        try:
+            if score is not None:
+                bucket["quality"].append(min(max(float(score), 0.0), 1.0))
+        except (TypeError, ValueError):
+            pass
+
+    out = {}
+    for channel, values in acc.items():
+        quality = values["quality"]
+        n = len(quality)
+        # Neutral Beta-style prior prevents one unusually strong Reel from dominating.
+        avg_quality = (sum(quality) + 0.5 * 5.0) / (n + 5.0)
+        out[channel] = {
+            "n": len(values["views"]),
+            "avg_views": sum(values["views"]) / len(values["views"]) if values["views"] else 0.0,
+            "quality_n": n,
+            "avg_quality": avg_quality,
+        }
+    return out
+
 
 
 def authorized_channels(cfg):
@@ -225,8 +267,7 @@ def authorized_channels(cfg):
 
 
 def order_channels(cfg, state, rng=random):
-    """Learning loop: channels whose clips earn more views are scanned first.
-    Channels with no data are explored first; `explore_rate` of the time we round-robin."""
+    """Learn source priority from watch-time and reach-normalised engagement, with exploration."""
     chans = authorized_channels(cfg)
     stats = channel_stats(state)
     last = {}
@@ -234,9 +275,14 @@ def order_channels(cfg, state, rng=random):
         last[ep["channel"]] = max(last.get(ep["channel"], ""), ep["processed_at"])
     if rng.random() < cfg["learning"]["explore_rate"]:
         return sorted(chans, key=lambda c: last.get(c["name"], ""))
-    return sorted(chans, key=lambda c: (c["name"] in stats,
-                                        -stats.get(c["name"], {}).get("avg_views", 0),
-                                        last.get(c["name"], "")))
+    # Require a modest sample of mature Reels before exploiting a source. Rank by
+    # retention/engagement quality, never raw views alone.
+    min_samples = int(cfg["learning"].get("min_channel_samples", 3))
+    return sorted(chans, key=lambda c: (
+        stats.get(c["name"], {}).get("quality_n", 0) >= min_samples,
+        -stats.get(c["name"], {}).get("avg_quality", 0.5),
+        last.get(c["name"], ""),
+    ))
 
 
 def done_ids(state):
@@ -364,7 +410,7 @@ def fetch_words(cfg, info):
                 return words
         except Exception as ex:
             log.warning("caption fetch failed (%s/%s): %s", pool, key, ex)
-    log.warning("no usable transcript - heatmap-only mode (no captions, grid cut points)")
+    log.warning("no usable transcript; arbitrary time-grid clips are disabled until speech can be evaluated")
     return []
 
 
@@ -648,21 +694,37 @@ def _truthy(x):
 
 
 def build_rerank_prompt(ep_title, cands):
-    payload = [{"id": i, "t": hms(c["start"]), "text": c["text"][:1000]} for i, c in enumerate(cands)]
+    payload = [{
+        "id": i,
+        "t": hms(c["start"]),
+        "clip": c["text"][:850],
+        "context_before_not_in_clip": c.get("context_before", "")[-300:],
+        "context_after_not_in_clip": c.get("context_after", "")[:200],
+        "heuristics": {
+            "opening_type": c.get("hook_type"),
+            "context_dependency": c.get("context_dependency"),
+            "standalone_estimate": c.get("standalone_heuristic"),
+            "payoff_estimate": c.get("payoff_heuristic"),
+        },
+    } for i, c in enumerate(cands)]
     return (
-        f"You are a short-form video editor choosing clips from a podcast episode: {ep_title!r}.\n"
-        "Candidates are usually 15-45s segments (auto-transcript, may be Hindi/Hinglish, punctuation may be imperfect).\n"
-        "Score each 0-10 on hook (first 2-3 seconds), standalone clarity, payoff (does the segment "
-        "deliver what its opening promises), emotion, and specificity (a concrete insight, example, "
-        "number, or memorable point). Prefer complete thoughts with a clear beginning and ending. "
-        "Set reject=true if it depends on earlier context, has no payoff, is mostly filler, starts or "
-        "ends mid-thought, or contains hate, harassment, unverified defamatory claims about named "
-        "people, or explicit content. Do not reward clickbait. Also write a truthful title (max 8 words, "
-        "same language/script as the clip), a caption hook under 100 chars, and 3-4 relevant hashtags.\n"
-        "Reply with ONLY a JSON array, one object per candidate id: "
+        f"You are a senior short-form editor choosing complete podcast moments from {ep_title!r}.\n"
+        "The clip field is the ONLY content that will appear in the Reel. Context fields are provided "
+        "only to detect dangling references; they are NOT part of the clip.\n"
+        "Evaluate each candidate from the actual spoken words, not sensationalism. Score 0-10: "
+        "hook (first 1-3 seconds), standalone clarity, payoff (does the clip fulfil its opening), "
+        "emotion, specificity, and context independence. Prefer a clear premise, a concrete insight "
+        "or story, and a satisfying end. Penalise a cut that begins with a pronoun or continuation "
+        "whose referent exists only in the external context. If it needs context that viewers won't "
+        "hear, set reject=true. Also reject broken sentences, filler-only segments, misleading claims, "
+        "or unsafe content. Do not reward clickbait, outrage, or unverified allegations.\n"
+        "Create a truthful concise title in the same language/script as the clip and a caption hook "
+        "that doesn't promise anything the spoken clip fails to deliver.\n"
+        "Return ONLY JSON array: "
         '[{"id":0,"hook":0,"standalone":0,"payoff":0,"emotion":0,"specificity":0,'
-        '"reject":false,"title":"","caption_hook":"","hashtags":["#x"]}]\n\n'
+        '"context_independence":0,"reject":false,"title":"","caption_hook":"","hashtags":["#x"]}]\n\n'
         + json.dumps(payload, ensure_ascii=False))
+
 
 
 def apply_rerank(cands, data):
@@ -685,8 +747,10 @@ def apply_rerank(cands, data):
         payoff = _score(d.get("payoff"), s)
         specificity = _score(d.get("specificity"), h)
         c = cands[i]
-        c["llm"] = (h * 0.30 + s * 0.25 + payoff * 0.25
-                    + e * 0.10 + specificity * 0.10) / 10
+        context_independence = _score(d.get("context_independence"), max(0.0, 10.0 * (1.0 - cands[i].get("context_dependency", 0.5))))
+        c["llm"] = (h * 0.25 + s * 0.22 + payoff * 0.23
+                    + e * 0.10 + specificity * 0.10 + context_independence * 0.10) / 10
+        c["context_independence_llm"] = context_independence / 10
         c["payoff"] = payoff / 10
         c["specificity"] = specificity / 10
         c["reject"] = _truthy(d.get("reject"))
@@ -800,13 +864,23 @@ def polish_captions(cfg, picks, ep_title):
 
 
 def final_score(c):
-    """Weighted blend of whatever evidence exists: data-driven pre-score, Gemini text, Gemini video."""
-    parts = [(c["pre"], 0.45)]
+    """Blend source replay, editorial judgement, video review and mature format learning."""
+    parts = [(c.get("pre", 0.5), 0.40)]
     if "llm" in c:
         parts.append((c["llm"], 0.30))
     if "vid" in c:
-        parts.append((c["vid"], 0.25))
-    return sum(v * w for v, w in parts) / sum(w for _, w in parts)
+        parts.append((c["vid"], 0.20))
+    if "standalone_heuristic" in c and "payoff_heuristic" in c:
+        editorial = (0.55 * c["standalone_heuristic"]
+                     + 0.45 * c["payoff_heuristic"])
+        parts.append((editorial, 0.10))
+    base = sum(value * weight for value, weight in parts) / sum(weight for _, weight in parts)
+    prior = c.get("performance_prior")
+    if prior is not None:
+        # Learned historical performance can adjust a creative decision, never override it.
+        base = base * 0.92 + float(prior) * 0.08
+    return min(max(base, 0.0), 1.0)
+
 
 
 def select_top(cands, n, min_gap):
@@ -839,11 +913,31 @@ def make_caption(cfg, ch, info, cand):
 # =============================================================================
 # 3. PRODUCE (discover -> analyse -> queue; no video is downloaded here)
 # =============================================================================
-def analyse_episode(cfg, ch, info):
-    """heatmap + transcript + heuristics + Gemini(text) + Gemini(video) -> best clips with polished captions."""
+def analyse_episode(cfg, ch, info, state=None):
+    """Transcript/context analysis -> heuristic shortlist -> Gemini/video judgement -> clip picks."""
     words = fetch_words(cfg, info)
     heat = heat_per_second(info.get("heatmap") or [], info["duration"])
     cands = score_candidates(cfg, heat, words, info["duration"])
+    if not cands:
+        log.warning("no candidate moments: usable timestamped transcript is missing or too short")
+        return []
+
+    enrich_candidates_with_context(cands, words)
+    for candidate in cands:
+        editorial = (0.50 * candidate.get("standalone_heuristic", 0.5)
+                     + 0.40 * candidate.get("payoff_heuristic", 0.5)
+                     + 0.10 * (1.0 - candidate.get("context_dependency", 0.5)))
+        candidate["editorial_score"] = round(editorial, 4)
+        candidate["pre"] = 0.72 * candidate["pre"] + 0.28 * editorial
+
+    if state:
+        priors = format_priors(
+            state.get("clips", []),
+            min_samples=int(cfg["learning"].get("min_format_samples", 4)),
+        )
+        apply_format_priors(cands, priors)
+
+    cands.sort(key=lambda item: -item["pre"])
     cands = diversify(cands, cfg["llm"]["candidates"], cfg["clip"]["min_gap_s"],
                       variants=cfg["llm"].get("variants", 3) if gemini_key() else 1)
     cands = llm_rerank(cfg, cands, info["title"])
@@ -855,6 +949,7 @@ def analyse_episode(cfg, ch, info):
         p["words"] = list(words[i0:i1])
     polish_captions(cfg, picks, info["title"])
     return picks
+
 
 
 def probe_download(cfg, vid, pick):
@@ -889,7 +984,7 @@ def produce(cfg, dry_run=False):
             return 0
         log.info("episode: %s | %s (%ds, %s views)", ch["name"], info["title"], info["duration"],
                  info.get("view_count"))
-        picks = analyse_episode(cfg, ch, info)
+        picks = analyse_episode(cfg, ch, info, state=state)
         for p in picks:
             log.info("pick %s-%s final=%.3f heat=%.2f hook=%.2f llm=%s vid=%s | %s", hms(p["start"]),
                      hms(p["end"]), p["final"], p["heat"], p["hook"], p.get("llm"), p.get("vid"),
@@ -899,8 +994,13 @@ def produce(cfg, dry_run=False):
         meta = {"channel": ch["name"], "title": info["title"], "url": info["webpage_url"],
                 "views": info.get("view_count"), "processed_at": now_iso()}
         if not picks:
-            state["episodes"][info["id"]] = {**meta, "clips": 0, "note": "no usable clips"}
-            jr(state, "episode_skipped", video=info["id"], reason="no usable clips")
+            retry = (now_utc() + timedelta(hours=12)).isoformat(timespec="seconds")
+            state["episodes"][info["id"]] = {
+                **meta, "clips": 0, "note": "no usable editorial candidates",
+                "retry_after": retry,
+            }
+            jr(state, "episode_skipped", video=info["id"],
+               reason="no usable editorial candidates; retry in 12h")
             save_state(state)
             continue
         if not probe_download(cfg, info["id"], picks[0]):
@@ -914,8 +1014,17 @@ def produce(cfg, dry_run=False):
             state["clips"].append({
                 "id": state["next_id"], "video_id": info["id"], "channel": ch["name"],
                 "start": round(p["start"], 2), "end": round(p["end"], 2), "score": round(p["final"], 4),
-                "features": {k: round(p[k], 3) for k in ("heat", "hook", "density") if k in p}
-                            | {k: round(p[k], 3) for k in ("llm", "vid") if k in p},
+                "features": {k: round(p[k], 3) for k in (
+                    "heat", "hook", "density", "editorial_score", "standalone_heuristic",
+                    "payoff_heuristic", "context_dependency"
+                ) if k in p}
+                            | {k: round(p[k], 3) for k in ("llm", "vid") if k in p}
+                            | {k: p[k] for k in ("hook_type",) if p.get(k)}
+                            | {"duration_bucket": (
+                                "15-19s" if p["end"] - p["start"] < 20 else
+                                "20-29s" if p["end"] - p["start"] < 30 else
+                                "30-39s" if p["end"] - p["start"] < 40 else "40s+"
+                            )},
                 "title": p.get("title", ""), "caption": make_caption(cfg, ch, info, p),
                 "polished": bool(p.get("polished")),
                 "words": [[round(t, 2), w] for t, w in p["words"]],
@@ -1069,13 +1178,18 @@ def download_section(cfg, vid, s, e, stem):
     raise RuntimeError(f"could not download section (tried {len(DL_STRATEGIES)} strategies): {last}")
 
 
-def detect_face_crop_x(cfg, raw):
-    """Return a safe 9:16 crop x-offset for a consistent single-face shot; otherwise None.
+def detect_face_crop_points(cfg, raw, speaker_analysis=None):
+    """Track a single visible face across sampled frames and return safe crop keyframes.
 
-    This is conservative face-aware reframing, not active-speaker tracking. Multi-person
-    shots and uncertain detections deliberately fall back to the full-frame layout.
+    Multiple faces or ambiguous dialogue deliberately use the blurred full-frame fallback.
+    The track is visual, not face identity recognition or a claim about who is speaking.
     """
     if not cfg.get("render", {}).get("face_reframe", True):
+        return None
+    speaker_analysis = speaker_analysis or {}
+    if (speaker_analysis.get("speaker_count") not in (None, 1)
+            and speaker_analysis.get("dominant_speaker_ratio", 0.0) < 0.75):
+        log.info("face reframing skipped: multiple active speakers share this clip")
         return None
     try:
         import cv2
@@ -1091,25 +1205,25 @@ def detect_face_crop_x(cfg, raw):
     if scaled_width <= 1080 or width / height < 0.85:
         return None
 
-    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-    detector = cv2.CascadeClassifier(cascade_path)
+    detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
     if detector.empty():
         log.warning("OpenCV face detector could not be loaded; using full-frame layout")
         return None
 
-    sample_count = max(6, min(14, int(np.ceil(duration / 1.5))))
-    timestamps = np.linspace(min(0.2, duration / 10), max(0.2, duration - 0.2), sample_count)
+    sample_count = max(8, min(24, int(np.ceil(duration / 0.8))))
+    timestamps = np.linspace(min(0.15, duration / 10), max(0.15, duration - 0.15), sample_count)
     capture = cv2.VideoCapture(str(raw))
     if not capture.isOpened():
         return None
 
-    centers, multi_face_frames = [], 0
+    detected, multi_face_frames, readable_frames = [], 0, 0
     try:
         for stamp in timestamps:
             capture.set(cv2.CAP_PROP_POS_MSEC, float(stamp) * 1000)
             ok, frame = capture.read()
             if not ok or frame is None:
                 continue
+            readable_frames += 1
             frame_h, frame_w = frame.shape[:2]
             scale = min(1.0, 640.0 / max(frame_w, 1))
             if scale < 1.0:
@@ -1120,39 +1234,71 @@ def detect_face_crop_x(cfg, raw):
             if len(faces) == 1:
                 x, y, fw, fh = faces[0]
                 center_x_original = (x + fw / 2) / scale
-                centers.append(center_x_original)
+                center_scaled = center_x_original * 1920 / height
+                crop_x = int(round(center_scaled - 540))
+                crop_x = min(max(crop_x, 0), scaled_width - 1080)
+                detected.append((float(stamp), float(crop_x)))
             elif len(faces) > 1:
                 multi_face_frames += 1
     except Exception as ex:
-        log.warning("face-aware reframing failed; using full-frame layout: %s", str(ex)[:180])
+        log.warning("face-aware tracking failed; using full-frame layout: %s", str(ex)[:180])
         return None
     finally:
         capture.release()
 
-    if len(centers) < max(4, int(np.ceil(sample_count * 0.55))):
+    if readable_frames < max(5, int(sample_count * 0.55)):
         return None
-    if multi_face_frames > sample_count * 0.25:
+    if len(detected) < max(5, int(readable_frames * 0.55)):
+        return None
+    if multi_face_frames > max(1, readable_frames * 0.20):
         return None
 
-    face_center_scaled = float(np.median(centers)) * 1920 / height
-    crop_x = int(round(face_center_scaled - 540))
-    crop_x = min(max(crop_x, 0), scaled_width - 1080)
-    log.info("single-face vertical reframing selected (crop x=%d)", crop_x)
-    return crop_x
+    # Median smooth nearby samples to suppress Haar-detector jitter.
+    points = []
+    for i, (stamp, _) in enumerate(detected):
+        nearby = [x for t, x in detected if abs(t - stamp) <= 0.9]
+        points.append((stamp, float(np.median(nearby))))
+    log.info("tracked one visible face across %d/%d samples", len(points), readable_frames)
+    return {"points": points, "max_x": scaled_width - 1080}
+
+
+def face_crop_expression(track):
+    """Build an FFmpeg crop-x expression with linear interpolation between face keyframes."""
+    if not track or len(track.get("points") or []) < 2:
+        return None
+    points = [(float(t), max(0.0, min(float(x), float(track["max_x"]))))
+              for t, x in track["points"]]
+    tail = f"2*round({points[-1][1]:.3f}/2)"
+    for i in range(len(points) - 2, -1, -1):
+        t0, x0 = points[i]
+        t1, x1 = points[i + 1]
+        dt = max(t1 - t0, 1e-3)
+        linear = f"2*round(({x0:.3f}+({x1 - x0:.3f})*(t-{t0:.3f})/{dt:.3f})/2)"
+        tail = f"if(lt(t\\,{t1:.3f})\\,{linear}\\,{tail})"
+    t_first, x_first = points[0]
+    return f"if(lt(t\\,{t_first:.3f})\\,2*round({x_first:.3f}/2)\\,{tail})"
+
+
+def detect_face_crop_x(cfg, raw):
+    """Backward-compatible static crop helper used by focused unit tests."""
+    track = detect_face_crop_points(cfg, raw)
+    if not track:
+        return None
+    return int(round(float(np.median([x for _, x in track["points"]]))))
+
 
 
 def compose_clip(cfg, raw, clip, s, e, stem):
-    """1080x1920, blurred background, title + captions, loudness-normalised."""
-    # Keep the source legible while reducing the tiny-landscape-in-a-vertical-canvas
-    # effect. The foreground is enlarged modestly and centered over a blurred fill.
-    # This is not face tracking; for off-centre speakers, use a vertical source or
-    # manually adjust the source before publishing.
+    """1080x1920 composition with tracked portrait crop or safe blurred-background fallback."""
+    # A single consistently detected face is followed over time. We deliberately avoid
+    # face-identity claims and fall back when group/dialogue shots are ambiguous.
     fg_scale = float(cfg.get("render", {}).get("foreground_scale", 1.16))
     fg_scale = min(max(fg_scale, 1.0), 1.35)
     fg_width = int(1080 * fg_scale)
-    face_crop_x = detect_face_crop_x(cfg, raw)
-    if face_crop_x is not None:
-        fc = (f"[0:v]scale=-2:1920,crop=1080:1920:{face_crop_x}:0,"
+    face_track = detect_face_crop_points(cfg, raw, clip.get("speaker_analysis"))
+    crop_expr = face_crop_expression(face_track)
+    if crop_expr:
+        fc = (f"[0:v]scale=-2:1920,crop=1080:1920:'{crop_expr}':0,"
               "setsar=1,eq=contrast=1.02:saturation=1.04[v0]")
     else:
         fc = ("[0:v]split=2[a][b];"
@@ -1190,6 +1336,20 @@ def render_clip(cfg, clip):
     for old in WORK.glob(f"{stem}*"):
         old.unlink()
     raw = download_section(cfg, vid, s, e, stem)
+    diarization_cfg = cfg.get("diarization", {})
+    if diarization_cfg.get("enabled"):
+        try:
+            from speaker_diarization import diarize_media
+            turns = diarize_media(raw, os.environ.get("HF_TOKEN"))
+            clip["speaker_analysis"] = speaker_summary(turns, 0.0, e - s)
+            clip.setdefault("features", {}).update(clip["speaker_analysis"])
+            speaker_count = clip["speaker_analysis"].get("speaker_count")
+            if isinstance(speaker_count, int):
+                clip["features"]["speaker_count_bucket"] = (
+                    "1" if speaker_count == 1 else "2" if speaker_count == 2 else "3+"
+                )
+        except Exception as ex:
+            log.warning("speaker analysis skipped: %s", str(ex)[:200])
     out = compose_clip(cfg, raw, clip, s, e, stem)
     Path(raw).unlink(missing_ok=True)
     (WORK / f"{stem}.ass").unlink(missing_ok=True)
@@ -1519,17 +1679,39 @@ def publish_next(cfg, wait=True, force=False):
 
 def fetch_metrics(cfg, media_id):
     token, g, out = os.environ["IG_ACCESS_TOKEN"], graph(cfg), {}
-    for m in ("views", "reach", "likes", "comments", "shares", "saved",
-              "ig_reels_avg_watch_time"):
+    # Query one metric at a time: reels_skip_rate and watch-time fields are Reel-specific,
+    # and one unsupported metric must not discard the other useful insights.
+    for metric in (
+        "views", "reach", "likes", "comments", "shares", "saved",
+        "ig_reels_avg_watch_time", "ig_reels_video_view_total_time",
+        "reels_skip_rate",
+    ):
         try:
-            r = requests.get(f"{g}/{media_id}/insights", timeout=30,
-                             params={"metric": m, "access_token": token})
-            if r.ok:
-                out[m] = r.json()["data"][0]["values"][0]["value"]
-        except Exception:
-            pass
+            response = requests.get(
+                f"{g}/{media_id}/insights", timeout=30,
+                params={"metric": metric, "access_token": token},
+            )
+            if not response.ok:
+                log.debug("Instagram insight %s unavailable: %s", metric, response.text[:160])
+                continue
+            payload = response.json().get("data") or []
+            if not payload:
+                continue
+            item = payload[0]
+            if item.get("name") != metric:
+                item = next((entry for entry in payload if entry.get("name") == metric), item)
+            values = item.get("values") or []
+            value = values[0].get("value") if values else item.get("value")
+            if isinstance(value, (int, float)):
+                out[metric] = value
+            elif isinstance(value, str):
+                try:
+                    out[metric] = float(value)
+                except ValueError:
+                    pass
+        except Exception as ex:
+            log.debug("Instagram insight %s failed: %s", metric, str(ex)[:160])
     return out
-
 
 def update_metrics(cfg):
     state, changed, n = load_state(), False, 0
@@ -1546,6 +1728,10 @@ def update_metrics(cfg):
         n += 1
         if m:
             c["metrics"], c["metrics_at"], changed = m, now_iso(), True
+            quality = performance_quality(m, c.get("end", 0) - c.get("start", 0))
+            c["performance_detail"] = quality
+            if quality.get("score") is not None:
+                c["performance_score"] = quality["score"]
     if changed:
         save_state(state)
     return changed
@@ -1593,24 +1779,31 @@ def tick(cfg, force=False):
 
 def status_table(limit=15):
     state = load_state()
-    rows = ["| id | status | channel | window | views | reach | saves | shares |",
-            "|---:|---|---|---|---:|---:|---:|---:|"]
+    rows = ["| id | status | channel | window | views | reach | saves | shares | quality | retention | skip |",
+            "|---:|---|---|---|---:|---:|---:|---:|---:|---:|---:|"]
     for c in state["clips"][-limit:][::-1]:
         m = c.get("metrics") or {}
+        detail = c.get("performance_detail") or {}
+        quality = c.get("performance_score")
+        quality_display = f"{quality:.2f}" if isinstance(quality, (int, float)) else ""
         rows.append(f"| {c['id']} | {c['status']} | {c['channel']} | "
                     f"{hms(c['start'])}-{hms(c['end'])} | {views_of(c) or ''} | "
-                    f"{m.get('reach', '')} | {m.get('saved', '')} | {m.get('shares', '')} |")
+                    f"{m.get('reach', '')} | {m.get('saved', '')} | {m.get('shares', '')} | "
+                    f"{quality_display} | {detail.get('retention_pct', '')} | "
+                    f"{detail.get('skip_rate', '')} |")
     q = len(queued(state))
     review_count = sum(c.get("status") == "needs_review" for c in state["clips"])
     uncertain_count = sum(c.get("status") in ("publishing", "publish_uncertain") for c in state["clips"])
     total = sum(views_of(c) or 0 for c in state["clips"])
+    quality_samples = sum(c.get("performance_score") is not None for c in state["clips"])
     jl = [f"- `{j['t'][5:16]}` **{j['event']}** " + ", ".join(f"{k}={v}" for k, v in j.items()
                                                            if k not in ("t", "event"))[:160]
           for j in state.get("journal", [])[-8:]]
     return (f"**Queue:** {q} waiting · **Manual review:** {review_count} · "
-            f"**Publish outcome check:** {uncertain_count} · **Total views tracked:** {total}\n\n" + "\n".join(rows)
+            f"**Publish outcome check:** {uncertain_count} · "
+            f"**Performance samples:** {quality_samples} · **Total views tracked:** {total}\n\n"
+            + "\n".join(rows)
             + ("\n\n**Agent journal (latest)**\n" + "\n".join(jl) if jl else ""))
-
 
 def write_summary():
     path = os.environ.get("GITHUB_STEP_SUMMARY")

@@ -157,5 +157,64 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertEqual(state["clips"][0]["status"], "queued")
         self.assertIn("approved_manually_at", state["clips"][0])
 
+
+
+    def test_channel_learning_uses_retention_quality_not_raw_views(self):
+        import podcast_clipper as clipper
+        clips = []
+        for i in range(3):
+            clips.append({
+                "status": "posted", "channel": "Low-view quality",
+                "metrics": {"views": 500 + i}, "performance_score": 0.85,
+            })
+            clips.append({
+                "status": "posted", "channel": "High-view weak",
+                "metrics": {"views": 100000 + i}, "performance_score": 0.20,
+            })
+        cfg = {
+            "channels": [
+                {"name": "High-view weak", "permission": True},
+                {"name": "Low-view quality", "permission": True},
+                {"name": "New channel", "permission": True},
+            ],
+            "learning": {"explore_rate": 0.0},
+        }
+        state = {"clips": clips, "episodes": {}}
+        ranked = clipper.order_channels(cfg, state, rng=type(
+            "NoExplore", (), {"random": staticmethod(lambda: 0.9)}
+        )())
+        self.assertEqual(ranked[0]["name"], "New channel")
+        self.assertEqual(ranked[1]["name"], "Low-view quality")
+        self.assertEqual(ranked[2]["name"], "High-view weak")
+
+
+
+    @patch("podcast_clipper.now_iso", return_value="2026-10-30T13:00:00+00:00")
+    def test_episode_retry_after_keeps_episode_deferred(self, _now):
+        import podcast_clipper as clipper
+        state = {"episodes": {
+            "episode-1": {"retry_after": "2026-10-30T14:00:00+00:00"},
+            "episode-2": {"retry_after": "2026-10-30T12:00:00+00:00"},
+            "episode-3": {"note": "permanent successful queue"},
+        }}
+        self.assertEqual(clipper.done_ids(state), {"episode-1", "episode-3"})
+
+    @patch("podcast_clipper.now_iso", return_value="2026-10-30T15:00:00+00:00")
+    def test_episode_becomes_eligible_after_retry_window(self, _now):
+        import podcast_clipper as clipper
+        state = {"episodes": {
+            "episode-1": {"retry_after": "2026-10-30T14:00:00+00:00"},
+        }}
+        self.assertEqual(clipper.done_ids(state), set())
+
+
+
+    def test_repository_config_loads_and_enables_lightweight_defaults(self):
+        import podcast_clipper as clipper
+        cfg = clipper.load_config()
+        self.assertFalse(cfg["diarization"]["enabled"])
+        self.assertGreaterEqual(cfg["learning"]["min_channel_samples"], 1)
+        self.assertGreaterEqual(cfg["learning"]["min_format_samples"], 1)
+
 if __name__ == "__main__":
     unittest.main()

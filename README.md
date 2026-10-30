@@ -5,11 +5,18 @@ Gemini ranking, vertical rendering, technical QA, Instagram publishing and perfo
 It can help find promising clips; it cannot guarantee virality or predict views reliably. Treat scores
 as ranking signals and review initial outputs before enabling unattended publishing.
 
-The renderer now attempts a conservative face-aware 9:16 crop when OpenCV consistently detects one
-speaker. It uses the median face position across sampled frames; it is not continuous active-speaker
-tracking. Multi-person shots, uncertain detections, and portrait sources use the full-frame blurred
-background fallback so the system does not blindly crop out a co-host. There are still no automatic
-reaction cuts or B-roll selection.
+The renderer now tracks a single visible face across sampled frames and smoothly adjusts the
+9:16 crop position. It is visual tracking, not face identity recognition. Multi-face shots and uncertain
+detections use the full-frame blurred fallback. Optional pyannote diarization can describe speaker turns
+and prevent aggressive face crops on dialogue-heavy clips; it does not yet match a diarized voice to a
+specific face, generate reaction cuts, or select B-roll.
+
+Candidate selection now reconstructs transcript context before and after every cut. External context is
+used to detect dangling references, never included as if they were spoken in the clip. The learning loop
+uses average watch time, reach-normalised shares/saves/likes and Reels skip rate when those insights are
+available; raw views are no longer the sole source-ranking signal. It keeps exploring channels with fewer
+than `learning.min_channel_samples` mature Reels and only learns hook/duration priors after
+`learning.min_format_samples` examples (both thresholds are configurable in `config.yaml`).
 
 ## Put it on GitHub and prove it works (15 minutes)
 1. Create a repo, commit every file in this folder (including the hidden `.github` folder), push.
@@ -30,6 +37,25 @@ reaction cuts or B-roll selection.
    3. **tick** with *force* ticked - renders and posts ONE real Reel now. Check Instagram.
 6. After that the cron schedules run by themselves (05:50 / 17:50 IST start and wait for the exact slot; 07:50 / 19:50 IST are catch-up runs).
    A manual `tick` without *force* does nothing unless a slot is due; a forced post counts as the nearest slot's post.
+
+## Optional speaker diarization (advanced)
+
+The base workflow intentionally does not install PyTorch/pyannote. To enable local diarization:
+
+1. Accept the model conditions for [pyannote Community-1](https://huggingface.co/pyannote/speaker-diarization-community-1).
+2. Create a Hugging Face read token and add it as Actions secret `HF_TOKEN`.
+3. Add Actions repository variable `ENABLE_DIARIZATION=true`.
+4. Set `diarization.enabled: true` in `config.yaml`.
+
+The workflow installs `requirements-diarization.txt` only when both the variable and secret are present.
+Diarization runs on each selected clip's downloaded audio segment, not the entire source episode. If
+the package, token, model, or inference is unavailable, the clipper logs the failure and continues with
+the non-diarized layout. Model access approval is a one-time Hugging Face account action; a token alone
+does not bypass the model conditions.
+
+The diarization result describes speaker count, turns, switching, dominance and overlap. It is currently
+used as a conservative layout signal. Matching speaker identities to visible faces and cutting between
+camera angles requires audiovisual speaker-to-face association and is not claimed here.
 
 ## If check-live says the YouTube download FAILED
 GitHub's servers use datacenter IPs and YouTube often answers yt-dlp with "Sign in to confirm you're not a
@@ -67,7 +93,7 @@ views, $1,000/month needs about 1,000,000 views/month (roughly 17,000 per post a
 Before switching from test mode to unattended posting, review at least 10 rendered clips and check:
 - The first 1-3 seconds communicate a clear idea and do not depend on prior context.
 - The segment includes its setup and payoff; the cut does not truncate a word or key answer.
-- The speaker's face is large enough and not cut off; the optional face-aware crop is only a static single-face crop, not continuous active-speaker tracking. Review co-host, profile, and fast-cut footage manually.
+- The speaker's face is large enough and not cut off; face position can move during a single-face shot, but no face identity or active-speaker-to-face matching is inferred. Review multi-person and fast-cut footage manually.
 - Captions are accurate, synchronized, readable on a phone, and do not cover the speaker's mouth.
 - The title is specific and truthful, not a promise the clip fails to deliver.
 - Audio is clear and balanced; there are no black frames, long silences, or abrupt endings.
