@@ -67,7 +67,7 @@ views, $1,000/month needs about 1,000,000 views/month (roughly 17,000 per post a
 Before switching from test mode to unattended posting, review at least 10 rendered clips and check:
 - The first 1-3 seconds communicate a clear idea and do not depend on prior context.
 - The segment includes its setup and payoff; the cut does not truncate a word or key answer.
-- The speaker's face is large enough and not cut off; this renderer uses a centered crop/zoom, not face tracking.
+- The speaker's face is large enough and not cut off; the optional face-aware crop is only a static single-face crop, not continuous active-speaker tracking. Review co-host, profile, and fast-cut footage manually.
 - Captions are accurate, synchronized, readable on a phone, and do not cover the speaker's mouth.
 - The title is specific and truthful, not a promise the clip fails to deliver.
 - Audio is clear and balanced; there are no black frames, long silences, or abrupt endings.
