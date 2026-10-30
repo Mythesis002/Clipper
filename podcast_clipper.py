@@ -690,11 +690,11 @@ def retime(words, text):
         return None
     return [(t, token) for (t, _), token in zip(words, new)]
 
-def caption_change_ok(old_words, new_words, min_overlap=0.65, max_len_change=0.0):
+def caption_change_ok(old_words, new_words, min_overlap=0.80, max_len_change=0.0):
     """Allow cautious lexical corrections without changing word-to-time alignment."""
     if not old_words or not new_words or len(new_words) != len(old_words):
         return False
-    norm = lambda w: re.sub(r"\\W", "", w.lower())  # noqa: E731
+    norm = lambda w: re.sub(r"\W", "", w.lower())  # noqa: E731
     old, new = Counter(norm(w) for _, w in old_words), Counter(norm(w) for _, w in new_words)
     return sum((old & new).values()) / len(old_words) >= min_overlap
 
@@ -777,7 +777,7 @@ def make_caption(cfg, ch, info, cand):
 def analyse_episode(cfg, ch, info):
     """heatmap + transcript + heuristics + Gemini(text) + Gemini(video) -> best clips with polished captions."""
     words = fetch_words(cfg, info)
-    heat = heat_per_second(info["heatmap"], info["duration"])
+    heat = heat_per_second(info.get("heatmap") or [], info["duration"])
     cands = score_candidates(cfg, heat, words, info["duration"])
     cands = diversify(cands, cfg["llm"]["candidates"], cfg["clip"]["min_gap_s"],
                       variants=cfg["llm"].get("variants", 3) if gemini_key() else 1)
@@ -1072,8 +1072,8 @@ def qa_checks(cfg, path):
     if r.returncode != 0:
         raise RuntimeError("ffmpeg technical QA failed: " + (r.stderr or "")[-500:])
     stderr = r.stderr or ""
-    black = sum(float(x) for x in re.findall(r"black_duration:([\\d.]+)", stderr))
-    silence_durations = [float(x) for x in re.findall(r"silence_duration:\\s*([\\d.]+)", stderr)]
+    black = sum(float(x) for x in re.findall(r"black_duration:([\d.]+)", stderr))
+    silence_durations = [float(x) for x in re.findall(r"silence_duration:\s*([\d.]+)", stderr)]
     silence = sum(silence_durations)
     max_silence = max(silence_durations, default=0.0)
     black_pct = black / dur * 100
