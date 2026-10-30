@@ -209,20 +209,28 @@ class PipelineQualityTests(unittest.TestCase):
 
 
 
-    def test_repository_config_enables_diarization_but_keeps_unlicensed_sources_gated(self):
+    def test_repository_config_enables_diarization_and_only_raj_shamani_source(self):
         import podcast_clipper as clipper
         cfg = clipper.load_config()
         self.assertTrue(cfg["diarization"]["enabled"])
-        self.assertEqual(clipper.authorized_channels(cfg), [])
+        self.assertEqual(
+            [channel["name"] for channel in clipper.authorized_channels(cfg)],
+            ["Raj Shamani"],
+        )
         self.assertGreaterEqual(cfg["learning"]["min_channel_samples"], 1)
         self.assertGreaterEqual(cfg["learning"]["min_format_samples"], 1)
 
     def test_only_sources_with_explicit_permission_are_authorized(self):
         cfg = clipper.load_config()
-        cfg["channels"][0]["permission"] = True
         authorized = clipper.authorized_channels(cfg)
         self.assertEqual([channel["name"] for channel in authorized],
-                         [cfg["channels"][0]["name"]])
+                         ["Raj Shamani"])
+        self.assertTrue(authorized[0]["permission"])
+        self.assertTrue(all(
+            channel["permission"] is False
+            for channel in cfg["channels"]
+            if channel["name"] != "Raj Shamani"
+        ))
 
 if __name__ == "__main__":
     unittest.main()
