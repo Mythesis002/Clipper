@@ -184,6 +184,10 @@ def gha(level, msg):
     if os.environ.get("GITHUB_ACTIONS"):
         print(f"::{level}::{msg}")
 
+def env_value(name, default=""):
+    """Read a secret/config environment value without accidental surrounding whitespace."""
+    return str(os.environ.get(name, default) or "").strip()
+
 
 def graph(cfg):
     return f"https://graph.facebook.com/{cfg['instagram'].get('graph_version', 'v25.0')}"
@@ -207,11 +211,12 @@ def views_of(clip):
 def ydl_opts(cfg, **extra):
     o = {"quiet": True, "no_warnings": True, "retries": 5, "extractor_retries": 3,
          "socket_timeout": 30}
-    cookies = os.environ.get("YT_COOKIES_FILE") or cfg.get("cookies_file")
+    cookies = env_value("YT_COOKIES_FILE") or str(cfg.get("cookies_file") or "").strip()
     if cookies and Path(cookies).exists():
         o["cookiefile"] = cookies
-    if os.environ.get("YT_PROXY"):
-        o["proxy"] = os.environ["YT_PROXY"]
+    proxy = env_value("YT_PROXY")
+    if proxy:
+        o["proxy"] = proxy
     o.update(extra)
     return o
 
@@ -581,7 +586,9 @@ _MODEL_CACHE = {}
 
 
 def gemini_key():
-    return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    # A copied GitHub secret can include a trailing newline or spaces. Strip each
+    # candidate separately so a whitespace-only primary value does not hide fallback.
+    return env_value("GEMINI_API_KEY") or env_value("GOOGLE_API_KEY")
 
 
 def pick_flash_models(models_json):
@@ -1107,7 +1114,7 @@ def build_ass(words, start, end, title, path):
 
 def source_url(video_id):
     """Where to cut from. CLIPPER_SOURCE_URL (a local file) is a test hook, never set in production."""
-    return os.environ.get("CLIPPER_SOURCE_URL") or f"https://www.youtube.com/watch?v={video_id}"
+    return env_value("CLIPPER_SOURCE_URL") or f"https://www.youtube.com/watch?v={video_id}"
 
 
 def probe_media(path):
@@ -1340,7 +1347,7 @@ def render_clip(cfg, clip):
     if diarization_cfg.get("enabled"):
         try:
             from speaker_diarization import diarize_media
-            turns = diarize_media(raw, os.environ.get("HF_TOKEN"))
+            turns = diarize_media(raw, env_value("HF_TOKEN") or None)
             clip["speaker_analysis"] = speaker_summary(turns, 0.0, e - s)
             clip.setdefault("features", {}).update(clip["speaker_analysis"])
             speaker_count = clip["speaker_analysis"].get("speaker_count")
@@ -1474,7 +1481,9 @@ class PublishUncertainError(RuntimeError):
 
 
 def post_reel(cfg, video_path, caption):
-    ig_id, token = os.environ["IG_USER_ID"], os.environ["IG_ACCESS_TOKEN"]
+    ig_id, token = env_value("IG_USER_ID"), env_value("IG_ACCESS_TOKEN")
+    if not ig_id or not token:
+        raise RuntimeError("Instagram publishing requires non-empty IG_USER_ID and IG_ACCESS_TOKEN secrets")
     g = graph(cfg)
     r = requests.post(f"{g}/{ig_id}/media", data={
         "media_type": "REELS", "upload_type": "resumable", "caption": caption,
@@ -1678,7 +1687,10 @@ def publish_next(cfg, wait=True, force=False):
     return False
 
 def fetch_metrics(cfg, media_id):
-    token, g, out = os.environ["IG_ACCESS_TOKEN"], graph(cfg), {}
+    token, g, out = env_value("IG_ACCESS_TOKEN"), graph(cfg), {}
+    if not token:
+        log.warning("Instagram metrics skipped: IG_ACCESS_TOKEN is not configured")
+        return out
     # Query one metric at a time: reels_skip_rate and watch-time fields are Reel-specific,
     # and one unsupported metric must not discard the other useful insights.
     for metric in (
@@ -1813,40 +1825,79 @@ def write_summary():
 
 
 def check(cfg, live=False):
+    """Validate the integrations required by this configuration; live=True exercises real media paths."""
     ok = True
 
     def line(good, text, required=True):
         nonlocal ok
-        print(("OK   " if good else ("FAIL " if required else "info ")) + text)
+        passed = bool(good)
+        print(("OK   " if passed else ("FAIL " if required else "info ")) + text)
         if required:
-            ok &= bool(good)
+            ok &= passed
 
     line(shutil.which("ffmpeg"), "ffmpeg")
     line(shutil.which("ffprobe"), "ffprobe")
-    for var in ("IG_USER_ID", "IG_ACCESS_TOKEN"):
-        line(os.environ.get(var), f"env {var}")
+
+    ig_id, ig_token = env_value("IG_USER_ID"), env_value("IG_ACCESS_TOKEN")
+    line(bool(ig_id), "env IG_USER_ID")
+    line(bool(ig_token), "env IG_ACCESS_TOKEN")
     n = len(authorized_channels(cfg))
-    line(n > 0, f"{n} channel(s) with permission: true (zero is allowed; publishing will remain idle)", required=False)
-    if os.environ.get("IG_USER_ID") and os.environ.get("IG_ACCESS_TOKEN"):
-        r = requests.get(f"{graph(cfg)}/{os.environ['IG_USER_ID']}", timeout=30, params={
-            "fields": "username", "access_token": os.environ["IG_ACCESS_TOKEN"]})
-        line(r.ok, ("Instagram account: " + r.json().get("username", "?")) if r.ok
-             else "Instagram token: " + r.text[:200])
-    if gemini_key():
+    line(n > 0, f"{n} channel(s) with permission: true")
+
+    if ig_id and ig_token:
+        try:
+            response = requests.get(
+                f"{graph(cfg)}/{ig_id}", timeout=30,
+                params={"fields": "username", "access_token": ig_token},
+            )
+            try:
+                payload = response.json()
+            except ValueError:
+                payload = {}
+            line(response.ok, ("Instagram account: " + str(payload.get("username", "?")))
+                 if response.ok else "Instagram token/account check: " + response.text[:200])
+        except Exception as ex:
+            line(False, f"Instagram account check failed: {str(ex)[:200]}")
+
+    llm = cfg.get("llm", {})
+    gemini_required = bool(llm.get("enabled") or llm.get("video_verify")
+                           or llm.get("final_qa") or llm.get("polish_captions"))
+    key = gemini_key()
+    line(bool(key), "env GEMINI_API_KEY", required=gemini_required)
+    if key:
         try:
             txt = gemini_text(cfg, [{"text": 'Reply with exactly this JSON: {"ok": true}'}])
-            line(parse_json(txt).get("ok") is True, f"Gemini works (model {_MODEL_CACHE.get('model')})")
+            valid = isinstance(parse_json(txt), dict) and parse_json(txt).get("ok") is True
+            line(valid, f"Gemini text API works (model {_MODEL_CACHE.get('model')})",
+                 required=gemini_required)
         except Exception as ex:
-            line(False, f"Gemini: {ex}", required=False)
-    else:
-        line(False, "GEMINI_API_KEY not set (optional: heuristics-only mode)", required=False)
+            line(False, f"Gemini text API failed: {str(ex)[:240]}", required=gemini_required)
+
+    diarization_enabled = bool((cfg.get("diarization") or {}).get("enabled"))
+    hf_token = env_value("HF_TOKEN")
+    if diarization_enabled:
+        line(bool(hf_token), "env HF_TOKEN for enabled speaker diarization")
+        if live and hf_token:
+            try:
+                from speaker_diarization import _load_pipeline
+                _load_pipeline(hf_token)
+                line(True, "pyannote Community-1 model loads with this token")
+            except Exception as ex:
+                line(False, f"pyannote model access/load failed: {str(ex)[:240]}")
+
     if live:                                        # real network probes (what unit tests cannot cover)
         vid = cfg.get("check_video_id", "aqz-KE-bpKQ")     # Blender's open-licensed "Big Buck Bunny"
         try:
             info = full_info(cfg, vid)
             line(True, f"YouTube video info works: {info['title'][:50]!r} ({info['duration']}s)")
-            line(info.get("heatmap"), "Most-Replayed heatmap present", required=False)
+            line(bool(info.get("heatmap")), "Most-Replayed heatmap present", required=False)
             s0 = float(min(30, info["duration"] * 0.3))
+
+            if llm.get("video_verify") and key:
+                probe = [{"start": s0, "end": s0 + 8, "pre": 0.5}]
+                verified = video_verify(cfg, vid, probe)
+                line("vid" in probe[0], "Gemini YouTube video verification works")
+
             clip = {"video_id": vid, "start": s0, "end": s0 + 8, "title": "Self check",
                     "words": [[s0 + i * 0.5, f"test{i}"] for i in range(14)]}
             t0 = time.time()
@@ -1854,23 +1905,25 @@ def check(cfg, live=False):
             m = probe_media(out)
             qa = qa_checks(cfg, out)
             line(not qa["issues"], f"technical QA: black {qa['black_pct']}% silent {qa['silence_pct']}% "
-                                   f"{qa['issues'] or ''}", required=False)
+                                   f"{qa['issues'] or ''}")
             g = gemini_qa(cfg, out)
-            if g is not None:
-                line(g["approve"], f"Gemini watched the final clip: score {g['score']}, {g['issues'] or 'no issues'}",
-                     required=False)
+            if llm.get("final_qa") and key:
+                line(g is not None, "Gemini final-video QA returned a valid response")
+                if g is not None:
+                    line(g["approve"], f"Gemini final-video QA score {g['score']}: {g['issues'] or 'no issues'}",
+                         required=False)
             line(m["h"] == 1920 and m["has_audio"],
                  f"REAL section download + 9:16 render works ({m['w']}x{m['h']}, {m['duration']:.1f}s, "
                  f"took {time.time() - t0:.0f}s)")
             shutil.rmtree(WORK, ignore_errors=True)
         except Exception as ex:
-            line(False, "YouTube download path FAILED (datacenter IP blocked? add YT_COOKIES / YT_PROXY "
-                        f"or use a self-hosted runner): {str(ex)[:300]}")
-        permitted = [c for c in cfg["channels"] if c.get("permission")]
+            line(False, "YouTube download/render path FAILED (GitHub runners may need YT_COOKIES or "
+                        f"YT_PROXY): {str(ex)[:300]}")
+        permitted = authorized_channels(cfg)
         if permitted:
             try:
                 entries = list_recent(cfg, permitted[0]["handle"], 3)
-                line(entries, f"channel listing works ({permitted[0]['name']}: {len(entries)} videos)")
+                line(bool(entries), f"channel listing works ({permitted[0]['name']}: {len(entries)} videos)")
             except Exception as ex:
                 line(False, f"channel listing failed: {str(ex)[:200]}")
     return ok
