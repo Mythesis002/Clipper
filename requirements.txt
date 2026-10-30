@@ -1,5 +1,6 @@
-yt-dlp
-bgutil-ytdlp-pot-provider
+yt-dlp[default]
+yt-dlp-ejs
+bgutil-ytdlp-pot-provider==2.0.2
 numpy
 requests
 pyyaml
