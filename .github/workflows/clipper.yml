@@ -16,7 +16,7 @@ on:
         description: "What to run"
         type: choice
         default: check-live
-        options: [check-live, check, produce, tick, publish, metrics, status, approve, reject]
+        options: [check-live, check, produce, tick, publish, metrics, status, approve, reject, confirm-post, retry-uncertain]
       dry_run:
         description: "produce: analyse only, queue nothing"
         type: boolean
@@ -28,6 +28,10 @@ on:
       clip_id:
         description: "Clip ID for approve/reject manual review commands"
         type: number
+        required: false
+      media_id:
+        description: "Instagram media ID when confirming an uncertain publish"
+        type: string
         required: false
 
 concurrency:
@@ -83,14 +87,19 @@ jobs:
           DRY: ${{ inputs.dry_run }}
           FORCE: ${{ inputs.force }}
           CLIP_ID: ${{ inputs.clip_id }}
+          MEDIA_ID: ${{ inputs.media_id }}
         run: |
           ARGS=""
           [ "$DRY" = "true" ] && ARGS="$ARGS --dry-run"
           [ "$FORCE" = "true" ] && ARGS="$ARGS --force"
           if [ "$CMD" = "check-live" ]; then CMD=check; ARGS="$ARGS --live"; fi
-          if [ "$CMD" = "approve" ] || [ "$CMD" = "reject" ]; then
-            if [ -z "$CLIP_ID" ]; then echo "::error::clip_id is required for approve/reject"; exit 2; fi
+          if [ "$CMD" = "approve" ] || [ "$CMD" = "reject" ] || [ "$CMD" = "retry-uncertain" ]; then
+            if [ -z "$CLIP_ID" ]; then echo "::error::clip_id is required for this command"; exit 2; fi
             ARGS="$ARGS --clip-id $CLIP_ID"
+          fi
+          if [ "$CMD" = "confirm-post" ]; then
+            if [ -z "$CLIP_ID" ] || [ -z "$MEDIA_ID" ]; then echo "::error::clip_id and media_id are required"; exit 2; fi
+            ARGS="$ARGS --clip-id $CLIP_ID --media-id $MEDIA_ID"
           fi
           python podcast_clipper.py "$CMD" $ARGS
 
