@@ -1289,7 +1289,7 @@ def compose_clip(cfg, raw, clip, s, e, stem):
     face_track = detect_face_crop_points(cfg, raw, clip.get("speaker_analysis"))
     crop_expr = face_crop_expression(face_track)
     if crop_expr:
-        fc = (f"[0:v]scale=-2:1920,crop=1080:1920:x='{crop_expr}':0,"
+        fc = (f"[0:v]scale=-2:1920,crop=1080:1920:'{crop_expr}':0,"
               "setsar=1,eq=contrast=1.02:saturation=1.04[v0]")
     else:
         fc = ("[0:v]split=2[a][b];"
