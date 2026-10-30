@@ -534,5 +534,24 @@ class PipelineQualityTests(unittest.TestCase):
             if channel["name"] != "Raj Shamani"
         ))
 
+    def test_publish_now_command_runs_forced_tick(self):
+        with patch.object(clipper.sys, "argv", ["podcast_clipper.py", "publish-now"]), \
+             patch.object(clipper, "load_config", return_value={}), \
+             patch.object(clipper, "tick", return_value=True) as tick_mock, \
+             patch.object(clipper.sys, "exit") as exit_mock:
+            clipper.main()
+        tick_mock.assert_called_once_with({}, force=True)
+        exit_mock.assert_called_once_with(0)
+
+    def test_force_is_rejected_for_check_command(self):
+        with patch.object(clipper.sys, "argv", ["podcast_clipper.py", "check", "--force"]), \
+             patch.object(clipper, "load_config") as config_mock, \
+             patch("sys.stderr", new_callable=io.StringIO) as stderr:
+            with self.assertRaises(SystemExit) as exc:
+                clipper.main()
+        self.assertEqual(exc.exception.code, 2)
+        self.assertIn("diagnostic or maintenance command", stderr.getvalue())
+        config_mock.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()

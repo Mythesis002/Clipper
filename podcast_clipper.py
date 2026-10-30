@@ -1953,7 +1953,14 @@ def write_summary():
 
 
 def check(cfg, live=False):
-    """Validate the integrations required by this configuration; live=True exercises real media paths."""
+    """Validate integrations; live=True exercises media paths without queuing or publishing."""
+    if live:
+        notice = (
+            "DIAGNOSTIC ONLY: check-live does not add clips to the persistent queue or publish a Reel. "
+            "Its Instagram smoke test uploads a temporary container but deliberately does not call media_publish."
+        )
+        print(notice)
+        gha("notice", notice)
     ok = True
 
     def line(good, text, required=True):
@@ -2219,7 +2226,7 @@ def resolve_uncertain_publish(clip_id, media_id=None, retry=False):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
-    ap.add_argument("command", choices=["tick", "produce", "publish", "metrics", "status", "check",
+    ap.add_argument("command", choices=["tick", "publish-now", "produce", "publish", "metrics", "status", "check",
                                         "approve", "reject", "confirm-post", "retry-uncertain"])
     ap.add_argument("--clip-id", type=int, help="clip id for manual review or publish reconciliation")
     ap.add_argument("--media-id", help="Instagram media id when confirming an uncertain post")
@@ -2229,13 +2236,19 @@ def main():
     ap.add_argument("--live", action="store_true", help="check: also probe YouTube for real")
     ap.add_argument("--config")
     args = ap.parse_args()
+    if args.force and args.command not in {"tick", "publish-now", "publish", "approve"}:
+        ap.error("--force cannot make a diagnostic or maintenance command publish; use publish-now or tick --force")
+    if args.dry_run and args.command != "produce":
+        ap.error("--dry-run only applies to produce")
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
                         handlers=[logging.StreamHandler(sys.stdout)])
     cfg = load_config(args.config)
     ok = True
-    if args.command == "tick":
-        ok = tick(cfg, force=args.force)
+    if args.command in {"tick", "publish-now"}:
+        # publish-now is the unambiguous manual path: fill the queue if needed, then
+        # run the normal QA and publishing pipeline immediately, bypassing slot wait.
+        ok = tick(cfg, force=(args.force or args.command == "publish-now"))
     elif args.command == "produce":
         produce(cfg, dry_run=args.dry_run)
     elif args.command == "publish":

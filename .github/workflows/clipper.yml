@@ -13,16 +13,16 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: "What to run"
+        description: "check-live never publishes. Choose publish-now to attempt one real Reel immediately."
         type: choice
         default: check-live
-        options: [check-live, check, produce, tick, publish, metrics, status, approve, reject, confirm-post, retry-uncertain]
+        options: [check-live, check, produce, publish-now, tick, publish, metrics, status, approve, reject, confirm-post, retry-uncertain]
       dry_run:
         description: "produce: analyse only, queue nothing"
         type: boolean
         default: false
       force:
-        description: "post now (skip slot wait + duplicate guard)"
+        description: "tick/publish/approve only; check-live never publishes"
         type: boolean
         default: false
       clip_id:
@@ -141,6 +141,11 @@ jobs:
           MEDIA_ID: ${{ inputs.media_id }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          # A force flag cannot turn a diagnostic check into a production publish.
+          if [ "$CMD" = "check-live" ] && [ "$FORCE" = "true" ]; then
+            echo "::error::check-live is diagnostic only and never publishes. Select publish-now, or choose tick and enable force."
+            exit 2
+          fi
           ARGS=""
           [ "$DRY" = "true" ] && ARGS="$ARGS --dry-run"
           [ "$FORCE" = "true" ] && ARGS="$ARGS --force"
