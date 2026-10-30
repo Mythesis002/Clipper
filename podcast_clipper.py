@@ -136,6 +136,9 @@ def load_config(path=None):
     explore = float(cfg["learning"].get("explore_rate", -1))
     if not 0 <= explore <= 1:
         raise ValueError("learning.explore_rate must be between 0 and 1")
+    for key, default in (("min_channel_samples", 3), ("min_format_samples", 4)):
+        if int(cfg["learning"].get(key, default)) < 1:
+            raise ValueError(f"learning.{key} must be a positive integer")
 
     qa = cfg.get("qa", {})
     for key in ("max_black_pct", "max_silence_pct"):
@@ -274,8 +277,9 @@ def order_channels(cfg, state, rng=random):
         return sorted(chans, key=lambda c: last.get(c["name"], ""))
     # Require a modest sample of mature Reels before exploiting a source. Rank by
     # retention/engagement quality, never raw views alone.
+    min_samples = int(cfg["learning"].get("min_channel_samples", 3))
     return sorted(chans, key=lambda c: (
-        stats.get(c["name"], {}).get("quality_n", 0) >= 3,
+        stats.get(c["name"], {}).get("quality_n", 0) >= min_samples,
         -stats.get(c["name"], {}).get("avg_quality", 0.5),
         last.get(c["name"], ""),
     ))
@@ -927,7 +931,10 @@ def analyse_episode(cfg, ch, info, state=None):
         candidate["pre"] = 0.72 * candidate["pre"] + 0.28 * editorial
 
     if state:
-        priors = format_priors(state.get("clips", []), min_samples=4)
+        priors = format_priors(
+            state.get("clips", []),
+            min_samples=int(cfg["learning"].get("min_format_samples", 4)),
+        )
         apply_format_priors(cands, priors)
 
     cands.sort(key=lambda item: -item["pre"])
