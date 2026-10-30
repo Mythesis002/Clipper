@@ -1887,6 +1887,31 @@ def check(cfg, live=False):
                 payload = {}
             line(response.ok, ("Instagram account: " + str(payload.get("username", "?")))
                  if response.ok else "Instagram token/account check: " + response.text[:200])
+            if response.ok:
+                try:
+                    media_response = requests.get(
+                        f"{graph(cfg)}/{ig_id}/media", timeout=30,
+                        params={"fields": "id,media_type,media_product_type,timestamp",
+                                "limit": 10, "access_token": ig_token},
+                    )
+                    if media_response.ok:
+                        media_items = (media_response.json() or {}).get("data") or []
+                        latest_reel = next((item for item in media_items
+                                            if item.get("media_product_type") == "REELS"), None)
+                        if latest_reel:
+                            available_metrics = fetch_metrics(cfg, latest_reel["id"])
+                            line(bool(available_metrics),
+                                 f"Instagram insights endpoint returned {len(available_metrics)} metric(s) "
+                                 "for a recent Reel", required=False)
+                        else:
+                            line(False, "no recent Reel found to test insights; metrics check skipped",
+                                 required=False)
+                    else:
+                        line(False, "Instagram media listing for insights failed: "
+                             + media_response.text[:180], required=False)
+                except Exception as ex:
+                    line(False, f"Instagram insights smoke test failed: {str(ex)[:180]}",
+                         required=False)
         except Exception as ex:
             line(False, f"Instagram account check failed: {str(ex)[:200]}")
 
