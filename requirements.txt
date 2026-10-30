@@ -3,3 +3,4 @@ bgutil-ytdlp-pot-provider
 numpy
 requests
 pyyaml
+opencv-python-headless>=4.10,<5
