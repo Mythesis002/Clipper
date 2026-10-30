@@ -1720,6 +1720,7 @@ def resolve_uncertain_publish(clip_id, media_id=None, retry=False):
     if media_id:
         clip.update(status="posted", media_id=media_id,
                     posted_at=clip.get("publish_started_at") or now_iso(), error=None)
+        clip.pop("publish_started_at", None)
         jr(state, "uncertain_publish_confirmed", clip=clip_id, media=media_id)
         log.info("clip %s marked as posted (media id %s)", clip_id, media_id)
     else:
