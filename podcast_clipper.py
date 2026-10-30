@@ -1527,9 +1527,34 @@ def check(cfg, live=False):
     return ok
 
 
+def review_action(clip_id, approve):
+    """Approve a held clip for the next publish run, or reject it permanently."""
+    if clip_id is None:
+        raise ValueError("--clip-id is required for approve/reject")
+    state = load_state()
+    clip = next((c for c in state["clips"] if c.get("id") == clip_id), None)
+    if clip is None:
+        raise ValueError(f"clip {clip_id} was not found in state")
+    if clip.get("status") != "needs_review":
+        raise ValueError(f"clip {clip_id} is {clip.get('status')!r}, not needs_review")
+    if approve:
+        clip.update(status="queued", approved_manually_at=now_iso(), error=None)
+        jr(state, "clip_manually_approved", clip=clip_id)
+        log.info("clip %s approved; run publish --force to publish it now", clip_id)
+    else:
+        clip.update(status="rejected", rejected_manually_at=now_iso(),
+                    error="Rejected during manual review")
+        jr(state, "clip_manually_rejected", clip=clip_id)
+        log.info("clip %s rejected", clip_id)
+    save_state(state)
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
-    ap.add_argument("command", choices=["tick", "produce", "publish", "metrics", "status", "check"])
+    ap.add_argument("command", choices=["tick", "produce", "publish", "metrics", "status", "check",
+                                        "approve", "reject"])
+    ap.add_argument("--clip-id", type=int, help="clip id for manual review approve/reject")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--force", action="store_true", help="post now, skip slot wait + duplicate guard")
     ap.add_argument("--live", action="store_true", help="check: also probe YouTube for real")
@@ -1550,6 +1575,12 @@ def main():
         update_metrics(cfg)
     elif args.command == "status":
         print(status_table(30))
+    elif args.command == "approve":
+        ok = review_action(args.clip_id, approve=True)
+        if ok and args.force:
+            ok = publish_next(cfg, wait=False, force=True)
+    elif args.command == "reject":
+        ok = review_action(args.clip_id, approve=False)
     else:
         ok = check(cfg, live=args.live)
     sys.exit(0 if ok else 1)
