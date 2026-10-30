@@ -12,9 +12,11 @@ and prevent aggressive face crops on dialogue-heavy clips; it does not yet match
 specific face, generate reaction cuts, or select B-roll.
 
 Candidate selection now reconstructs transcript context before and after every cut. External context is
-used to detect dangling references, never included as if it were spoken in the clip. The learning loop
+used to detect dangling references, never included as if they were spoken in the clip. The learning loop
 uses average watch time, reach-normalised shares/saves/likes and Reels skip rate when those insights are
-available; raw views are no longer the sole source-ranking signal.
+available; raw views are no longer the sole source-ranking signal. It keeps exploring channels with fewer
+than `learning.min_channel_samples` mature Reels and only learns hook/duration priors after
+`learning.min_format_samples` examples (both thresholds are configurable in `config.yaml`).
 
 ## Put it on GitHub and prove it works (15 minutes)
 1. Create a repo, commit every file in this folder (including the hidden `.github` folder), push.
