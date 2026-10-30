@@ -1405,7 +1405,18 @@ def publish_next(cfg, wait=True, force=False):
         except Exception as ex:
             _fail(state, clip, ex, "render")
             continue
-        review = qa_review(cfg, path)
+        if clip.get("approved_manually_at"):
+            # Human approval applies to this exact clip; deterministic media QA still runs.
+            try:
+                technical = qa_checks(cfg, path)
+                review = {"verdict": "hard_fail" if technical["issues"] else "pass",
+                          "score": None,
+                          "issues": technical["issues"] or ["Human-reviewed clip; technical QA passed"]}
+            except Exception as ex:
+                review = {"verdict": "hard_fail", "score": 0,
+                          "issues": [f"technical QA failed after manual approval: {str(ex)[:180]}"]}
+        else:
+            review = qa_review(cfg, path)
         clip["qa"] = {"verdict": review["verdict"], "score": review["score"], "issues": review["issues"]}
         if review["verdict"] == "hard_fail":
             clip.update(status="rejected", error="QA: " + "; ".join(review["issues"])[:300])
