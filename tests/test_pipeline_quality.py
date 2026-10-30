@@ -187,5 +187,25 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertEqual(ranked[1]["name"], "Low-view quality")
         self.assertEqual(ranked[2]["name"], "High-view weak")
 
+
+
+    @patch("podcast_clipper.now_iso", return_value="2026-10-30T13:00:00+00:00")
+    def test_episode_retry_after_keeps_episode_deferred(self, _now):
+        import podcast_clipper as clipper
+        state = {"episodes": {
+            "episode-1": {"retry_after": "2026-10-30T14:00:00+00:00"},
+            "episode-2": {"retry_after": "2026-10-30T12:00:00+00:00"},
+            "episode-3": {"note": "permanent successful queue"},
+        }}
+        self.assertEqual(clipper.done_ids(state), {"episode-1", "episode-3"})
+
+    @patch("podcast_clipper.now_iso", return_value="2026-10-30T15:00:00+00:00")
+    def test_episode_becomes_eligible_after_retry_window(self, _now):
+        import podcast_clipper as clipper
+        state = {"episodes": {
+            "episode-1": {"retry_after": "2026-10-30T14:00:00+00:00"},
+        }}
+        self.assertEqual(clipper.done_ids(state), set())
+
 if __name__ == "__main__":
     unittest.main()
