@@ -85,5 +85,77 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertNotIn("llm", candidates[0])
 
 
+
+
+    def test_face_reframe_can_be_disabled_without_touching_video(self):
+        self.assertIsNone(clipper.detect_face_crop_x({"render": {"face_reframe": False}}, "missing.mp4"))
+
+    @patch.object(clipper, "load_state")
+    @patch.object(clipper, "save_state")
+    @patch.object(clipper, "authorized_channels", return_value=[{"name": "Permitted source"}])
+    @patch.object(clipper, "queued")
+    @patch.object(clipper, "render_clip", return_value="rendered.mp4")
+    @patch.object(clipper, "qa_review", return_value={
+        "verdict": "soft_fail", "score": None, "issues": ["AI review unavailable"]
+    })
+    @patch.object(clipper.shutil, "copy2")
+    @patch.object(clipper, "post_reel")
+    def test_ai_soft_fail_is_held_for_manual_review_not_posted(
+        self, post_mock, _copy, _review, _render, queued_mock,
+        _channels, save_mock, state_mock
+    ):
+        clip = {"id": 7, "channel": "Permitted source", "status": "queued",
+                "start": 10, "end": 30, "video_id": "video", "caption": "caption"}
+        state = {"clips": [clip], "episodes": {}, "next_id": 2, "journal": []}
+        state_mock.return_value = state
+        queued_mock.return_value = [clip]
+        cfg = {"channels": [{"name": "Permitted source", "permission": True}]}
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(clipper, "REVIEW_DIR", Path(folder)):
+                result = clipper.publish_next(cfg, wait=False, force=True)
+        self.assertTrue(result)
+        self.assertEqual(clip["status"], "needs_review")
+        post_mock.assert_not_called()
+        save_mock.assert_called()
+
+    @patch.object(clipper, "post_reel", side_effect=clipper.PublishUncertainError("timeout"))
+    @patch.object(clipper, "save_state")
+    @patch.object(clipper, "jr")
+    def test_uncertain_instagram_publish_is_quarantined(self, _jr, _save, _post):
+        clip = {"id": 4, "channel": "source", "caption": "caption"}
+        state = {"clips": [clip], "journal": []}
+        result = clipper._post_clip({}, state, clip, "rendered.mp4")
+        self.assertFalse(result)
+        self.assertEqual(clip["status"], "publish_uncertain")
+
+    @patch.object(clipper, "post_reel", side_effect=RuntimeError("HTTP 400 rejected"))
+    @patch.object(clipper, "save_state")
+    @patch.object(clipper, "jr")
+    @patch.object(clipper, "_fail")
+    def test_definite_instagram_failure_remains_retryable(self, fail_mock, _jr, _save, _post):
+        clip = {"id": 5, "channel": "source", "caption": "caption", "attempts": 0}
+        state = {"clips": [clip], "journal": []}
+        result = clipper._post_clip({}, state, clip, "rendered.mp4")
+        self.assertIsNone(result)
+        self.assertEqual(clip["status"], "queued")
+        fail_mock.assert_called_once()
+
+    def test_manual_approve_changes_review_clip_to_queued(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        initial = {"clips": [{"id": 12, "status": "needs_review"}], "episodes": {},
+                   "next_id": 13, "journal": []}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "state.json"
+            path.write_text(json.dumps(initial), encoding="utf-8")
+            with patch.object(clipper, "STATE_FILE", path):
+                clipper.review_action(12, approve=True)
+                state = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(state["clips"][0]["status"], "queued")
+        self.assertIn("approved_manually_at", state["clips"][0])
+
 if __name__ == "__main__":
     unittest.main()
