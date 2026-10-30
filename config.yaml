@@ -41,7 +41,9 @@ qa:
   ai_unavailable: manual_review      # never auto-publish if the final AI review is unavailable
 
 learning:
-  explore_rate: 0.25                  # 25% of the time pick channels round-robin, otherwise by avg views
+  explore_rate: 0.25                  # keep exploring while testing source formats
+  min_channel_samples: 3              # require this many mature Reels before ranking a channel by quality
+  min_format_samples: 4               # require this many posts before learning a hook/duration prior
 
 llm:                                  # Gemini (set the GEMINI_API_KEY secret)
   enabled: true
