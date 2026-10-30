@@ -69,7 +69,7 @@ channels:
   - name: Raj Shamani
     handle: "@RajShamani"
     ig_handle: "@rajshamani"
-    permission: false
+    permission: true
   - name: Ranveer Allahbadia
     handle: "@BeerBiceps"
     ig_handle: "@beerbiceps"
