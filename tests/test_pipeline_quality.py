@@ -215,5 +215,6 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertFalse(cfg["diarization"]["enabled"])
         self.assertGreaterEqual(cfg["learning"]["min_channel_samples"], 1)
         self.assertGreaterEqual(cfg["learning"]["min_format_samples"], 1)
-\nif __name__ == "__main__":
+
+if __name__ == "__main__":
     unittest.main()
