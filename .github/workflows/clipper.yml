@@ -16,7 +16,7 @@ on:
         description: "What to run"
         type: choice
         default: check-live
-        options: [check-live, check, produce, tick, publish, metrics, status]
+        options: [check-live, check, produce, tick, publish, metrics, status, approve, reject]
       dry_run:
         description: "produce: analyse only, queue nothing"
         type: boolean
