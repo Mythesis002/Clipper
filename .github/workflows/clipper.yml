@@ -67,15 +67,27 @@ jobs:
       - name: Optional pyannote speaker diarization dependency
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          DIARIZATION_ENABLED: ${{ vars.ENABLE_DIARIZATION }}
         run: |
-          if [ "$DIARIZATION_ENABLED" = "true" ] && [ -n "$HF_TOKEN" ]; then
-            python -m pip install -r requirements-diarization.txt
-          elif [ "$DIARIZATION_ENABLED" = "true" ]; then
-            echo "::warning::ENABLE_DIARIZATION is true but HF_TOKEN is missing; speaker diarization will be skipped."
-          else
-            echo "Speaker diarization is disabled; keeping the lightweight base environment."
-          fi
+          python - <<'PY'
+          import os
+          import subprocess
+          from pathlib import Path
+          import yaml
+
+          with Path("config.yaml").open(encoding="utf-8") as stream:
+              config = yaml.safe_load(stream) or {}
+          enabled = bool((config.get("diarization") or {}).get("enabled", False))
+          token = os.environ.get("HF_TOKEN", "").strip()
+
+          if not enabled:
+              print("Speaker diarization is disabled in config.yaml.")
+          elif not token:
+              print("::warning::Diarization is enabled, but HF_TOKEN is missing; inference will be skipped.")
+          else:
+              subprocess.check_call([
+                  "python", "-m", "pip", "install", "-r", "requirements-diarization.txt"
+              ])
+          PY
 
       - name: PO-token provider for yt-dlp (helps on datacenter IPs; non-fatal if it fails)
         continue-on-error: true

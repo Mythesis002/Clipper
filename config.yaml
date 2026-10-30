@@ -22,7 +22,7 @@ render:
   face_reframe: true                  # full-height 9:16 crop only when one face is detected consistently
 
 diarization:
-  enabled: false                      # opt in: requires HF_TOKEN and pyannote Community-1 access approval
+  enabled: true                       # enabled; inference runs when HF_TOKEN and model access are available
   model: pyannote/speaker-diarization-community-1
 
 discovery:
