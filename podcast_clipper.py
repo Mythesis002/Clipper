@@ -1630,12 +1630,39 @@ def review_action(clip_id, approve):
     save_state(state)
     return True
 
+def resolve_uncertain_publish(clip_id, media_id=None, retry=False):
+    """Resolve an ambiguous Instagram publish only after checking the account manually."""
+    if clip_id is None:
+        raise ValueError("--clip-id is required")
+    if bool(media_id) == bool(retry):
+        raise ValueError("provide exactly one of --media-id (confirm posted) or --retry")
+    state = load_state()
+    clip = next((c for c in state["clips"] if c.get("id") == clip_id), None)
+    if clip is None:
+        raise ValueError(f"clip {clip_id} was not found in state")
+    if clip.get("status") not in ("publishing", "publish_uncertain"):
+        raise ValueError(f"clip {clip_id} is {clip.get('status')!r}, not an uncertain publish")
+    if media_id:
+        clip.update(status="posted", media_id=media_id,
+                    posted_at=clip.get("publish_started_at") or now_iso(), error=None)
+        jr(state, "uncertain_publish_confirmed", clip=clip_id, media=media_id)
+        log.info("clip %s marked as posted (media id %s)", clip_id, media_id)
+    else:
+        clip.update(status="queued", attempts=0, error=None)
+        clip.pop("publish_started_at", None)
+        jr(state, "uncertain_publish_cleared_for_retry", clip=clip_id)
+        log.warning("clip %s returned to queue; verify it is NOT already on Instagram before retrying", clip_id)
+    save_state(state)
+    return True
+
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("command", choices=["tick", "produce", "publish", "metrics", "status", "check",
-                                        "approve", "reject"])
-    ap.add_argument("--clip-id", type=int, help="clip id for manual review approve/reject")
+                                        "approve", "reject", "confirm-post", "retry-uncertain"])
+    ap.add_argument("--clip-id", type=int, help="clip id for manual review or publish reconciliation")
+    ap.add_argument("--media-id", help="Instagram media id when confirming an uncertain post")
+    ap.add_argument("--retry", action="store_true", help="retry an uncertain publish only after verifying it is absent from Instagram")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--force", action="store_true", help="post now, skip slot wait + duplicate guard")
     ap.add_argument("--live", action="store_true", help="check: also probe YouTube for real")
@@ -1662,6 +1689,10 @@ def main():
             ok = publish_next(cfg, wait=False, force=True)
     elif args.command == "reject":
         ok = review_action(args.clip_id, approve=False)
+    elif args.command == "confirm-post":
+        ok = resolve_uncertain_publish(args.clip_id, media_id=args.media_id)
+    elif args.command == "retry-uncertain":
+        ok = resolve_uncertain_publish(args.clip_id, retry=True)
     else:
         ok = check(cfg, live=args.live)
     sys.exit(0 if ok else 1)
