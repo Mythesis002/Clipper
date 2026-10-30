@@ -283,6 +283,35 @@ class PipelineQualityTests(unittest.TestCase):
             with self.assertRaises(clipper.PublishUncertainError):
                 clipper.post_reel(cfg, "rendered.mp4", "caption")
 
+    def test_instagram_media_compatibility_accepts_platform_safe_profile(self):
+        media = {
+            "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+            "video_codec": "h264", "video_pix_fmt": "yuv420p",
+            "video_fps": 30.0, "video_bitrate": 8_000_000,
+            "audio_codec": "aac", "audio_sample_rate": 48_000,
+            "audio_channels": 2, "audio_bitrate": 128_000,
+            "size_bytes": 20 * 1024 * 1024,
+        }
+        self.assertEqual(clipper.instagram_media_issues(media), [])
+
+    def test_instagram_media_compatibility_rejects_unsupported_profile(self):
+        media = {
+            "format_name": "matroska,webm",
+            "video_codec": "vp9", "video_pix_fmt": "yuv444p",
+            "video_fps": 15.0, "video_bitrate": 30_000_000,
+            "audio_codec": "opus", "audio_sample_rate": 96_000,
+            "audio_channels": 6, "audio_bitrate": 256_000,
+        }
+        issues = clipper.instagram_media_issues(media)
+        self.assertGreaterEqual(len(issues), 8)
+        self.assertTrue(any("container" in issue for issue in issues))
+        self.assertTrue(any("AAC" in issue for issue in issues))
+        self.assertTrue(any("48 kHz" in issue for issue in issues))
+
+    def test_probe_frame_rate_parses_ffprobe_ratio(self):
+        self.assertAlmostEqual(clipper._probe_frame_rate("30000/1001"), 29.97002997, places=5)
+        self.assertIsNone(clipper._probe_frame_rate("0/0"))
+
     def test_env_value_strips_secret_whitespace(self):
         with patch.dict("os.environ", {"CLIPPER_TEST_SECRET": "  secret-value\r\n"}):
             self.assertEqual(clipper.env_value("CLIPPER_TEST_SECRET"), "secret-value")
