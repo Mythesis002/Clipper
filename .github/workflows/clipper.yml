@@ -25,6 +25,10 @@ on:
         description: "post now (skip slot wait + duplicate guard)"
         type: boolean
         default: false
+      clip_id:
+        description: "Clip ID for approve/reject manual review commands"
+        type: number
+        required: false
 
 concurrency:
   group: clipper             # never two runs at once (they share state/state.json)
@@ -75,12 +79,26 @@ jobs:
           CMD: ${{ inputs.command || 'tick' }}      # scheduled runs have no input -> tick
           DRY: ${{ inputs.dry_run }}
           FORCE: ${{ inputs.force }}
+          CLIP_ID: ${{ inputs.clip_id }}
         run: |
           ARGS=""
           [ "$DRY" = "true" ] && ARGS="$ARGS --dry-run"
           [ "$FORCE" = "true" ] && ARGS="$ARGS --force"
           if [ "$CMD" = "check-live" ]; then CMD=check; ARGS="$ARGS --live"; fi
+          if [ "$CMD" = "approve" ] || [ "$CMD" = "reject" ]; then
+            if [ -z "$CLIP_ID" ]; then echo "::error::clip_id is required for approve/reject"; exit 2; fi
+            ARGS="$ARGS --clip-id $CLIP_ID"
+          fi
           python podcast_clipper.py "$CMD" $ARGS
+
+      - name: Upload clips awaiting manual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clip-review-${{ github.run_id }}
+          path: review/*.mp4
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Save state (queue + results)
         if: always()
