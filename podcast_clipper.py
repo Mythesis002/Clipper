@@ -275,7 +275,7 @@ def order_channels(cfg, state, rng=random):
     # Require a modest sample of mature Reels before exploiting a source. Rank by
     # retention/engagement quality, never raw views alone.
     return sorted(chans, key=lambda c: (
-        stats.get(c["name"], {}).get("quality_n", 0) < 3,
+        stats.get(c["name"], {}).get("quality_n", 0) >= 3,
         -stats.get(c["name"], {}).get("avg_quality", 0.5),
         last.get(c["name"], ""),
     ))
@@ -1773,11 +1773,12 @@ def status_table(limit=15):
         m = c.get("metrics") or {}
         detail = c.get("performance_detail") or {}
         quality = c.get("performance_score")
+        quality_display = f"{quality:.2f}" if isinstance(quality, (int, float)) else ""
         rows.append(f"| {c['id']} | {c['status']} | {c['channel']} | "
                     f"{hms(c['start'])}-{hms(c['end'])} | {views_of(c) or ''} | "
                     f"{m.get('reach', '')} | {m.get('saved', '')} | {m.get('shares', '')} | "
-                    f"{f'{quality:.2f}' if isinstance(quality, (int, float)) else ''} | "
-                    f"{detail.get('retention_pct', '')} | {detail.get('skip_rate', '')} |")
+                    f"{quality_display} | {detail.get('retention_pct', '')} | "
+                    f"{detail.get('skip_rate', '')} |")
     q = len(queued(state))
     review_count = sum(c.get("status") == "needs_review" for c in state["clips"])
     uncertain_count = sum(c.get("status") in ("publishing", "publish_uncertain") for c in state["clips"])
