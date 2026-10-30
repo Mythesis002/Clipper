@@ -18,7 +18,8 @@ clip:
   captions: true                      # burned-in word-group captions + on-screen title
 
 render:
-  foreground_scale: 1.16              # 1.0-1.35; modest zoom for landscape sources, not face tracking
+  foreground_scale: 1.16              # used by the safe full-frame fallback layout
+  face_reframe: true                  # full-height 9:16 crop only when one face is detected consistently
 
 discovery:
   scan_latest: 10                     # latest uploads checked per channel
