@@ -44,6 +44,7 @@ from yt_dlp.utils import download_range_func
 BASE = Path(__file__).resolve().parent
 WORK = BASE / "work"
 STATE_FILE = BASE / "state" / "state.json"
+REVIEW_DIR = BASE / "review"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 log = logging.getLogger("clipper")
 
@@ -1167,6 +1168,10 @@ def qa_review(cfg, path):
 # =============================================================================
 # 5. PUBLISH (Instagram Graph API, resumable upload) + insights
 # =============================================================================
+class PublishUncertainError(RuntimeError):
+    """The remote publish may have succeeded but its response was lost."""
+
+
 def post_reel(cfg, video_path, caption):
     ig_id, token = os.environ["IG_USER_ID"], os.environ["IG_ACCESS_TOKEN"]
     g = graph(cfg)
@@ -1191,11 +1196,22 @@ def post_reel(cfg, video_path, caption):
         time.sleep(5)
     else:
         raise TimeoutError("Instagram processing timed out")
-    p = requests.post(f"{g}/{ig_id}/media_publish", timeout=60, data={
-        "creation_id": container["id"], "access_token": token})
+    try:
+        p = requests.post(f"{g}/{ig_id}/media_publish", timeout=60, data={
+            "creation_id": container["id"], "access_token": token})
+    except requests.RequestException as ex:
+        raise PublishUncertainError(f"media_publish request outcome unknown: {ex}") from ex
+    if p.status_code >= 500:
+        raise PublishUncertainError(f"media_publish server error may have an unknown outcome: HTTP {p.status_code} {p.text[:200]}")
     if not p.ok:
-        raise RuntimeError(f"publish failed: {p.text[:300]}")
-    return p.json()["id"]
+        raise RuntimeError(f"publish rejected by Instagram: HTTP {p.status_code} {p.text[:300]}")
+    try:
+        media_id = p.json().get("id")
+    except (ValueError, AttributeError):
+        media_id = None
+    if not media_id:
+        raise PublishUncertainError("Instagram accepted publish request but returned no media id")
+    return media_id
 
 
 def due_slot(cfg, state, now=None):
@@ -1238,20 +1254,24 @@ def _fail(state, clip, ex, stage):
 
 
 def _post_clip(cfg, state, clip, path):
-    # Persist intent before calling Instagram. If Meta accepts the publish but the response
-    # is lost, automatic retry can create a duplicate. Quarantine ambiguous outcomes.
+    # Persist intent before calling Instagram. A timeout during media_publish is ambiguous
+    # and must never be retried blindly; definite pre-publish/API rejections can be retried.
     clip.update(status="publishing", publish_started_at=now_iso(), error=None)
     jr(state, "publish_started", clip=clip["id"], channel=clip["channel"])
     save_state(state)
     try:
         media_id = post_reel(cfg, path, clip["caption"])
-    except Exception as ex:
+    except PublishUncertainError as ex:
         clip.update(status="publish_uncertain", error=f"Instagram outcome uncertain: {str(ex)[:300]}")
         jr(state, "publish_uncertain", clip=clip["id"], error=clip["error"][:200])
         save_state(state)
-        gha("warning", f"Clip {clip['id']} has an uncertain Instagram publish outcome; it will not be retried automatically.")
+        gha("warning", f"Clip {clip['id']} has an uncertain Instagram publish outcome; not retrying automatically.")
         log.error("clip %s publish outcome uncertain: %s", clip["id"], ex)
         return False
+    except Exception as ex:
+        clip.pop("publish_started_at", None)
+        _fail(state, clip, ex, "instagram")
+        return None
     clip.update(status="posted", media_id=media_id, posted_at=now_iso(), error=None)
     clip.pop("publish_started_at", None)
     clip.pop("words", None)
@@ -1261,6 +1281,8 @@ def _post_clip(cfg, state, clip, path):
     shutil.rmtree(WORK, ignore_errors=True)
     log.info("posted clip %s -> media id %s", clip["id"], media_id)
     return True
+
+
 
 def publish_next(cfg, wait=True, force=False):
     """Render, inspect, and publish one eligible clip; ambiguous outcomes are never auto-retried."""
@@ -1314,19 +1336,25 @@ def publish_next(cfg, wait=True, force=False):
             gha("warning", f"Clip {clip['id']} rejected by QA: {review['issues']}")
             continue
         if review["verdict"] == "soft_fail":
-            clip.update(status="needs_review",
+            REVIEW_DIR.mkdir(parents=True, exist_ok=True)
+            review_path = REVIEW_DIR / f"clip_{clip['id']}.mp4"
+            shutil.copy2(path, review_path)
+            clip.update(status="needs_review", review_artifact_file=review_path.name,
                         error="Manual review required: " + "; ".join(review["issues"])[:300])
             jr(state, "clip_needs_review", clip=clip["id"], score=review.get("score"),
-               issues=review["issues"])
+               artifact=review_path.name, issues=review["issues"])
             save_state(state)
             gha("warning", f"Clip {clip['id']} needs manual review; it will not be auto-published.")
             needs_review = True
             continue
-        if _post_clip(cfg, state, clip, path):
+        post_result = _post_clip(cfg, state, clip, path)
+        if post_result is True:
             return True
-        # Instagram may have accepted the post even if our request timed out. Stop this slot
-        # rather than publishing a second candidate and risking a duplicate.
-        return False
+        if post_result is False:
+            # Ambiguous media_publish outcome: do not publish another candidate in this slot.
+            return False
+        # Definite create/upload/API failure: continue to the next queued clip.
+        continue
 
     if needs_review:
         jr(state, "slot_deferred", reason="candidate(s) moved to manual review")
