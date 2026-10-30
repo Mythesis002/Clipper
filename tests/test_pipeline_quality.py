@@ -211,6 +211,78 @@ class PipelineQualityTests(unittest.TestCase):
 
 
 
+    def test_due_slot_finds_upcoming_slot_in_ist(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        cfg = {
+            "timezone": "Asia/Kolkata",
+            "schedule": {"max_wait_min": 25, "catchup_hours": 6},
+            "post_times": ["06:00", "18:00"],
+        }
+        now = datetime(2026, 10, 30, 5, 50, tzinfo=ZoneInfo("Asia/Kolkata"))
+        slot = clipper.due_slot(cfg, {"clips": []}, now=now)
+        self.assertIsNotNone(slot)
+        self.assertEqual(slot[0].strftime("%H:%M"), "06:00")
+        self.assertEqual(slot[1], 600)
+
+    def test_due_slot_catches_up_without_double_posting(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        cfg = {
+            "timezone": "Asia/Kolkata",
+            "schedule": {"max_wait_min": 25, "catchup_hours": 6},
+            "post_times": ["06:00"],
+        }
+        now = datetime(2026, 10, 30, 6, 30, tzinfo=ZoneInfo("Asia/Kolkata"))
+        slot = clipper.due_slot(cfg, {"clips": []}, now=now)
+        self.assertIsNotNone(slot)
+        self.assertEqual(slot[1], -1800)
+        posted_state = {"clips": [{
+            "status": "posted", "posted_at": "2026-10-30T05:58:00+05:30",
+        }]}
+        self.assertIsNone(clipper.due_slot(cfg, posted_state, now=now))
+
+    def test_due_slot_does_not_catch_up_after_window_expires(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        cfg = {
+            "timezone": "Asia/Kolkata",
+            "schedule": {"max_wait_min": 25, "catchup_hours": 6},
+            "post_times": ["06:00"],
+        }
+        now = datetime(2026, 10, 30, 13, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        self.assertIsNone(clipper.due_slot(cfg, {"clips": []}, now=now))
+
+    def test_post_reel_publishes_only_after_upload_container_is_finished(self):
+        cfg = {"instagram": {"graph_version": "v25.0"}}
+        published = Mock(ok=True, status_code=200, json=lambda: {"id": "media-456"})
+        with patch.dict("os.environ", {"IG_USER_ID": "ig-123", "IG_ACCESS_TOKEN": "token-123"}), \
+             patch.object(clipper, "upload_reel_container", return_value="container-123") as upload_mock, \
+             patch.object(clipper.requests, "post", return_value=published) as post_mock:
+            media_id = clipper.post_reel(cfg, "rendered.mp4", "caption")
+        self.assertEqual(media_id, "media-456")
+        upload_mock.assert_called_once_with(cfg, "rendered.mp4", "caption")
+        self.assertEqual(post_mock.call_args.args[0],
+                         "https://graph.facebook.com/v25.0/ig-123/media_publish")
+        self.assertEqual(post_mock.call_args.kwargs["data"]["creation_id"], "container-123")
+
+    def test_post_reel_marks_publish_timeout_as_uncertain(self):
+        cfg = {"instagram": {"graph_version": "v25.0"}}
+        with patch.dict("os.environ", {"IG_USER_ID": "ig-123", "IG_ACCESS_TOKEN": "token-123"}), \
+             patch.object(clipper, "upload_reel_container", return_value="container-123"), \
+             patch.object(clipper.requests, "post", side_effect=clipper.requests.Timeout("timeout")):
+            with self.assertRaises(clipper.PublishUncertainError):
+                clipper.post_reel(cfg, "rendered.mp4", "caption")
+
+    def test_post_reel_treats_server_error_as_uncertain(self):
+        cfg = {"instagram": {"graph_version": "v25.0"}}
+        response = Mock(ok=False, status_code=503, text="upstream unavailable")
+        with patch.dict("os.environ", {"IG_USER_ID": "ig-123", "IG_ACCESS_TOKEN": "token-123"}), \
+             patch.object(clipper, "upload_reel_container", return_value="container-123"), \
+             patch.object(clipper.requests, "post", return_value=response):
+            with self.assertRaises(clipper.PublishUncertainError):
+                clipper.post_reel(cfg, "rendered.mp4", "caption")
+
     def test_env_value_strips_secret_whitespace(self):
         with patch.dict("os.environ", {"CLIPPER_TEST_SECRET": "  secret-value\r\n"}):
             self.assertEqual(clipper.env_value("CLIPPER_TEST_SECRET"), "secret-value")
