@@ -1480,35 +1480,66 @@ class PublishUncertainError(RuntimeError):
     """The remote publish may have succeeded but its response was lost."""
 
 
-def post_reel(cfg, video_path, caption):
+def upload_reel_container(cfg, video_path, caption):
+    """Upload and process a Reel container, but do NOT publish it.
+
+    Shared by the production publisher and the check-live smoke test. A FINISHED
+    container is still unpublished until media_publish is explicitly called.
+    """
     ig_id, token = env_value("IG_USER_ID"), env_value("IG_ACCESS_TOKEN")
     if not ig_id or not token:
-        raise RuntimeError("Instagram publishing requires non-empty IG_USER_ID and IG_ACCESS_TOKEN secrets")
+        raise RuntimeError("Instagram upload requires non-empty IG_USER_ID and IG_ACCESS_TOKEN secrets")
+    path = Path(video_path)
+    if not path.is_file() or path.stat().st_size <= 0:
+        raise RuntimeError(f"Instagram upload input is missing or empty: {path}")
     g = graph(cfg)
-    r = requests.post(f"{g}/{ig_id}/media", data={
+    response = requests.post(f"{g}/{ig_id}/media", data={
         "media_type": "REELS", "upload_type": "resumable", "caption": caption,
         "share_to_feed": "true", "access_token": token}, timeout=60)
-    if not r.ok:
-        raise RuntimeError(f"container create failed: {r.text[:300]}")
-    container = r.json()
-    data = Path(video_path).read_bytes()
-    u = requests.post(container["uri"], data=data, timeout=600, headers={
-        "Authorization": f"OAuth {token}", "offset": "0", "file_size": str(len(data))})
-    if not u.ok:
-        raise RuntimeError(f"upload failed: {u.text[:300]}")
+    if not response.ok:
+        raise RuntimeError(f"container create failed: HTTP {response.status_code} {response.text[:300]}")
+    try:
+        container = response.json()
+    except ValueError as ex:
+        raise RuntimeError("Instagram container create returned invalid JSON") from ex
+    container_id, upload_uri = container.get("id"), container.get("uri")
+    if not container_id or not upload_uri:
+        raise RuntimeError(f"Instagram container response missing id or upload URI: {container}")
+    data = path.read_bytes()
+    upload = requests.post(upload_uri, data=data, timeout=600, headers={
+        "Authorization": f"OAuth {token}", "offset": "0",
+        "file_size": str(len(data)), "Content-Type": "application/octet-stream"})
+    if not upload.ok:
+        raise RuntimeError(f"upload failed: HTTP {upload.status_code} {upload.text[:300]}")
     for _ in range(72):
-        s = requests.get(f"{g}/{container['id']}", timeout=30, params={
-            "fields": "status_code,status", "access_token": token}).json()
-        if s.get("status_code") == "FINISHED":
-            break
-        if s.get("status_code") in ("ERROR", "EXPIRED"):
-            raise RuntimeError(f"Instagram processing failed: {s}")
+        status_response = requests.get(f"{g}/{container_id}", timeout=30, params={
+            "fields": "status_code,status", "access_token": token})
+        if not status_response.ok:
+            raise RuntimeError(
+                f"Instagram processing status failed: HTTP {status_response.status_code} "
+                f"{status_response.text[:200]}")
+        try:
+            status = status_response.json()
+        except ValueError as ex:
+            raise RuntimeError("Instagram processing status returned invalid JSON") from ex
+        status_code = status.get("status_code")
+        if status_code == "FINISHED":
+            return str(container_id)
+        if status_code in ("ERROR", "EXPIRED"):
+            raise RuntimeError(f"Instagram processing failed: {status}")
+        if status_code not in ("IN_PROGRESS", "PENDING"):
+            raise RuntimeError(f"Instagram returned unexpected container status: {status}")
         time.sleep(5)
-    else:
-        raise TimeoutError("Instagram processing timed out")
+    raise TimeoutError("Instagram processing timed out")
+
+
+def post_reel(cfg, video_path, caption):
+    container_id = upload_reel_container(cfg, video_path, caption)
+    ig_id, token = env_value("IG_USER_ID"), env_value("IG_ACCESS_TOKEN")
+    g = graph(cfg)
     try:
         p = requests.post(f"{g}/{ig_id}/media_publish", timeout=60, data={
-            "creation_id": container["id"], "access_token": token})
+            "creation_id": container_id, "access_token": token})
     except requests.RequestException as ex:
         raise PublishUncertainError(f"media_publish request outcome unknown: {ex}") from ex
     if p.status_code >= 500:
