@@ -1156,13 +1156,18 @@ def download_section(cfg, vid, s, e, stem):
     raise RuntimeError(f"could not download section (tried {len(DL_STRATEGIES)} strategies): {last}")
 
 
-def detect_face_crop_x(cfg, raw):
-    """Return a safe 9:16 crop x-offset for a consistent single-face shot; otherwise None.
+def detect_face_crop_points(cfg, raw, speaker_analysis=None):
+    """Track a single visible face across sampled frames and return safe crop keyframes.
 
-    This is conservative face-aware reframing, not active-speaker tracking. Multi-person
-    shots and uncertain detections deliberately fall back to the full-frame layout.
+    Multiple faces or ambiguous dialogue deliberately use the blurred full-frame fallback.
+    The track is visual, not face identity recognition or a claim about who is speaking.
     """
     if not cfg.get("render", {}).get("face_reframe", True):
+        return None
+    speaker_analysis = speaker_analysis or {}
+    if (speaker_analysis.get("speaker_count") not in (None, 1)
+            and speaker_analysis.get("dominant_speaker_ratio", 0.0) < 0.75):
+        log.info("face reframing skipped: multiple active speakers share this clip")
         return None
     try:
         import cv2
@@ -1178,25 +1183,25 @@ def detect_face_crop_x(cfg, raw):
     if scaled_width <= 1080 or width / height < 0.85:
         return None
 
-    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-    detector = cv2.CascadeClassifier(cascade_path)
+    detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
     if detector.empty():
         log.warning("OpenCV face detector could not be loaded; using full-frame layout")
         return None
 
-    sample_count = max(6, min(14, int(np.ceil(duration / 1.5))))
-    timestamps = np.linspace(min(0.2, duration / 10), max(0.2, duration - 0.2), sample_count)
+    sample_count = max(8, min(24, int(np.ceil(duration / 0.8))))
+    timestamps = np.linspace(min(0.15, duration / 10), max(0.15, duration - 0.15), sample_count)
     capture = cv2.VideoCapture(str(raw))
     if not capture.isOpened():
         return None
 
-    centers, multi_face_frames = [], 0
+    detected, multi_face_frames, readable_frames = [], 0, 0
     try:
         for stamp in timestamps:
             capture.set(cv2.CAP_PROP_POS_MSEC, float(stamp) * 1000)
             ok, frame = capture.read()
             if not ok or frame is None:
                 continue
+            readable_frames += 1
             frame_h, frame_w = frame.shape[:2]
             scale = min(1.0, 640.0 / max(frame_w, 1))
             if scale < 1.0:
@@ -1207,25 +1212,58 @@ def detect_face_crop_x(cfg, raw):
             if len(faces) == 1:
                 x, y, fw, fh = faces[0]
                 center_x_original = (x + fw / 2) / scale
-                centers.append(center_x_original)
+                center_scaled = center_x_original * 1920 / height
+                crop_x = int(round(center_scaled - 540))
+                crop_x = min(max(crop_x, 0), scaled_width - 1080)
+                detected.append((float(stamp), float(crop_x)))
             elif len(faces) > 1:
                 multi_face_frames += 1
     except Exception as ex:
-        log.warning("face-aware reframing failed; using full-frame layout: %s", str(ex)[:180])
+        log.warning("face-aware tracking failed; using full-frame layout: %s", str(ex)[:180])
         return None
     finally:
         capture.release()
 
-    if len(centers) < max(4, int(np.ceil(sample_count * 0.55))):
+    if readable_frames < max(5, int(sample_count * 0.55)):
         return None
-    if multi_face_frames > sample_count * 0.25:
+    if len(detected) < max(5, int(readable_frames * 0.55)):
+        return None
+    if multi_face_frames > max(1, readable_frames * 0.20):
         return None
 
-    face_center_scaled = float(np.median(centers)) * 1920 / height
-    crop_x = int(round(face_center_scaled - 540))
-    crop_x = min(max(crop_x, 0), scaled_width - 1080)
-    log.info("single-face vertical reframing selected (crop x=%d)", crop_x)
-    return crop_x
+    # Median smooth nearby samples to suppress Haar-detector jitter.
+    points = []
+    for i, (stamp, _) in enumerate(detected):
+        nearby = [x for t, x in detected if abs(t - stamp) <= 0.9]
+        points.append((stamp, float(np.median(nearby))))
+    log.info("tracked one visible face across %d/%d samples", len(points), readable_frames)
+    return {"points": points, "max_x": scaled_width - 1080}
+
+
+def face_crop_expression(track):
+    """Build an FFmpeg crop-x expression with linear interpolation between face keyframes."""
+    if not track or len(track.get("points") or []) < 2:
+        return None
+    points = [(float(t), max(0.0, min(float(x), float(track["max_x"]))))
+              for t, x in track["points"]]
+    tail = f"2*round({points[-1][1]:.3f}/2)"
+    for i in range(len(points) - 2, -1, -1):
+        t0, x0 = points[i]
+        t1, x1 = points[i + 1]
+        dt = max(t1 - t0, 1e-3)
+        linear = f"2*round(({x0:.3f}+({x1 - x0:.3f})*(t-{t0:.3f})/{dt:.3f})/2)"
+        tail = f"if(lt(t\\,{t1:.3f})\\,{linear}\\,{tail})"
+    t_first, x_first = points[0]
+    return f"if(lt(t\\,{t_first:.3f})\\,2*round({x_first:.3f}/2)\\,{tail})"
+
+
+def detect_face_crop_x(cfg, raw):
+    """Backward-compatible static crop helper used by focused unit tests."""
+    track = detect_face_crop_points(cfg, raw)
+    if not track:
+        return None
+    return int(round(float(np.median([x for _, x in track["points"]]))))
+
 
 
 def compose_clip(cfg, raw, clip, s, e, stem):
@@ -1237,9 +1275,10 @@ def compose_clip(cfg, raw, clip, s, e, stem):
     fg_scale = float(cfg.get("render", {}).get("foreground_scale", 1.16))
     fg_scale = min(max(fg_scale, 1.0), 1.35)
     fg_width = int(1080 * fg_scale)
-    face_crop_x = detect_face_crop_x(cfg, raw)
-    if face_crop_x is not None:
-        fc = (f"[0:v]scale=-2:1920,crop=1080:1920:{face_crop_x}:0,"
+    face_track = detect_face_crop_points(cfg, raw, clip.get("speaker_analysis"))
+    crop_expr = face_crop_expression(face_track)
+    if crop_expr:
+        fc = (f"[0:v]scale=-2:1920,crop=1080:1920:x='{crop_expr}':0,"
               "setsar=1,eq=contrast=1.02:saturation=1.04[v0]")
     else:
         fc = ("[0:v]split=2[a][b];"
@@ -1277,6 +1316,15 @@ def render_clip(cfg, clip):
     for old in WORK.glob(f"{stem}*"):
         old.unlink()
     raw = download_section(cfg, vid, s, e, stem)
+    diarization_cfg = cfg.get("diarization", {})
+    if diarization_cfg.get("enabled"):
+        try:
+            from speaker_diarization import diarize_media
+            turns = diarize_media(raw, os.environ.get("HF_TOKEN"))
+            clip["speaker_analysis"] = speaker_summary(turns, 0.0, e - s)
+            clip.setdefault("features", {}).update(clip["speaker_analysis"])
+        except Exception as ex:
+            log.warning("speaker analysis skipped: %s", str(ex)[:200])
     out = compose_clip(cfg, raw, clip, s, e, stem)
     Path(raw).unlink(missing_ok=True)
     (WORK / f"{stem}.ass").unlink(missing_ok=True)
