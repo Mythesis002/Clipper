@@ -154,10 +154,15 @@ def channel_stats(state):
     return {k: {"n": len(v), "avg_views": sum(v) / len(v)} for k, v in acc.items()}
 
 
+def authorized_channels(cfg):
+    """Return only channels explicitly enabled with the boolean permission: true."""
+    return [c for c in cfg["channels"] if c.get("permission") is True]
+
+
 def order_channels(cfg, state, rng=random):
     """Learning loop: channels whose clips earn more views are scanned first.
     Channels with no data are explored first; `explore_rate` of the time we round-robin."""
-    chans = [c for c in cfg["channels"] if c.get("permission")]
+    chans = authorized_channels(cfg)
     stats = channel_stats(state)
     last = {}
     for ep in state["episodes"].values():
@@ -181,7 +186,8 @@ SKIP_TITLE = re.compile(r"\b(trailer|teaser|promo|shorts?|announcement)\b", re.I
 def pick_episode(cfg, state):
     chans = order_channels(cfg, state)
     if not chans:
-        raise SystemExit("No channel has permission: true in config.yaml - nothing to do.")
+        log.warning("No authorized channels are enabled (set permission: true only for sources you are allowed to clip).")
+        return None, None
     done = done_ids(state)
     d = cfg["discovery"]
     for ch in chans:
@@ -786,6 +792,13 @@ def produce(cfg, dry_run=False):
     """Pick an episode, analyse it, verify it is downloadable, queue its clips. If an episode turns out
     unusable, adapt: record why and move on to the next one (up to max_episode_attempts)."""
     state = load_state()
+    if not authorized_channels(cfg):
+        message = "No authorized channels enabled; discovery is paused. Enable permission: true only for a source you are licensed or authorized to clip."
+        log.warning(message)
+        jr(state, "discovery_paused", reason="no authorized channels enabled")
+        if not dry_run:
+            save_state(state)
+        return 0
     for attempt in range(cfg["discovery"].get("max_episode_attempts", 3)):
         ch, info = pick_episode(cfg, state)
         if not info:
@@ -1197,14 +1210,28 @@ def publish_next(cfg, wait=True, force=False):
     """Post one clip for the slot that is due. For each candidate clip: render -> QA review -> post.
     A clip that cannot be rendered/posted or fails QA falls through to the next one in the same slot."""
     state = load_state()
+    allowed_names = {c["name"] for c in authorized_channels(cfg)}
+    if not allowed_names:
+        log.warning("Publishing skipped: no authorized channels are enabled in config.yaml.")
+        jr(state, "publishing_paused", reason="no authorized channels enabled")
+        save_state(state)
+        return True
     slot = None
     if not force:
         slot = due_slot(cfg, state)
         if slot is None:
             log.info("no posting slot is due right now")
             return True
-    q = queued(state)
+    all_queued = queued(state)
+    q = [clip for clip in all_queued if clip.get("channel") in allowed_names]
+    held = len(all_queued) - len(q)
+    if held:
+        log.warning("Holding %d queued clip(s) from channels without current permission: true; they will not be published.", held)
+        jr(state, "clips_held_permission", count=held)
     if not q:
+        if held:
+            save_state(state)
+            return True
         gha("warning", "Posting slot reached but the queue is empty.")
         jr(state, "slot_missed", reason="queue empty")
         save_state(state)
@@ -1297,6 +1324,20 @@ def update_metrics(cfg):
 # 6. ORCHESTRATION, STATUS, CHECK
 # =============================================================================
 def tick(cfg, force=False):
+    # With no explicitly authorized sources, this is an intentional idle state, not a failed run.
+    # Do not publish any clips left in the queue after a permission has been disabled.
+    if not authorized_channels(cfg):
+        state = load_state()
+        log.warning("Clipper is idle: no channel has permission: true in config.yaml. No content will be discovered or published.")
+        jr(state, "automation_idle", reason="no authorized channels enabled; publishing disabled")
+        save_state(state)
+        try:
+            update_metrics(cfg)
+        except Exception:
+            log.exception("metrics update failed")
+        write_summary()
+        return True
+
     ok = True
     if not queued(load_state()):
         try:
@@ -1357,8 +1398,8 @@ def check(cfg, live=False):
     line(shutil.which("ffprobe"), "ffprobe")
     for var in ("IG_USER_ID", "IG_ACCESS_TOKEN"):
         line(os.environ.get(var), f"env {var}")
-    n = len([c for c in cfg["channels"] if c.get("permission")])
-    line(n, f"{n} channel(s) with permission: true")
+    n = len(authorized_channels(cfg))
+    line(n > 0, f"{n} channel(s) with permission: true (zero is allowed; publishing will remain idle)", required=False)
     if os.environ.get("IG_USER_ID") and os.environ.get("IG_ACCESS_TOKEN"):
         r = requests.get(f"{graph(cfg)}/{os.environ['IG_USER_ID']}", timeout=30, params={
             "fields": "username", "access_token": os.environ["IG_ACCESS_TOKEN"]})
