@@ -55,6 +55,11 @@ WORK = BASE / "work"
 STATE_FILE = BASE / "state" / "state.json"
 REVIEW_DIR = BASE / "review"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_CONNECT_TIMEOUT = 15
+GEMINI_TEXT_READ_TIMEOUT = 60
+GEMINI_MULTIMODAL_READ_TIMEOUT = 180
+GEMINI_MAX_ATTEMPTS = 3
 log = logging.getLogger("clipper")
 
 
@@ -76,6 +81,11 @@ def load_config(path=None):
     for key in ("clip", "queue", "discovery", "llm", "instagram", "schedule", "learning"):
         if not isinstance(cfg[key], dict):
             raise ValueError(f"config.yaml section {key!r} must be a mapping")
+    configured_gemini_model = str(cfg["llm"].get("model", GEMINI_MODEL)).strip()
+    if configured_gemini_model != GEMINI_MODEL:
+        raise ValueError(
+            f"llm.model must be {GEMINI_MODEL}; this Clipper build is pinned to that model"
+        )
     if "qa" in cfg and not isinstance(cfg["qa"], dict):
         raise ValueError("config.yaml section 'qa' must be a mapping")
     if "diarization" in cfg:
@@ -591,84 +601,98 @@ def gemini_key():
     return env_value("GEMINI_API_KEY") or env_value("GOOGLE_API_KEY")
 
 
-def pick_flash_models(models_json):
-    """models.list -> usable text 'flash' models, newest version first (non-lite before lite)."""
-    found = []
-    for m in models_json.get("models", []):
-        name = m.get("name", "").removeprefix("models/")
-        if "generateContent" not in m.get("supportedGenerationMethods", []):
-            continue
-        mm = re.fullmatch(r"gemini-(\d+(?:\.\d+)*)-flash(-lite)?", name)
-        if mm:
-            ver = tuple(int(x) for x in mm.group(1).split("."))
-            found.append((ver, 0 if mm.group(2) else 1, name))
-    found.sort(reverse=True)
-    return [n for _, _, n in found]
-
-
-def _gemini_post(model, body, key, timeout=180):
+def _gemini_post(model, body, key, timeout=(GEMINI_CONNECT_TIMEOUT, GEMINI_TEXT_READ_TIMEOUT),
+                 max_attempts=GEMINI_MAX_ATTEMPTS):
+    """POST to one pinned model, retrying transient network and server failures."""
     url = f"{GEMINI_BASE}/models/{model}:generateContent"
-    r = None
-    for attempt in range(4):
-        r = requests.post(url, json=body, headers={"x-goog-api-key": key}, timeout=timeout)
-        if r.status_code in (429, 500, 502, 503, 504) and attempt < 3:
-            try:
-                wait = float(r.headers.get("Retry-After") or 0)
-            except ValueError:
-                wait = 0
-            time.sleep(min(wait or 2 * 3 ** attempt, 60))        # 2s, 6s, 18s
+    retryable_statuses = (408, 429, 500, 502, 503, 504)
+
+    for attempt in range(max_attempts):
+        try:
+            response = requests.post(
+                url, json=body, headers={"x-goog-api-key": key}, timeout=timeout
+            )
+        except (requests.Timeout, requests.ConnectionError) as ex:
+            if attempt + 1 >= max_attempts:
+                raise GeminiError(
+                    f"{model} request timed out or lost its connection after "
+                    f"{max_attempts} attempts: {ex}"
+                ) from ex
+            wait = min(2 ** (attempt + 1), 10)
+            log.warning(
+                "Gemini %s network attempt %d/%d failed (%s); retrying in %ds",
+                model, attempt + 1, max_attempts, type(ex).__name__, wait,
+            )
+            time.sleep(wait)
             continue
-        break
-    return r
+
+        if response.status_code in retryable_statuses and attempt + 1 < max_attempts:
+            try:
+                retry_after = float(response.headers.get("Retry-After") or 0)
+            except (TypeError, ValueError):
+                retry_after = 0
+            wait = min(retry_after or 2 ** (attempt + 1), 30)
+            log.warning(
+                "Gemini %s returned HTTP %d on attempt %d/%d; retrying in %ds",
+                model, response.status_code, attempt + 1, max_attempts, wait,
+            )
+            time.sleep(wait)
+            continue
+        return response
+
+    raise GeminiError(f"{model} request failed after {max_attempts} attempts")
 
 
 def gemini_text(cfg, parts, temperature=0.2, max_tokens=8192):
-    """Call Gemini (REST). Retries 429/5xx; on 404 walks the fallback chain, then auto-discovers
-    the newest flash model from models.list (so a retired model name never breaks the pipeline)."""
+    """Call only Gemini 2.5 Flash; never switch or auto-discover another model."""
     key = gemini_key()
     if not key:
         raise GeminiError("no GEMINI_API_KEY")
+
+    llm = cfg["llm"]
+    configured_model = str(llm.get("model", GEMINI_MODEL)).strip()
+    if configured_model != GEMINI_MODEL:
+        raise GeminiError(
+            f"Clipper is pinned to {GEMINI_MODEL}, but llm.model is "
+            f"{configured_model!r}; update config.yaml"
+        )
+
     body = {"contents": [{"role": "user", "parts": parts}],
             "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens,
                                  "responseMimeType": "application/json"}}
-    llm = cfg["llm"]
-    queue = ([_MODEL_CACHE["model"]] if "model" in _MODEL_CACHE else []) \
-        + [llm["model"]] + list(llm.get("fallback_models", []))
-    tried, discovered = set(), False
-    while True:
-        queue = [m for m in dict.fromkeys(queue) if m not in tried]
-        if not queue:
-            if discovered:
-                raise GeminiError("no working Gemini model (all returned 404)")
-            discovered = True
-            lr = requests.get(f"{GEMINI_BASE}/models", params={"pageSize": 200},
-                              headers={"x-goog-api-key": key}, timeout=30)
-            if not lr.ok:
-                raise GeminiError(f"models.list failed: HTTP {lr.status_code} {lr.text[:200]}")
-            queue = pick_flash_models(lr.json())
-            log.info("auto-discovered Gemini models: %s", queue[:4])
-            continue
-        model = queue.pop(0)
-        tried.add(model)
-        r = _gemini_post(model, body, key)
-        if r.status_code == 404:
-            log.warning("Gemini model %s not found - trying next", model)
-            continue
-        if not r.ok:
-            raise GeminiError(f"HTTP {r.status_code}: {r.text[:300]}")
-        data = r.json()
-        block = (data.get("promptFeedback") or {}).get("blockReason")
-        if block:
-            raise GeminiError(f"prompt blocked: {block}")
-        cands = data.get("candidates") or []
-        if not cands:
-            raise GeminiError("no candidates in response")
-        out_parts = (cands[0].get("content") or {}).get("parts") or []
-        text = "".join(p.get("text", "") for p in out_parts if not p.get("thought"))
-        if not text.strip():
-            raise GeminiError(f"empty response (finishReason={cands[0].get('finishReason')})")
-        _MODEL_CACHE["model"] = model
-        return text
+    multimodal = any(
+        isinstance(part, dict) and ("fileData" in part or "inlineData" in part)
+        for part in parts
+    )
+    read_timeout = (
+        GEMINI_MULTIMODAL_READ_TIMEOUT if multimodal else GEMINI_TEXT_READ_TIMEOUT
+    )
+    timeout = (GEMINI_CONNECT_TIMEOUT, read_timeout)
+    response = _gemini_post(GEMINI_MODEL, body, key, timeout=timeout)
+
+    if response.status_code == 404:
+        raise GeminiError(
+            f"{GEMINI_MODEL} returned HTTP 404; this API key/project may not have "
+            "access to the model or the model may no longer be served"
+        )
+    if not response.ok:
+        raise GeminiError(
+            f"{GEMINI_MODEL} HTTP {response.status_code}: {response.text[:300]}"
+        )
+
+    data = response.json()
+    block = (data.get("promptFeedback") or {}).get("blockReason")
+    if block:
+        raise GeminiError(f"prompt blocked: {block}")
+    cands = data.get("candidates") or []
+    if not cands:
+        raise GeminiError("no candidates in response")
+    out_parts = (cands[0].get("content") or {}).get("parts") or []
+    text = "".join(p.get("text", "") for p in out_parts if not p.get("thought"))
+    if not text.strip():
+        raise GeminiError(f"empty response (finishReason={cands[0].get('finishReason')})")
+    _MODEL_CACHE["model"] = GEMINI_MODEL
+    return text
 
 
 def parse_json(text):
