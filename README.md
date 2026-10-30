@@ -30,9 +30,13 @@ than `learning.min_channel_samples` mature Reels and only learns hook/duration p
 3. Settings -> Actions -> General -> Workflow permissions -> **Read and write**.
 4. In `config.yaml` set `permission: true` ONLY for creators whose content you are authorized to republish. Do not enable the example channels without permission/licensing. For best reliability, test using your own or explicitly licensed source videos first.
 5. Actions -> **podcast-clipper** -> Run workflow, in this order:
-   1. **check-live** - the real self-test. It checks ffmpeg, your Instagram token, Gemini, then downloads a
-      real 8-second section of an open-licensed video from YouTube on GitHub's machine and renders it to
-      1080x1920. Nothing is posted. Every line must say OK.
+   1. **check-live** - the production preflight. It checks ffmpeg/ffprobe, Instagram account access,
+      Gemini text/video calls, YouTube download, a real 9:16 render, deterministic QA and final Gemini
+      video QA. It then discovers an eligible authorised podcast episode, analyses its transcript,
+      ranks candidates and renders one real candidate. It uploads the open-licensed test clip into an
+      Instagram resumable container and waits for processing, but deliberately does **not** call
+      `media_publish`; the unpublished test container expires. Nothing is posted. A required FAIL must
+      be fixed before production. Optional Most-Replayed/insight metrics may be unavailable by design.
    2. **produce** with *dry_run* ticked - analyses a real episode and prints the 3 chosen clips in the log.
    3. **tick** with *force* ticked - renders and posts ONE real Reel now. Check Instagram.
 6. After that the cron schedules run by themselves (05:50 / 17:50 IST start and wait for the exact slot; 07:50 / 19:50 IST are catch-up runs).
