@@ -251,9 +251,9 @@ class PipelineQualityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             video = Path(folder) / "smoke.mp4"
             video.write_bytes(b"synthetic-mp4-payload")
-            with patch.dict("os.environ", {"IG_USER_ID": "ig-123", "IG_ACCESS_TOKEN": "token-123"}), \\
+            with patch.dict("os.environ", {"IG_USER_ID": "ig-123", "IG_ACCESS_TOKEN": "token-123"}), \
                  patch.object(clipper.requests, "post",
-                              side_effect=[create_response, upload_response]) as post_mock, \\
+                              side_effect=[create_response, upload_response]) as post_mock, \
                  patch.object(clipper.requests, "get", return_value=status_response) as get_mock:
                 container_id = clipper.upload_reel_container(cfg, video, "smoke test")
         self.assertEqual(container_id, "container-123")
@@ -271,7 +271,7 @@ class PipelineQualityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             video = Path(folder) / "smoke.mp4"
             video.write_bytes(b"mp4")
-            with patch.dict("os.environ", {"IG_USER_ID": "  ", "IG_ACCESS_TOKEN": "\\n"}), \\
+            with patch.dict("os.environ", {"IG_USER_ID": "  ", "IG_ACCESS_TOKEN": "\\n"}), \
                  patch.object(clipper.requests, "post") as post_mock:
                 with self.assertRaisesRegex(RuntimeError, "IG_USER_ID and IG_ACCESS_TOKEN"):
                     clipper.upload_reel_container(cfg, video, "smoke")
@@ -288,9 +288,9 @@ class PipelineQualityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             video = Path(folder) / "smoke.mp4"
             video.write_bytes(b"synthetic-mp4-payload")
-            with patch.dict("os.environ", {"IG_USER_ID": "ig-123", "IG_ACCESS_TOKEN": "token-123"}), \\
+            with patch.dict("os.environ", {"IG_USER_ID": "ig-123", "IG_ACCESS_TOKEN": "token-123"}), \
                  patch.object(clipper.requests, "post",
-                              side_effect=[create_response, upload_response]), \\
+                              side_effect=[create_response, upload_response]), \
                  patch.object(clipper.requests, "get", return_value=status_response):
                 with self.assertRaisesRegex(RuntimeError, "unexpected container status"):
                     clipper.upload_reel_container(cfg, video, "smoke")
