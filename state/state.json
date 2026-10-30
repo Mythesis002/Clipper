@@ -1,0 +1,886 @@
+{
+ "episodes": {
+  "sRH-XlBE2cQ": {
+   "channel": "Raj Shamani",
+   "title": "Ex Navy SEAL Who Killed Osama Bin Laden On The Raid & Fear | Robert J. O’Neill | FO579 Raj Shamani",
+   "url": "https://www.youtube.com/watch?v=sRH-XlBE2cQ",
+   "views": 4740906,
+   "processed_at": "2026-10-30T17:56:50+00:00",
+   "clips": 1
+  },
+  "BV7QRw8wtjs": {
+   "channel": "Raj Shamani",
+   "title": "How To Build An Unbreakable Mind & Push Beyond Your Limits | Ayyoub El Osrouti | FO578 Raj Shamani",
+   "url": "https://www.youtube.com/watch?v=BV7QRw8wtjs",
+   "views": 2564140,
+   "processed_at": "2026-10-30T18:01:19+00:00",
+   "clips": 2
+  }
+ },
+ "clips": [
+  {
+   "id": 1,
+   "video_id": "sRH-XlBE2cQ",
+   "channel": "Raj Shamani",
+   "start": 85.6,
+   "end": 118.88,
+   "score": 0.7352,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.58,
+    "density": 1.0,
+    "editorial_score": 0.784,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.818,
+    "hook_type": "question",
+    "duration_bucket": "30-39s",
+    "speaker_count": 1,
+    "speaker_turns": 1,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "1"
+   },
+   "title": "Why We Killed Osama Bin Laden & My Letter to My Daughter",
+   "caption": "An ex-Navy SEAL reveals why Osama bin Laden was killed, not captured, and shares the heartbreaking letter he wrote to his daughter before th\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=sRH-XlBE2cQ\n\nFollow for daily podcast clips\n\n#NavySEAL #OsamaBinLaden #MilitaryLife #OneWayMission #EmotionalStory",
+   "polished": false,
+   "status": "posted",
+   "attempts": 0,
+   "created_at": "2026-10-30T17:57:06+00:00",
+   "speaker_analysis": {
+    "speaker_count": 1,
+    "speaker_turns": 1,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0
+   },
+   "qa": {
+    "verdict": "pass",
+    "score": 9.0,
+    "issues": [
+     "Minor caption discrepancy: speaker says \"tears hitting the pitch\" but caption reads \"tears hitting the page\"."
+    ]
+   },
+   "error": null,
+   "media_id": "18062177894799308",
+   "posted_at": "2026-10-30T17:59:24+00:00"
+  },
+  {
+   "id": 2,
+   "video_id": "BV7QRw8wtjs",
+   "channel": "Raj Shamani",
+   "start": 216.21,
+   "end": 244.57,
+   "score": 0.7549,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.58,
+    "density": 0.97,
+    "editorial_score": 0.946,
+    "standalone_heuristic": 0.972,
+    "payoff_heuristic": 0.9,
+    "context_dependency": 0.0,
+    "hook_type": "number_or_stat",
+    "duration_bucket": "20-29s"
+   },
+   "title": "",
+   "caption": "How To Build An Unbreakable Mind & Push Beyond Your Limits | Ayyoub El Osrouti | FO578 Raj Shamani\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=BV7QRw8wtjs\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
+   "polished": false,
+   "words": [
+    [
+     216.21,
+     "That's"
+    ],
+    [
+     216.45,
+     "why"
+    ],
+    [
+     216.93,
+     "I"
+    ],
+    [
+     217.05,
+     "use"
+    ],
+    [
+     217.29,
+     "the"
+    ],
+    [
+     217.53,
+     "ASUS"
+    ],
+    [
+     218.01,
+     "ExpertBook."
+    ],
+    [
+     219.13,
+     "It"
+    ],
+    [
+     219.33,
+     "comes"
+    ],
+    [
+     219.61,
+     "with"
+    ],
+    [
+     219.81,
+     "military-grade"
+    ],
+    [
+     220.57,
+     "durability"
+    ],
+    [
+     221.33,
+     "passing"
+    ],
+    [
+     221.69,
+     "24"
+    ],
+    [
+     222.37,
+     "out"
+    ],
+    [
+     222.49,
+     "of"
+    ],
+    [
+     222.69,
+     "28"
+    ],
+    [
+     223.37,
+     "strict"
+    ],
+    [
+     223.89,
+     "US"
+    ],
+    [
+     224.29,
+     "military-grade"
+    ],
+    [
+     224.97,
+     "tests."
+    ],
+    [
+     225.41,
+     "Its"
+    ],
+    [
+     225.65,
+     "keyboard"
+    ],
+    [
+     226.05,
+     "can"
+    ],
+    [
+     226.25,
+     "handle"
+    ],
+    [
+     226.69,
+     "spills"
+    ],
+    [
+     227.29,
+     "of"
+    ],
+    [
+     227.61,
+     "up"
+    ],
+    [
+     227.89,
+     "to"
+    ],
+    [
+     228.09,
+     "355"
+    ],
+    [
+     229.01,
+     "cc"
+    ],
+    [
+     229.73,
+     "and"
+    ],
+    [
+     229.89,
+     "the"
+    ],
+    [
+     230.01,
+     "top"
+    ],
+    [
+     230.29,
+     "panel"
+    ],
+    [
+     230.97,
+     "is"
+    ],
+    [
+     231.13,
+     "strong"
+    ],
+    [
+     231.61,
+     "enough"
+    ],
+    [
+     231.97,
+     "to"
+    ],
+    [
+     232.13,
+     "take"
+    ],
+    [
+     232.37,
+     "up"
+    ],
+    [
+     232.53,
+     "to"
+    ],
+    [
+     232.69,
+     "30"
+    ],
+    [
+     233.05,
+     "kg"
+    ],
+    [
+     233.41,
+     "of"
+    ],
+    [
+     233.53,
+     "pressure."
+    ],
+    [
+     234.29,
+     "So"
+    ],
+    [
+     234.49,
+     "no"
+    ],
+    [
+     234.65,
+     "matter"
+    ],
+    [
+     235.01,
+     "how"
+    ],
+    [
+     235.21,
+     "much"
+    ],
+    [
+     235.45,
+     "pressure"
+    ],
+    [
+     235.77,
+     "you"
+    ],
+    [
+     235.93,
+     "put"
+    ],
+    [
+     236.17,
+     "it"
+    ],
+    [
+     236.29,
+     "through,"
+    ],
+    [
+     236.81,
+     "the"
+    ],
+    [
+     236.97,
+     "laptop"
+    ],
+    [
+     237.57,
+     "keeps"
+    ],
+    [
+     237.93,
+     "up"
+    ],
+    [
+     238.09,
+     "with"
+    ],
+    [
+     238.29,
+     "you."
+    ],
+    [
+     238.85,
+     "The"
+    ],
+    [
+     239.09,
+     "ASUS"
+    ],
+    [
+     239.61,
+     "ExpertBook"
+    ],
+    [
+     240.25,
+     "series"
+    ],
+    [
+     240.77,
+     "is"
+    ],
+    [
+     241.01,
+     "available"
+    ],
+    [
+     241.45,
+     "on"
+    ],
+    [
+     241.57,
+     "Flipkart."
+    ],
+    [
+     242.45,
+     "Check"
+    ],
+    [
+     242.69,
+     "the"
+    ],
+    [
+     242.81,
+     "link"
+    ],
+    [
+     243.01,
+     "in"
+    ],
+    [
+     243.09,
+     "the"
+    ],
+    [
+     243.13,
+     "description"
+    ],
+    [
+     243.65,
+     "below."
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-10-30T18:01:34+00:00"
+  },
+  {
+   "id": 3,
+   "video_id": "BV7QRw8wtjs",
+   "channel": "Raj Shamani",
+   "start": 44.2,
+   "end": 80.89,
+   "score": 0.6948,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.62,
+    "density": 1.0,
+    "editorial_score": 0.784,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "hook_type": "question",
+    "duration_bucket": "30-39s"
+   },
+   "title": "",
+   "caption": "How To Build An Unbreakable Mind & Push Beyond Your Limits | Ayyoub El Osrouti | FO578 Raj Shamani\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=BV7QRw8wtjs\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
+   "polished": false,
+   "words": [
+    [
+     44.2,
+     "How"
+    ],
+    [
+     44.32,
+     "many"
+    ],
+    [
+     44.52,
+     "days?"
+    ],
+    [
+     44.68,
+     "Four"
+    ],
+    [
+     44.84,
+     "days?"
+    ],
+    [
+     45.2,
+     ">> Four"
+    ],
+    [
+     45.24,
+     "days."
+    ],
+    [
+     45.72,
+     ">> Five"
+    ],
+    [
+     45.92,
+     "nights."
+    ],
+    [
+     46.4,
+     ">> How"
+    ],
+    [
+     46.64,
+     "much"
+    ],
+    [
+     46.8,
+     "did"
+    ],
+    [
+     46.96,
+     "you"
+    ],
+    [
+     47.08,
+     "sleep?"
+    ],
+    [
+     47.72,
+     ">> Those"
+    ],
+    [
+     47.88,
+     "93"
+    ],
+    [
+     48.36,
+     "hours."
+    ],
+    [
+     48.76,
+     ">> In"
+    ],
+    [
+     48.88,
+     "the"
+    ],
+    [
+     49.0,
+     "first"
+    ],
+    [
+     49.68,
+     "36"
+    ],
+    [
+     50.52,
+     "hours"
+    ],
+    [
+     51.04,
+     "I"
+    ],
+    [
+     51.16,
+     "slept"
+    ],
+    [
+     51.76,
+     "maybe"
+    ],
+    [
+     52.24,
+     "5"
+    ],
+    [
+     52.56,
+     "minutes,"
+    ],
+    [
+     53.12,
+     "60"
+    ],
+    [
+     53.56,
+     "minutes"
+    ],
+    [
+     54.48,
+     "over"
+    ],
+    [
+     55.2,
+     "the"
+    ],
+    [
+     55.4,
+     "whole"
+    ],
+    [
+     55.88,
+     "race."
+    ],
+    [
+     56.32,
+     "It's"
+    ],
+    [
+     56.52,
+     "a"
+    ],
+    [
+     56.56,
+     "sleepless"
+    ],
+    [
+     57.64,
+     "race."
+    ],
+    [
+     59.36,
+     ">> Did"
+    ],
+    [
+     59.52,
+     "you"
+    ],
+    [
+     59.68,
+     "ever"
+    ],
+    [
+     60.0,
+     "in"
+    ],
+    [
+     60.12,
+     "those"
+    ],
+    [
+     60.32,
+     "93"
+    ],
+    [
+     61.12,
+     "you"
+    ],
+    [
+     61.24,
+     "felt"
+    ],
+    [
+     61.48,
+     "like"
+    ],
+    [
+     61.72,
+     "I'm"
+    ],
+    [
+     62.0,
+     "done?"
+    ],
+    [
+     62.64,
+     ">> Maybe"
+    ],
+    [
+     63.12,
+     "for"
+    ],
+    [
+     64.08,
+     "just"
+    ],
+    [
+     64.32,
+     "a"
+    ],
+    [
+     64.4,
+     "second"
+    ],
+    [
+     64.84,
+     "as"
+    ],
+    [
+     65.08,
+     "a"
+    ],
+    [
+     65.36,
+     "as"
+    ],
+    [
+     65.48,
+     "a"
+    ],
+    [
+     65.56,
+     "thought,"
+    ],
+    [
+     65.88,
+     "yeah."
+    ],
+    [
+     66.8,
+     "Um"
+    ],
+    [
+     66.88,
+     "at"
+    ],
+    [
+     67.24,
+     "loop"
+    ],
+    [
+     67.92,
+     "87"
+    ],
+    [
+     68.8,
+     "I"
+    ],
+    [
+     68.92,
+     "had"
+    ],
+    [
+     69.08,
+     "something"
+    ],
+    [
+     69.44,
+     "at"
+    ],
+    [
+     69.56,
+     "my"
+    ],
+    [
+     69.72,
+     "Achilles"
+    ],
+    [
+     70.24,
+     "and"
+    ],
+    [
+     70.44,
+     "it"
+    ],
+    [
+     70.56,
+     "was"
+    ],
+    [
+     70.76,
+     "hurting"
+    ],
+    [
+     71.08,
+     "so"
+    ],
+    [
+     71.32,
+     "bad."
+    ],
+    [
+     71.8,
+     "Every"
+    ],
+    [
+     72.0,
+     "step"
+    ],
+    [
+     72.4,
+     "hurt."
+    ],
+    [
+     72.72,
+     "I"
+    ],
+    [
+     72.8,
+     "was"
+    ],
+    [
+     73.04,
+     "like,"
+    ],
+    [
+     73.24,
+     "\"Okay,"
+    ],
+    [
+     73.68,
+     "maybe"
+    ],
+    [
+     73.88,
+     "it's"
+    ],
+    [
+     74.04,
+     "over"
+    ],
+    [
+     74.28,
+     "here.\""
+    ],
+    [
+     74.76,
+     ">> Why"
+    ],
+    [
+     74.88,
+     "didn't"
+    ],
+    [
+     75.12,
+     "you"
+    ],
+    [
+     75.2,
+     "quit?"
+    ],
+    [
+     75.6,
+     ">> I"
+    ],
+    [
+     75.72,
+     "wanted"
+    ],
+    [
+     76.36,
+     "to"
+    ],
+    [
+     76.6,
+     "just"
+    ],
+    [
+     77.24,
+     "overcome"
+    ],
+    [
+     77.72,
+     "my"
+    ],
+    [
+     77.8,
+     "limits."
+    ],
+    [
+     78.48,
+     "It's"
+    ],
+    [
+     78.6,
+     "just"
+    ],
+    [
+     78.96,
+     "some"
+    ],
+    [
+     79.24,
+     "pain."
+    ],
+    [
+     79.68,
+     "It"
+    ],
+    [
+     79.8,
+     "will"
+    ],
+    [
+     79.92,
+     "go"
+    ],
+    [
+     80.04,
+     "away."
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-10-30T18:01:34+00:00"
+  }
+ ],
+ "next_id": 4,
+ "journal": [
+  {
+   "t": "2026-10-30T17:57:06+00:00",
+   "event": "episode_queued",
+   "video": "sRH-XlBE2cQ",
+   "channel": "Raj Shamani",
+   "clips": 1
+  },
+  {
+   "t": "2026-10-30T17:58:47+00:00",
+   "event": "publish_started",
+   "clip": 1,
+   "channel": "Raj Shamani"
+  },
+  {
+   "t": "2026-10-30T17:59:24+00:00",
+   "event": "posted",
+   "clip": 1,
+   "media": "18062177894799308",
+   "channel": "Raj Shamani",
+   "qa": "pass"
+  },
+  {
+   "t": "2026-10-30T18:01:34+00:00",
+   "event": "episode_queued",
+   "video": "BV7QRw8wtjs",
+   "channel": "Raj Shamani",
+   "clips": 2
+  }
+ ]
+}
