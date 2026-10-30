@@ -406,7 +406,7 @@ def fetch_words(cfg, info):
                 return words
         except Exception as ex:
             log.warning("caption fetch failed (%s/%s): %s", pool, key, ex)
-    log.warning("no usable transcript - heatmap-only mode (no captions, grid cut points)")
+    log.warning("no usable transcript; arbitrary time-grid clips are disabled until speech can be evaluated")
     return []
 
 
@@ -987,8 +987,13 @@ def produce(cfg, dry_run=False):
         meta = {"channel": ch["name"], "title": info["title"], "url": info["webpage_url"],
                 "views": info.get("view_count"), "processed_at": now_iso()}
         if not picks:
-            state["episodes"][info["id"]] = {**meta, "clips": 0, "note": "no usable clips"}
-            jr(state, "episode_skipped", video=info["id"], reason="no usable clips")
+            retry = (now_utc() + timedelta(hours=12)).isoformat(timespec="seconds")
+            state["episodes"][info["id"]] = {
+                **meta, "clips": 0, "note": "no usable editorial candidates",
+                "retry_after": retry,
+            }
+            jr(state, "episode_skipped", video=info["id"],
+               reason="no usable editorial candidates; retry in 12h")
             save_state(state)
             continue
         if not probe_download(cfg, info["id"], picks[0]):
