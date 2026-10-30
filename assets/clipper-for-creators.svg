@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="860" viewBox="0 0 1440 860" role="img" aria-labelledby="title desc">
+  <title id="title">Who Clipper is for and how it works</title>
+  <desc id="desc">Four audience groups and a five-step podcast-to-Reels workflow.</desc>
+  <rect width="1440" height="860" fill="#ffffff"/>
+  <text x="92" y="96" font-family="Inter,Arial,sans-serif" font-size="17" font-weight="700" letter-spacing="3" fill="#777777">MADE FOR LONG-FORM CREATORS</text>
+  <text x="92" y="178" font-family="Inter,Arial,sans-serif" font-size="64" font-weight="800" letter-spacing="-2" fill="#111111">More from every conversation.</text>
+  <text x="96" y="226" font-family="Inter,Arial,sans-serif" font-size="23" fill="#555555">Clipper helps turn the moments worth sharing into short-form content.</text>
+  <g transform="translate(92 290)">
+    <rect width="294" height="210" rx="18" fill="#f6f6f6"/>
+    <circle cx="52" cy="52" r="25" fill="#111111"/>
+    <path d="M42 45 Q52 35 62 45 L62 61 Q52 70 42 61 Z M52 68 V78 M43 78 H61" stroke="#ffffff" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <text x="32" y="118" font-family="Inter,Arial,sans-serif" font-size="23" font-weight="700" fill="#111111">Podcasters &amp; hosts</text>
+    <text x="32" y="153" font-family="Inter,Arial,sans-serif" font-size="17" fill="#555555">Extend the reach of your</text>
+    <text x="32" y="179" font-family="Inter,Arial,sans-serif" font-size="17" fill="#555555">long-form episodes.</text>
+    <rect x="314" width="294" height="210" rx="18" fill="#f6f6f6"/>
+    <circle cx="366" cy="52" r="25" fill="#111111"/>
+    <path d="M355 43 H377 V61 H355 Z M359 39 H373 M361 66 H371" stroke="#ffffff" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <text x="346" y="118" font-family="Inter,Arial,sans-serif" font-size="23" font-weight="700" fill="#111111">Creator teams</text>
+    <text x="346" y="153" font-family="Inter,Arial,sans-serif" font-size="17" fill="#555555">Build a repeatable short-form</text>
+    <text x="346" y="179" font-family="Inter,Arial,sans-serif" font-size="17" fill="#555555">content workflow.</text>
+    <rect x="628" width="294" height="210" rx="18" fill="#f6f6f6"/>
+    <circle cx="680" cy="52" r="25" fill="#111111"/>
+    <path d="M670 43 H690 V61 H670 Z M675 39 V65 M685 39 V65" stroke="#ffffff" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <text x="660" y="118" font-family="Inter,Arial,sans-serif" font-size="23" font-weight="700" fill="#111111">Podcast editors</text>
+    <text x="660" y="153" font-family="Inter,Arial,sans-serif" font-size="17" fill="#555555">Automate repetitive clipping</text>
+    <text x="660" y="179" font-family="Inter,Arial,sans-serif" font-size="17" fill="#555555">and publishing steps.</text>
+    <rect x="942" width="314" height="210" rx="18" fill="#111111"/>
+    <circle cx="994" cy="52" r="25" fill="#ffffff"/>
+    <path d="M984 44 L1004 60 M1004 44 L984 60 M994 39 V65" stroke="#111111" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <text x="974" y="118" font-family="Inter,Arial,sans-serif" font-size="23" font-weight="700" fill="#ffffff">Developers</text>
+    <text x="974" y="153" font-family="Inter,Arial,sans-serif" font-size="17" fill="#d6d6d6">Explore and adapt an open</text>
+    <text x="974" y="179" font-family="Inter,Arial,sans-serif" font-size="17" fill="#d6d6d6">automation pipeline.</text>
+  </g>
+  <text x="92" y="584" font-family="Inter,Arial,sans-serif" font-size="17" font-weight="700" letter-spacing="3" fill="#777777">THE PIPELINE</text>
+  <g transform="translate(92 626)">
+    <rect width="214" height="105" rx="15" fill="#f3f3f3"/>
+    <text x="107" y="43" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="700" fill="#111111">Podcast</text>
+    <text x="107" y="70" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="15" fill="#666666">Authorised episode</text>
+    <path d="M226 53 H250 M242 45 L250 53 L242 61" stroke="#999999" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <rect x="262" width="214" height="105" rx="15" fill="#f3f3f3"/>
+    <text x="369" y="43" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="700" fill="#111111">Select</text>
+    <text x="369" y="70" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="15" fill="#666666">Transcript + Gemini</text>
+    <path d="M488 53 H512 M504 45 L512 53 L504 61" stroke="#999999" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <rect x="524" width="214" height="105" rx="15" fill="#f3f3f3"/>
+    <text x="631" y="43" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="700" fill="#111111">Create</text>
+    <text x="631" y="70" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="15" fill="#666666">Vertical clip + captions</text>
+    <path d="M750 53 H774 M766 45 L774 53 L766 61" stroke="#999999" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <rect x="786" width="214" height="105" rx="15" fill="#f3f3f3"/>
+    <text x="893" y="43" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="700" fill="#111111">Review</text>
+    <text x="893" y="70" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="15" fill="#666666">Technical + AI checks</text>
+    <path d="M1012 53 H1036 M1028 45 L1036 53 L1028 61" stroke="#999999" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <rect x="1048" width="214" height="105" rx="15" fill="#111111"/>
+    <text x="1155" y="43" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="700" fill="#ffffff">Publish</text>
+    <text x="1155" y="70" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="15" fill="#d6d6d6">Instagram Reels</text>
+  </g>
+  <text x="92" y="801" font-family="Inter,Arial,sans-serif" font-size="17" fill="#777777">For content you own, license or have explicit permission to republish.</text>
+  <text x="1348" y="801" text-anchor="end" font-family="Inter,Arial,sans-serif" font-size="17" letter-spacing="2" fill="#777777">CLIPPER · OPEN SOURCE</text>
+</svg>
