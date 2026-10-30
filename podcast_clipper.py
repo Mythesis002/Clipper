@@ -14,6 +14,10 @@ Commands
   status    show queue + results
   check     verify tokens / tools / YouTube access / Gemini
 
+Optional:
+  set diarization.enabled=true, HF_TOKEN, and accept the model terms to use
+  pyannote Community-1 speaker diarization on rendered clip audio.
+
 Only process channels you have permission to clip (see config.yaml).
 """
 
@@ -40,6 +44,11 @@ import requests
 import yaml
 import yt_dlp
 from yt_dlp.utils import download_range_func
+
+from editorial_engine import (
+    apply_format_priors, editorial_signals, enrich_candidates_with_context,
+    format_priors, performance_quality, speaker_summary,
+)
 
 BASE = Path(__file__).resolve().parent
 WORK = BASE / "work"
@@ -210,13 +219,36 @@ def full_info(cfg, video_id):
 
 
 def channel_stats(state):
-    """channel -> {'n': reels with metrics, 'avg_views': mean views}"""
+    """Bayesian-shrunk per-channel performance score plus view count for diagnostics."""
     acc = {}
     for c in state["clips"]:
+        if c.get("status") != "posted":
+            continue
         v = views_of(c)
-        if c["status"] == "posted" and v is not None:
-            acc.setdefault(c["channel"], []).append(v)
-    return {k: {"n": len(v), "avg_views": sum(v) / len(v)} for k, v in acc.items()}
+        score = c.get("performance_score")
+        bucket = acc.setdefault(c.get("channel", "unknown"), {"views": [], "quality": []})
+        if v is not None:
+            bucket["views"].append(float(v))
+        try:
+            if score is not None:
+                bucket["quality"].append(min(max(float(score), 0.0), 1.0))
+        except (TypeError, ValueError):
+            pass
+
+    out = {}
+    for channel, values in acc.items():
+        quality = values["quality"]
+        n = len(quality)
+        # Neutral Beta-style prior prevents one unusually strong Reel from dominating.
+        avg_quality = (sum(quality) + 0.5 * 5.0) / (n + 5.0)
+        out[channel] = {
+            "n": len(values["views"]),
+            "avg_views": sum(values["views"]) / len(values["views"]) if values["views"] else 0.0,
+            "quality_n": n,
+            "avg_quality": avg_quality,
+        }
+    return out
+
 
 
 def authorized_channels(cfg):
@@ -648,21 +680,37 @@ def _truthy(x):
 
 
 def build_rerank_prompt(ep_title, cands):
-    payload = [{"id": i, "t": hms(c["start"]), "text": c["text"][:1000]} for i, c in enumerate(cands)]
+    payload = [{
+        "id": i,
+        "t": hms(c["start"]),
+        "clip": c["text"][:850],
+        "context_before_not_in_clip": c.get("context_before", "")[-300:],
+        "context_after_not_in_clip": c.get("context_after", "")[:200],
+        "heuristics": {
+            "opening_type": c.get("hook_type"),
+            "context_dependency": c.get("context_dependency"),
+            "standalone_estimate": c.get("standalone_heuristic"),
+            "payoff_estimate": c.get("payoff_heuristic"),
+        },
+    } for i, c in enumerate(cands)]
     return (
-        f"You are a short-form video editor choosing clips from a podcast episode: {ep_title!r}.\n"
-        "Candidates are usually 15-45s segments (auto-transcript, may be Hindi/Hinglish, punctuation may be imperfect).\n"
-        "Score each 0-10 on hook (first 2-3 seconds), standalone clarity, payoff (does the segment "
-        "deliver what its opening promises), emotion, and specificity (a concrete insight, example, "
-        "number, or memorable point). Prefer complete thoughts with a clear beginning and ending. "
-        "Set reject=true if it depends on earlier context, has no payoff, is mostly filler, starts or "
-        "ends mid-thought, or contains hate, harassment, unverified defamatory claims about named "
-        "people, or explicit content. Do not reward clickbait. Also write a truthful title (max 8 words, "
-        "same language/script as the clip), a caption hook under 100 chars, and 3-4 relevant hashtags.\n"
-        "Reply with ONLY a JSON array, one object per candidate id: "
+        f"You are a senior short-form editor choosing complete podcast moments from {ep_title!r}.\n"
+        "The clip field is the ONLY content that will appear in the Reel. Context fields are provided "
+        "only to detect dangling references; they are NOT part of the clip.\n"
+        "Evaluate each candidate from the actual spoken words, not sensationalism. Score 0-10: "
+        "hook (first 1-3 seconds), standalone clarity, payoff (does the clip fulfil its opening), "
+        "emotion, specificity, and context independence. Prefer a clear premise, a concrete insight "
+        "or story, and a satisfying end. Penalise a cut that begins with a pronoun or continuation "
+        "whose referent exists only in the external context. If it needs context that viewers won't "
+        "hear, set reject=true. Also reject broken sentences, filler-only segments, misleading claims, "
+        "or unsafe content. Do not reward clickbait, outrage, or unverified allegations.\n"
+        "Create a truthful concise title in the same language/script as the clip and a caption hook "
+        "that doesn't promise anything the spoken clip fails to deliver.\n"
+        "Return ONLY JSON array: "
         '[{"id":0,"hook":0,"standalone":0,"payoff":0,"emotion":0,"specificity":0,'
-        '"reject":false,"title":"","caption_hook":"","hashtags":["#x"]}]\n\n'
+        '"context_independence":0,"reject":false,"title":"","caption_hook":"","hashtags":["#x"]}]\n\n'
         + json.dumps(payload, ensure_ascii=False))
+
 
 
 def apply_rerank(cands, data):
@@ -685,8 +733,10 @@ def apply_rerank(cands, data):
         payoff = _score(d.get("payoff"), s)
         specificity = _score(d.get("specificity"), h)
         c = cands[i]
-        c["llm"] = (h * 0.30 + s * 0.25 + payoff * 0.25
-                    + e * 0.10 + specificity * 0.10) / 10
+        context_independence = _score(d.get("context_independence"), max(0.0, 10.0 * (1.0 - cands[i].get("context_dependency", 0.5))))
+        c["llm"] = (h * 0.25 + s * 0.22 + payoff * 0.23
+                    + e * 0.10 + specificity * 0.10 + context_independence * 0.10) / 10
+        c["context_independence_llm"] = context_independence / 10
         c["payoff"] = payoff / 10
         c["specificity"] = specificity / 10
         c["reject"] = _truthy(d.get("reject"))
@@ -800,13 +850,23 @@ def polish_captions(cfg, picks, ep_title):
 
 
 def final_score(c):
-    """Weighted blend of whatever evidence exists: data-driven pre-score, Gemini text, Gemini video."""
-    parts = [(c["pre"], 0.45)]
+    """Blend source replay, editorial judgement, video review and mature format learning."""
+    parts = [(c.get("pre", 0.5), 0.40)]
     if "llm" in c:
         parts.append((c["llm"], 0.30))
     if "vid" in c:
-        parts.append((c["vid"], 0.25))
-    return sum(v * w for v, w in parts) / sum(w for _, w in parts)
+        parts.append((c["vid"], 0.20))
+    if "standalone_heuristic" in c and "payoff_heuristic" in c:
+        editorial = (0.55 * c["standalone_heuristic"]
+                     + 0.45 * c["payoff_heuristic"])
+        parts.append((editorial, 0.10))
+    base = sum(value * weight for value, weight in parts) / sum(weight for _, weight in parts)
+    prior = c.get("performance_prior")
+    if prior is not None:
+        # Learned historical performance can adjust a creative decision, never override it.
+        base = base * 0.92 + float(prior) * 0.08
+    return min(max(base, 0.0), 1.0)
+
 
 
 def select_top(cands, n, min_gap):
@@ -839,11 +899,28 @@ def make_caption(cfg, ch, info, cand):
 # =============================================================================
 # 3. PRODUCE (discover -> analyse -> queue; no video is downloaded here)
 # =============================================================================
-def analyse_episode(cfg, ch, info):
-    """heatmap + transcript + heuristics + Gemini(text) + Gemini(video) -> best clips with polished captions."""
+def analyse_episode(cfg, ch, info, state=None):
+    """Transcript/context analysis -> heuristic shortlist -> Gemini/video judgement -> clip picks."""
     words = fetch_words(cfg, info)
     heat = heat_per_second(info.get("heatmap") or [], info["duration"])
     cands = score_candidates(cfg, heat, words, info["duration"])
+    if not cands:
+        log.warning("no candidate moments: usable timestamped transcript is missing or too short")
+        return []
+
+    enrich_candidates_with_context(cands, words)
+    for candidate in cands:
+        editorial = (0.50 * candidate.get("standalone_heuristic", 0.5)
+                     + 0.40 * candidate.get("payoff_heuristic", 0.5)
+                     + 0.10 * (1.0 - candidate.get("context_dependency", 0.5)))
+        candidate["editorial_score"] = round(editorial, 4)
+        candidate["pre"] = 0.72 * candidate["pre"] + 0.28 * editorial
+
+    if state:
+        priors = format_priors(state.get("clips", []), min_samples=4)
+        apply_format_priors(cands, priors)
+
+    cands.sort(key=lambda item: -item["pre"])
     cands = diversify(cands, cfg["llm"]["candidates"], cfg["clip"]["min_gap_s"],
                       variants=cfg["llm"].get("variants", 3) if gemini_key() else 1)
     cands = llm_rerank(cfg, cands, info["title"])
@@ -855,6 +932,7 @@ def analyse_episode(cfg, ch, info):
         p["words"] = list(words[i0:i1])
     polish_captions(cfg, picks, info["title"])
     return picks
+
 
 
 def probe_download(cfg, vid, pick):
@@ -889,7 +967,7 @@ def produce(cfg, dry_run=False):
             return 0
         log.info("episode: %s | %s (%ds, %s views)", ch["name"], info["title"], info["duration"],
                  info.get("view_count"))
-        picks = analyse_episode(cfg, ch, info)
+        picks = analyse_episode(cfg, ch, info, state=state)
         for p in picks:
             log.info("pick %s-%s final=%.3f heat=%.2f hook=%.2f llm=%s vid=%s | %s", hms(p["start"]),
                      hms(p["end"]), p["final"], p["heat"], p["hook"], p.get("llm"), p.get("vid"),
@@ -914,8 +992,17 @@ def produce(cfg, dry_run=False):
             state["clips"].append({
                 "id": state["next_id"], "video_id": info["id"], "channel": ch["name"],
                 "start": round(p["start"], 2), "end": round(p["end"], 2), "score": round(p["final"], 4),
-                "features": {k: round(p[k], 3) for k in ("heat", "hook", "density") if k in p}
-                            | {k: round(p[k], 3) for k in ("llm", "vid") if k in p},
+                "features": {k: round(p[k], 3) for k in (
+                    "heat", "hook", "density", "editorial_score", "standalone_heuristic",
+                    "payoff_heuristic", "context_dependency"
+                ) if k in p}
+                            | {k: round(p[k], 3) for k in ("llm", "vid") if k in p}
+                            | {k: p[k] for k in ("hook_type",) if p.get(k)}
+                            | {"duration_bucket": (
+                                "15-19s" if p["end"] - p["start"] < 20 else
+                                "20-29s" if p["end"] - p["start"] < 30 else
+                                "30-39s" if p["end"] - p["start"] < 40 else "40s+"
+                            )},
                 "title": p.get("title", ""), "caption": make_caption(cfg, ch, info, p),
                 "polished": bool(p.get("polished")),
                 "words": [[round(t, 2), w] for t, w in p["words"]],
