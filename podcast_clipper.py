@@ -1117,18 +1117,78 @@ def source_url(video_id):
     return env_value("CLIPPER_SOURCE_URL") or f"https://www.youtube.com/watch?v={video_id}"
 
 
+def _probe_number(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _probe_frame_rate(value):
+    try:
+        if isinstance(value, str) and "/" in value:
+            numerator, denominator = value.split("/", 1)
+            denominator = float(denominator)
+            return float(numerator) / denominator if denominator else None
+        return _probe_number(value)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
 def probe_media(path):
     r = subprocess.run(["ffprobe", "-v", "error", "-print_format", "json", "-show_streams",
                         "-show_format", str(path)], capture_output=True, text=True)
     if r.returncode:
         raise RuntimeError("ffprobe failed: " + r.stderr[-200:])
     j = json.loads(r.stdout)
-    v = [s for s in j["streams"] if s["codec_type"] == "video"]
-    a = [s for s in j["streams"] if s["codec_type"] == "audio"]
-    return {"duration": float(j["format"].get("duration") or 0),
-            "w": v[0]["width"] if v else 0, "h": v[0]["height"] if v else 0,
-            "has_video": bool(v), "has_audio": bool(a)}
+    v = [stream for stream in j["streams"] if stream["codec_type"] == "video"]
+    a = [stream for stream in j["streams"] if stream["codec_type"] == "audio"]
+    video, audio = (v[0] if v else {}), (a[0] if a else {})
+    fmt = j.get("format") or {}
+    return {
+        "duration": float(fmt.get("duration") or 0),
+        "w": video.get("width", 0), "h": video.get("height", 0),
+        "has_video": bool(v), "has_audio": bool(a),
+        "format_name": fmt.get("format_name", ""),
+        "video_codec": video.get("codec_name"),
+        "video_pix_fmt": video.get("pix_fmt"),
+        "video_fps": _probe_frame_rate(video.get("avg_frame_rate") or video.get("r_frame_rate")),
+        "video_bitrate": _probe_number(video.get("bit_rate")),
+        "audio_codec": audio.get("codec_name"),
+        "audio_sample_rate": _probe_number(audio.get("sample_rate")),
+        "audio_channels": audio.get("channels"),
+        "audio_bitrate": _probe_number(audio.get("bit_rate")),
+        "size_bytes": _probe_number(fmt.get("size")),
+    }
 
+
+def instagram_media_issues(media):
+    """Validate an exported file against the Instagram Graph API Reel media profile."""
+    issues = []
+    if "mp4" not in str(media.get("format_name") or "").lower():
+        issues.append("container must be MP4")
+    if media.get("video_codec") not in ("h264", "hevc"):
+        issues.append("video codec must be H.264 or HEVC")
+    if media.get("video_pix_fmt") != "yuv420p":
+        issues.append("video pixel format must be 4:2:0 yuv420p")
+    fps = media.get("video_fps")
+    if fps is None or not 23 <= fps <= 60:
+        issues.append("video frame rate must be between 23 and 60 fps")
+    if media.get("video_bitrate") is not None and media["video_bitrate"] > 25_000_000:
+        issues.append("video bitrate exceeds 25 Mbps")
+    if media.get("audio_codec") != "aac":
+        issues.append("audio codec must be AAC")
+    sample_rate = media.get("audio_sample_rate")
+    if sample_rate is None or not 0 < sample_rate <= 48_000:
+        issues.append("audio sample rate must be at most 48 kHz")
+    channels = media.get("audio_channels")
+    if channels not in (1, 2):
+        issues.append("audio must be mono or stereo")
+    if media.get("audio_bitrate") is not None and media["audio_bitrate"] > 140_000:
+        issues.append("audio bitrate exceeds the 128 kbps target")
+    if media.get("size_bytes") is not None and media["size_bytes"] > 250 * 1024 * 1024:
+        issues.append("file exceeds the clipper 250 MB safety limit")
+    return issues
 
 DL_FORMAT = "bv*[height<=1080]+ba/b[height<=1080]"
 DL_STRATEGIES = [                                  # tried in order; the last one that worked goes first
@@ -1320,8 +1380,8 @@ def compose_clip(cfg, raw, clip, s, e, stem):
     out = WORK / f"{stem}.mp4"
     cmd = ["ffmpeg", "-y", "-i", Path(raw).name, "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0",
            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:v", "libx264", "-preset", "veryfast",
-           "-crf", "20", "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-b:a", "160k",
-           "-ar", "44100", "-movflags", "+faststart", "-t", f"{e - s:.2f}", out.name]
+           "-crf", "20", "-maxrate", "20M", "-bufsize", "40M", "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-b:a", "128k",
+           "-ar", "48000", "-ac", "2", "-movflags", "+faststart", "-t", f"{e - s:.2f}", out.name]
     r = subprocess.run(cmd, cwd=WORK, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     if r.returncode:
         raise RuntimeError("ffmpeg failed: " + r.stderr.decode(errors="ignore")[-400:])
@@ -1330,6 +1390,9 @@ def compose_clip(cfg, raw, clip, s, e, stem):
         raise RuntimeError(f"bad output {m}")
     if not (3 <= m["duration"] <= 90) or abs(m["duration"] - (e - s)) > 1.0:
         raise RuntimeError(f"output duration {m['duration']:.1f}s, expected ~{e - s:.1f}s")
+    compatibility_issues = instagram_media_issues(m)
+    if compatibility_issues:
+        raise RuntimeError("Instagram media compatibility failed: " + "; ".join(compatibility_issues))
     if out.stat().st_size > 250 * 1024 * 1024:
         raise RuntimeError("output larger than 250 MB")
     return out
