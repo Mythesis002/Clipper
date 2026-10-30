@@ -323,6 +323,69 @@ class PipelineQualityTests(unittest.TestCase):
         }, clear=True):
             self.assertEqual(clipper.gemini_key(), "fallback-key")
 
+    def test_gemini_text_uses_only_pinned_25_flash_without_model_discovery(self):
+        cfg = {
+            "llm": {
+                "enabled": True,
+                "model": "gemini-2.5-flash",
+                "fallback_models": ["gemini-3.8-flash"],
+            }
+        }
+        response = Mock(
+            ok=True,
+            status_code=200,
+            json=lambda: {
+                "candidates": [{
+                    "content": {"parts": [{"text": '{"ok": true}'}]}
+                }]
+            },
+        )
+        clipper._MODEL_CACHE.clear()
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}, clear=True), \
+             patch.object(clipper.requests, "post", return_value=response) as post_mock, \
+             patch.object(clipper.requests, "get") as get_mock:
+            result = clipper.gemini_text(cfg, [{"text": "return JSON"}])
+
+        self.assertEqual(result, '{"ok": true}')
+        self.assertIn("/models/gemini-2.5-flash:generateContent", post_mock.call_args.args[0])
+        self.assertEqual(post_mock.call_count, 1)
+        get_mock.assert_not_called()
+        self.assertEqual(clipper._MODEL_CACHE.get("model"), "gemini-2.5-flash")
+
+    def test_gemini_text_rejects_a_different_model_before_network(self):
+        cfg = {"llm": {"enabled": True, "model": "gemini-3.8-flash"}}
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}, clear=True), \
+             patch.object(clipper.requests, "post") as post_mock:
+            with self.assertRaisesRegex(clipper.GeminiError, "pinned to gemini-2.5-flash"):
+                clipper.gemini_text(cfg, [{"text": "return JSON"}])
+        post_mock.assert_not_called()
+
+    def test_gemini_post_retries_a_transient_timeout(self):
+        response = Mock(ok=True, status_code=200)
+        with patch.object(
+            clipper.requests, "post",
+            side_effect=[clipper.requests.Timeout("temporary read timeout"), response],
+        ) as post_mock, patch.object(clipper.time, "sleep") as sleep_mock:
+            result = clipper._gemini_post(
+                "gemini-2.5-flash", {"contents": []}, "test-key", timeout=(10, 60)
+            )
+        self.assertIs(result, response)
+        self.assertEqual(post_mock.call_count, 2)
+        sleep_mock.assert_called_once_with(2)
+
+    def test_gemini_post_reports_timeout_after_bounded_retries(self):
+        with patch.object(
+            clipper.requests, "post",
+            side_effect=clipper.requests.Timeout("read timed out"),
+        ) as post_mock, patch.object(clipper.time, "sleep"):
+            with self.assertRaisesRegex(
+                clipper.GeminiError, "gemini-2.5-flash request timed out.*3 attempts"
+            ):
+                clipper._gemini_post(
+                    "gemini-2.5-flash", {"contents": []}, "test-key", timeout=(10, 60)
+                )
+        self.assertEqual(post_mock.call_count, 3)
+
     def test_preflight_fails_when_gemini_is_missing_but_enabled(self):
         cfg = {
             "instagram": {"graph_version": "v25.0"},
@@ -424,6 +487,8 @@ class PipelineQualityTests(unittest.TestCase):
         )
         self.assertGreaterEqual(cfg["learning"]["min_channel_samples"], 1)
         self.assertGreaterEqual(cfg["learning"]["min_format_samples"], 1)
+        self.assertEqual(cfg["llm"]["model"], "gemini-2.5-flash")
+        self.assertNotIn("fallback_models", cfg["llm"])
 
     def test_only_sources_with_explicit_permission_are_authorized(self):
         cfg = clipper.load_config()
