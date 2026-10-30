@@ -207,5 +207,13 @@ class PipelineQualityTests(unittest.TestCase):
         }}
         self.assertEqual(clipper.done_ids(state), set())
 
-if __name__ == "__main__":
+
+
+    def test_repository_config_loads_and_enables_lightweight_defaults(self):
+        import podcast_clipper as clipper
+        cfg = clipper.load_config()
+        self.assertFalse(cfg["diarization"]["enabled"])
+        self.assertGreaterEqual(cfg["learning"]["min_channel_samples"], 1)
+        self.assertGreaterEqual(cfg["learning"]["min_format_samples"], 1)
+\nif __name__ == "__main__":
     unittest.main()
