@@ -1,4 +1,6 @@
+import io
 import unittest
+from contextlib import redirect_stdout
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -208,6 +210,53 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertEqual(clipper.done_ids(state), set())
 
 
+
+    def test_env_value_strips_secret_whitespace(self):
+        with patch.dict("os.environ", {"CLIPPER_TEST_SECRET": "  secret-value\\r\\n"}):
+            self.assertEqual(clipper.env_value("CLIPPER_TEST_SECRET"), "secret-value")
+
+    def test_gemini_key_ignores_whitespace_primary_and_uses_trimmed_fallback(self):
+        with patch.dict("os.environ", {
+            "GEMINI_API_KEY": "  \\n",
+            "GOOGLE_API_KEY": "  fallback-key\\r\\n",
+        }, clear=True):
+            self.assertEqual(clipper.gemini_key(), "fallback-key")
+
+    def test_preflight_fails_when_gemini_is_missing_but_enabled(self):
+        cfg = {
+            "instagram": {"graph_version": "v25.0"},
+            "channels": [{"name": "Raj Shamani", "permission": True}],
+            "llm": {"enabled": True},
+        }
+        with patch.dict("os.environ", {
+            "IG_USER_ID": "  ",
+            "IG_ACCESS_TOKEN": "  ",
+            "GEMINI_API_KEY": "  ",
+        }, clear=True), patch.object(clipper.shutil, "which", return_value="/usr/bin/tool"):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = clipper.check(cfg, live=False)
+        self.assertFalse(result)
+        self.assertIn("FAIL env GEMINI_API_KEY", output.getvalue())
+        self.assertIn("FAIL env IG_USER_ID", output.getvalue())
+
+    def test_preflight_requires_hugging_face_token_when_diarization_enabled(self):
+        cfg = {
+            "instagram": {"graph_version": "v25.0"},
+            "channels": [{"name": "Raj Shamani", "permission": True}],
+            "llm": {"enabled": False},
+            "diarization": {"enabled": True},
+        }
+        with patch.dict("os.environ", {
+            "IG_USER_ID": "ig-id", "IG_ACCESS_TOKEN": "ig-token", "HF_TOKEN": "  ",
+        }, clear=True), patch.object(clipper.shutil, "which", return_value="/usr/bin/tool"), patch.object(
+            clipper.requests, "get", return_value=Mock(ok=True, json=lambda: {"username": "test"})
+        ):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = clipper.check(cfg, live=False)
+        self.assertFalse(result)
+        self.assertIn("FAIL env HF_TOKEN", output.getvalue())
 
     def test_repository_config_enables_diarization_and_only_raj_shamani_source(self):
         import podcast_clipper as clipper
