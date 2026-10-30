@@ -47,6 +47,7 @@ This is not yet a full professional NLE/AI editor: it has no continuous active-s
 - Replaced the fixed face crop with a dynamic, interpolated face-position track; ambiguous group/dialogue footage keeps the full-frame fallback.
 - Added retention-weighted performance scores using average watch time, reach-normalised shares/saves/likes and Reels skip rate where those insights are available.
 - Source ordering now explores channels with insufficient performance data first, then prioritises mature retention/engagement quality rather than raw views.
+- Channel and format learning sample requirements are configurable in `config.yaml`.
 - Added editor-intelligence, analytics and real FFmpeg render integration tests.
 
 ### Optional diarization setup
