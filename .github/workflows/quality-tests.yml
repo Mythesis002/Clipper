@@ -29,7 +29,7 @@ jobs:
         run: python -m pip install -r requirements.txt
 
       - name: Python syntax check
-        run: python -m py_compile podcast_clipper.py tests/test_pipeline_quality.py
+        run: python -m py_compile podcast_clipper.py editorial_engine.py speaker_diarization.py tests/test_pipeline_quality.py tests/test_editorial_engine.py
 
       - name: Regression tests
         run: python -m unittest discover -s tests -v
