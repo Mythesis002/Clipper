@@ -16,7 +16,7 @@ on:
         description: "What to run"
         type: choice
         default: check-live
-        options: [check-live, check, produce, tick, publish, metrics, status]
+        options: [check-live, check, produce, tick, publish, metrics, status, approve, reject, confirm-post, retry-uncertain]
       dry_run:
         description: "produce: analyse only, queue nothing"
         type: boolean
@@ -25,6 +25,14 @@ on:
         description: "post now (skip slot wait + duplicate guard)"
         type: boolean
         default: false
+      clip_id:
+        description: "Clip ID for approve/reject manual review commands"
+        type: number
+        required: false
+      media_id:
+        description: "Instagram media ID when confirming an uncertain publish"
+        type: string
+        required: false
 
 concurrency:
   group: clipper             # never two runs at once (they share state/state.json)
@@ -53,6 +61,9 @@ jobs:
       - name: Python packages (yt-dlp always latest, YouTube changes often)
         run: pip install -U -r requirements.txt
 
+      - name: Regression tests
+        run: python -m unittest discover -s tests -v
+
       - name: PO-token provider for yt-dlp (helps on datacenter IPs; non-fatal if it fails)
         continue-on-error: true
         run: docker run -d --name pot -p 4416:4416 brainicism/bgutil-ytdlp-pot-provider
@@ -75,12 +86,31 @@ jobs:
           CMD: ${{ inputs.command || 'tick' }}      # scheduled runs have no input -> tick
           DRY: ${{ inputs.dry_run }}
           FORCE: ${{ inputs.force }}
+          CLIP_ID: ${{ inputs.clip_id }}
+          MEDIA_ID: ${{ inputs.media_id }}
         run: |
           ARGS=""
           [ "$DRY" = "true" ] && ARGS="$ARGS --dry-run"
           [ "$FORCE" = "true" ] && ARGS="$ARGS --force"
           if [ "$CMD" = "check-live" ]; then CMD=check; ARGS="$ARGS --live"; fi
+          if [ "$CMD" = "approve" ] || [ "$CMD" = "reject" ] || [ "$CMD" = "retry-uncertain" ]; then
+            if [ -z "$CLIP_ID" ]; then echo "::error::clip_id is required for this command"; exit 2; fi
+            ARGS="$ARGS --clip-id $CLIP_ID"
+          fi
+          if [ "$CMD" = "confirm-post" ]; then
+            if [ -z "$CLIP_ID" ] || [ -z "$MEDIA_ID" ]; then echo "::error::clip_id and media_id are required"; exit 2; fi
+            ARGS="$ARGS --clip-id $CLIP_ID --media-id $MEDIA_ID"
+          fi
           python podcast_clipper.py "$CMD" $ARGS
+
+      - name: Upload clips awaiting manual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clip-review-${{ github.run_id }}
+          path: review/*.mp4
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Save state (queue + results)
         if: always()

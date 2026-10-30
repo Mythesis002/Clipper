@@ -44,6 +44,7 @@ from yt_dlp.utils import download_range_func
 BASE = Path(__file__).resolve().parent
 WORK = BASE / "work"
 STATE_FILE = BASE / "state" / "state.json"
+REVIEW_DIR = BASE / "review"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 log = logging.getLogger("clipper")
 
@@ -54,20 +55,84 @@ log = logging.getLogger("clipper")
 def load_config(path=None):
     with open(path or BASE / "config.yaml", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
-    # Catch common configuration mistakes before an automated run can publish.
-    required = ("channels", "clip", "queue", "discovery", "llm", "instagram")
-    missing = [k for k in required if k not in cfg]
+    if not isinstance(cfg, dict):
+        raise ValueError("config.yaml must contain a YAML mapping")
+
+    required = ("channels", "clip", "queue", "discovery", "llm", "instagram",
+                "schedule", "learning")
+    missing = [key for key in required if key not in cfg]
     if missing:
         raise ValueError("config.yaml missing required sections: " + ", ".join(missing))
-    if int(cfg["clip"].get("min_s", 0)) < 5 or int(cfg["clip"].get("max_s", 0)) < int(cfg["clip"].get("min_s", 0)):
-        raise ValueError("clip.min_s/max_s are invalid")
+
+    for key in ("clip", "queue", "discovery", "llm", "instagram", "schedule", "learning"):
+        if not isinstance(cfg[key], dict):
+            raise ValueError(f"config.yaml section {key!r} must be a mapping")
+    if "qa" in cfg and not isinstance(cfg["qa"], dict):
+        raise ValueError("config.yaml section 'qa' must be a mapping")
+
+    try:
+        min_s, max_s = int(cfg["clip"]["min_s"]), int(cfg["clip"]["max_s"])
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("clip.min_s and clip.max_s must be integers") from None
+    if min_s < 5 or max_s < min_s or max_s > 90:
+        raise ValueError("clip.min_s/max_s must satisfy 5 <= min_s <= max_s <= 90")
+
+    for key in ("clips_per_episode", "refill_when_below"):
+        try:
+            if int(cfg["queue"].get(key, 0)) < 1:
+                raise ValueError
+        except (TypeError, ValueError):
+            raise ValueError(f"queue.{key} must be a positive integer") from None
+
+    discovery = cfg["discovery"]
+    if int(discovery.get("scan_latest", 0)) < 1 or int(discovery.get("max_episode_attempts", 1)) < 1:
+        raise ValueError("discovery.scan_latest and max_episode_attempts must be positive")
+    if float(discovery.get("min_duration_min", 0)) <= 0:
+        raise ValueError("discovery.min_duration_min must be positive")
+    if float(discovery.get("min_age_days", 0)) < 0 or float(discovery.get("max_age_days", 0)) < float(discovery.get("min_age_days", 0)):
+        raise ValueError("discovery age window is invalid")
+
     if not isinstance(cfg["channels"], list):
         raise ValueError("channels must be a list")
+    names = set()
     for ch in cfg["channels"]:
-        if not ch.get("name") or not ch.get("handle"):
-            raise ValueError("every channel needs name and handle")
-    return cfg
+        if not isinstance(ch, dict) or not ch.get("name") or not ch.get("handle"):
+            raise ValueError("every channel must be a mapping with name and handle")
+        if ch["name"] in names:
+            raise ValueError(f"duplicate channel name: {ch['name']}")
+        names.add(ch["name"])
+        if "permission" in ch and type(ch["permission"]) is not bool:
+            raise ValueError(f"channel {ch['name']!r} permission must be true or false")
 
+    try:
+        ZoneInfo(cfg.get("timezone", ""))
+    except Exception:
+        raise ValueError("timezone must be a valid IANA timezone (for example Asia/Kolkata)") from None
+    slots = cfg.get("post_times")
+    if not isinstance(slots, list) or not slots:
+        raise ValueError("post_times must be a non-empty list of HH:MM values")
+    for slot in slots:
+        try:
+            datetime.strptime(str(slot), "%H:%M")
+        except ValueError:
+            raise ValueError(f"invalid post time {slot!r}; expected HH:MM") from None
+
+    explore = float(cfg["learning"].get("explore_rate", -1))
+    if not 0 <= explore <= 1:
+        raise ValueError("learning.explore_rate must be between 0 and 1")
+
+    qa = cfg.get("qa", {})
+    for key in ("max_black_pct", "max_silence_pct"):
+        value = float(qa.get(key, 12 if key == "max_black_pct" else 25))
+        if not 0 <= value <= 100:
+            raise ValueError(f"qa.{key} must be between 0 and 100")
+    if float(qa.get("max_silence_segment_s", 2.5)) <= 0:
+        raise ValueError("qa.max_silence_segment_s must be positive")
+    if not 0 <= float(qa.get("min_ai_score", 6.5)) <= 10:
+        raise ValueError("qa.min_ai_score must be between 0 and 10")
+    if qa.get("ai_unavailable", "manual_review") not in ("manual_review", "technical_only"):
+        raise ValueError("qa.ai_unavailable must be manual_review or technical_only")
+    return cfg
 
 def load_state():
     if STATE_FILE.exists():
@@ -218,8 +283,7 @@ def pick_episode(cfg, state):
             if not (d["min_age_days"] <= age <= d["max_age_days"]):
                 continue
             if not info.get("heatmap"):
-                log.info("  %s: no Most-Replayed data yet", vid)
-                continue
+                log.info("  %s: no Most-Replayed data; using transcript/editorial scoring", vid)
             scored.append(((info.get("view_count") or 0) / max(age, 1), info))
         if scored:
             scored.sort(key=lambda x: -x[0])
@@ -322,14 +386,32 @@ def phrase_starts(words, pause=0.45, weak_pause=0.25):
 
 
 def heat_per_second(heatmap, duration):
-    """Most-Replayed heatmap -> normalised 0..1 value for every second."""
-    mids = np.array([(h["start_time"] + h["end_time"]) / 2 for h in heatmap])
-    vals = np.array([h["value"] for h in heatmap], dtype=float)
-    y = np.interp(np.arange(int(duration)), mids, vals)
-    med, k = np.median(y), max(1, int(len(y) * 0.03))
-    y[:k] = med                                   # intro is always inflated: neutralise
-    y[len(y) - k:] = med                          # ...and so is the outro
-    return (y - y.min()) / (y.max() - y.min() + 1e-9)
+    """Normalised replay signal; missing/invalid heatmap data is neutral, not fatal."""
+    n = max(1, int(np.ceil(float(duration))))
+    if not heatmap:
+        return np.full(n, 0.5, dtype=float)
+    valid = []
+    for h in heatmap:
+        try:
+            start, end, value = float(h["start_time"]), float(h["end_time"]), float(h["value"])
+            if np.isfinite(start) and np.isfinite(end) and np.isfinite(value) and end >= start:
+                valid.append(((start + end) / 2, value))
+        except (KeyError, TypeError, ValueError):
+            continue
+    if not valid:
+        return np.full(n, 0.5, dtype=float)
+    valid.sort(key=lambda x: x[0])
+    mids = np.asarray([x[0] for x in valid], dtype=float)
+    vals = np.asarray([x[1] for x in valid], dtype=float)
+    y = np.interp(np.arange(n), mids, vals)
+    med, k = float(np.median(y)), max(1, int(len(y) * 0.03))
+    y[:k] = med
+    y[-k:] = med
+    span = float(y.max() - y.min())
+    if span <= 1e-9:
+        return np.full(n, 0.5, dtype=float)
+    return (y - y.min()) / span
+
 
 
 HOOK_WORDS = {"never", "biggest", "secret", "mistake", "truth", "nobody", "stop", "worst",
@@ -381,6 +463,10 @@ def trimmed_end(wt, words, e):
 
 
 def score_candidates(cfg, heat, words, duration):
+    # Do not manufacture time-grid clips when speech transcription is unavailable.
+    # Editorial context, payoff and reliable captions cannot be evaluated without words.
+    if not words:
+        return []
     mn, mx = cfg["clip"]["min_s"], cfg["clip"]["max_s"]
     wt = [w[0] for w in words]
     starts = phrase_starts(words)
@@ -394,11 +480,8 @@ def score_candidates(cfg, heat, words, duration):
                 e = trimmed_end(wt, words, min(starts[j], duration))
                 if e - s >= mn - 1:
                     raw.append((s, e))
-    else:                                         # no transcript: fixed grid
-        for s in range(0, int(duration) - mx, 5):
-            for L in (15, 20, 25, 30):
-                if mn <= L <= mx:
-                    raw.append((float(s), float(s + L)))
+    else:
+        return []
 
     def hmean(c):
         a = min(int(c[0]), len(heat) - 1)
@@ -569,15 +652,17 @@ def build_rerank_prompt(ep_title, cands):
     return (
         f"You are a short-form video editor choosing clips from a podcast episode: {ep_title!r}.\n"
         "Candidates are usually 15-45s segments (auto-transcript, may be Hindi/Hinglish, punctuation may be imperfect).\n"
-        "Score each 0-10: hook (would the first 3 seconds stop a scroll), standalone (makes sense "
-        "with zero context), emotion (surprise, humour, controversy, insight, vulnerability). "
-        "Set reject=true if it needs earlier context, has no payoff, or contains hate, harassment, "
-        "defamation of named people, or explicit content. Also write: title (max 8 words, on-screen "
-        "text, same language as the clip, curiosity-driven, never misleading), caption_hook (one "
-        "line under 100 chars), hashtags (4 topical, no generic spam).\n"
+        "Score each 0-10 on hook (first 2-3 seconds), standalone clarity, payoff (does the segment "
+        "deliver what its opening promises), emotion, and specificity (a concrete insight, example, "
+        "number, or memorable point). Prefer complete thoughts with a clear beginning and ending. "
+        "Set reject=true if it depends on earlier context, has no payoff, is mostly filler, starts or "
+        "ends mid-thought, or contains hate, harassment, unverified defamatory claims about named "
+        "people, or explicit content. Do not reward clickbait. Also write a truthful title (max 8 words, "
+        "same language/script as the clip), a caption hook under 100 chars, and 3-4 relevant hashtags.\n"
         "Reply with ONLY a JSON array, one object per candidate id: "
-        '[{"id":0,"hook":0,"standalone":0,"emotion":0,"reject":false,"title":"",'
-        '"caption_hook":"","hashtags":["#x"]}]\n\n' + json.dumps(payload, ensure_ascii=False))
+        '[{"id":0,"hook":0,"standalone":0,"payoff":0,"emotion":0,"specificity":0,'
+        '"reject":false,"title":"","caption_hook":"","hashtags":["#x"]}]\n\n'
+        + json.dumps(payload, ensure_ascii=False))
 
 
 def apply_rerank(cands, data):
@@ -597,8 +682,13 @@ def apply_rerank(cands, data):
         h, s, e = (_score(d.get(k)) for k in ("hook", "standalone", "emotion"))
         if None in (h, s, e):
             continue
+        payoff = _score(d.get("payoff"), s)
+        specificity = _score(d.get("specificity"), h)
         c = cands[i]
-        c["llm"] = (h * 0.45 + s * 0.35 + e * 0.20) / 10
+        c["llm"] = (h * 0.30 + s * 0.25 + payoff * 0.25
+                    + e * 0.10 + specificity * 0.10) / 10
+        c["payoff"] = payoff / 10
+        c["specificity"] = specificity / 10
         c["reject"] = _truthy(d.get("reject"))
         c["title"] = str(d.get("title") or "").strip()[:80]
         c["caption_hook"] = str(d.get("caption_hook") or "").strip()[:140]
@@ -659,29 +749,19 @@ def video_verify(cfg, video_id, cands):
 
 
 def retime(words, text):
-    """Spread corrected tokens over the original word timeline (by character position)."""
-    new, old = text.split(), [w for _, w in words]
-    if not new or not old:
+    """Apply caption corrections only when token count is unchanged; keep exact timestamps."""
+    new = text.split()
+    if not new or not words or len(new) != len(words):
         return None
-    if len(new) == len(old):
-        return [(t, nw) for (t, _), nw in zip(words, new)]
-    old_pos = np.cumsum([0] + [len(w) + 1 for w in old[:-1]]).astype(float)
-    new_pos = np.cumsum([0] + [len(w) + 1 for w in new[:-1]]).astype(float)
-    total_old, total_new = old_pos[-1] + len(old[-1]) + 1, new_pos[-1] + len(new[-1]) + 1
-    times = np.interp(new_pos / total_new * total_old, old_pos, [t for t, _ in words])
-    return [(float(t), w) for t, w in zip(times, new)]
+    return [(t, token) for (t, _), token in zip(words, new)]
 
-
-def caption_change_ok(old_words, new_words, min_overlap=0.55, max_len_change=0.25):
-    """Guard against hallucinated caption rewrites: same length (+-25%) and mostly the same words."""
-    if not new_words or not old_words:
-        return False
-    if abs(len(new_words) - len(old_words)) / len(old_words) > max_len_change:
+def caption_change_ok(old_words, new_words, min_overlap=0.80, max_len_change=0.0):
+    """Allow cautious lexical corrections without changing word-to-time alignment."""
+    if not old_words or not new_words or len(new_words) != len(old_words):
         return False
     norm = lambda w: re.sub(r"\W", "", w.lower())  # noqa: E731
-    o, n = Counter(norm(w) for _, w in old_words), Counter(norm(w) for _, w in new_words)
-    return sum((o & n).values()) / len(old_words) >= min_overlap
-
+    old, new = Counter(norm(w) for _, w in old_words), Counter(norm(w) for _, w in new_words)
+    return sum((old & new).values()) / len(old_words) >= min_overlap
 
 def polish_captions(cfg, picks, ep_title):
     """Gemini fixes mis-heard words/names/numbers, casing and punctuation in the chosen clips' captions.
@@ -762,7 +842,7 @@ def make_caption(cfg, ch, info, cand):
 def analyse_episode(cfg, ch, info):
     """heatmap + transcript + heuristics + Gemini(text) + Gemini(video) -> best clips with polished captions."""
     words = fetch_words(cfg, info)
-    heat = heat_per_second(info["heatmap"], info["duration"])
+    heat = heat_per_second(info.get("heatmap") or [], info["duration"])
     cands = score_candidates(cfg, heat, words, info["duration"])
     cands = diversify(cands, cfg["llm"]["candidates"], cfg["clip"]["min_gap_s"],
                       variants=cfg["llm"].get("variants", 3) if gemini_key() else 1)
@@ -989,6 +1069,78 @@ def download_section(cfg, vid, s, e, stem):
     raise RuntimeError(f"could not download section (tried {len(DL_STRATEGIES)} strategies): {last}")
 
 
+def detect_face_crop_x(cfg, raw):
+    """Return a safe 9:16 crop x-offset for a consistent single-face shot; otherwise None.
+
+    This is conservative face-aware reframing, not active-speaker tracking. Multi-person
+    shots and uncertain detections deliberately fall back to the full-frame layout.
+    """
+    if not cfg.get("render", {}).get("face_reframe", True):
+        return None
+    try:
+        import cv2
+    except ImportError:
+        log.warning("OpenCV is unavailable; using the full-frame vertical layout")
+        return None
+
+    media = probe_media(raw)
+    width, height, duration = media.get("w", 0), media.get("h", 0), media.get("duration", 0)
+    if not media.get("has_video") or width <= 0 or height <= 0 or duration <= 0:
+        return None
+    scaled_width = int(round((width * 1920 / height) / 2) * 2)
+    if scaled_width <= 1080 or width / height < 0.85:
+        return None
+
+    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    detector = cv2.CascadeClassifier(cascade_path)
+    if detector.empty():
+        log.warning("OpenCV face detector could not be loaded; using full-frame layout")
+        return None
+
+    sample_count = max(6, min(14, int(np.ceil(duration / 1.5))))
+    timestamps = np.linspace(min(0.2, duration / 10), max(0.2, duration - 0.2), sample_count)
+    capture = cv2.VideoCapture(str(raw))
+    if not capture.isOpened():
+        return None
+
+    centers, multi_face_frames = [], 0
+    try:
+        for stamp in timestamps:
+            capture.set(cv2.CAP_PROP_POS_MSEC, float(stamp) * 1000)
+            ok, frame = capture.read()
+            if not ok or frame is None:
+                continue
+            frame_h, frame_w = frame.shape[:2]
+            scale = min(1.0, 640.0 / max(frame_w, 1))
+            if scale < 1.0:
+                frame = cv2.resize(frame, (int(frame_w * scale), int(frame_h * scale)))
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5,
+                                              minSize=(28, 28))
+            if len(faces) == 1:
+                x, y, fw, fh = faces[0]
+                center_x_original = (x + fw / 2) / scale
+                centers.append(center_x_original)
+            elif len(faces) > 1:
+                multi_face_frames += 1
+    except Exception as ex:
+        log.warning("face-aware reframing failed; using full-frame layout: %s", str(ex)[:180])
+        return None
+    finally:
+        capture.release()
+
+    if len(centers) < max(4, int(np.ceil(sample_count * 0.55))):
+        return None
+    if multi_face_frames > sample_count * 0.25:
+        return None
+
+    face_center_scaled = float(np.median(centers)) * 1920 / height
+    crop_x = int(round(face_center_scaled - 540))
+    crop_x = min(max(crop_x, 0), scaled_width - 1080)
+    log.info("single-face vertical reframing selected (crop x=%d)", crop_x)
+    return crop_x
+
+
 def compose_clip(cfg, raw, clip, s, e, stem):
     """1080x1920, blurred background, title + captions, loudness-normalised."""
     # Keep the source legible while reducing the tiny-landscape-in-a-vertical-canvas
@@ -998,10 +1150,15 @@ def compose_clip(cfg, raw, clip, s, e, stem):
     fg_scale = float(cfg.get("render", {}).get("foreground_scale", 1.16))
     fg_scale = min(max(fg_scale, 1.0), 1.35)
     fg_width = int(1080 * fg_scale)
-    fc = ("[0:v]split=2[a][b];"
-          "[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
-          "boxblur=8:3,scale=1080:1920,eq=brightness=-0.08[bg];"
-          f"[b]scale={fg_width}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2[v0]")
+    face_crop_x = detect_face_crop_x(cfg, raw)
+    if face_crop_x is not None:
+        fc = (f"[0:v]scale=-2:1920,crop=1080:1920:{face_crop_x}:0,"
+              "setsar=1,eq=contrast=1.02:saturation=1.04[v0]")
+    else:
+        fc = ("[0:v]split=2[a][b];"
+              "[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
+              "boxblur=8:3,scale=1080:1920,eq=brightness=-0.08[bg];"
+              f"[b]scale={fg_width}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2[v0]")
     if cfg["clip"]["captions"] and (clip.get("words") or clip.get("title")):
         build_ass(clip.get("words") or [], s, e, clip.get("title"), WORK / f"{stem}.ass")
         fc += f";[v0]subtitles={stem}.ass[v]"
@@ -1043,21 +1200,36 @@ def render_clip(cfg, clip):
 # 4b. QA AGENT: reviews the finished clip before anything is posted
 # =============================================================================
 def qa_checks(cfg, path):
-    """Deterministic checks with ffmpeg: mostly-black or mostly-silent clips never go out."""
+    """Fail-closed deterministic media checks: black frames, silence and FFmpeg execution."""
     q = cfg.get("qa", {})
-    dur = probe_media(path)["duration"] or 1.0
-    r = subprocess.run(["ffmpeg", "-v", "info", "-i", str(path), "-vf", "blackdetect=d=0.4:pix_th=0.08",
-                        "-af", "silencedetect=noise=-45dB:d=1.2", "-f", "null", "-"],
-                       capture_output=True, text=True)
-    black = sum(float(x) for x in re.findall(r"black_duration:([\d.]+)", r.stderr))
-    silence = sum(float(x) for x in re.findall(r"silence_duration: ([\d.]+)", r.stderr))
+    media = probe_media(path)
+    dur = media["duration"] or 1.0
+    if not media.get("has_video") or not media.get("has_audio"):
+        raise RuntimeError(f"QA input is missing a media stream: {media}")
+    r = subprocess.run(
+        ["ffmpeg", "-v", "info", "-i", str(path),
+         "-vf", "blackdetect=d=0.4:pix_th=0.08",
+         "-af", "silencedetect=noise=-42dB:d=0.8", "-f", "null", "-"],
+        capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError("ffmpeg technical QA failed: " + (r.stderr or "")[-500:])
+    stderr = r.stderr or ""
+    black = sum(float(x) for x in re.findall(r"black_duration:([\d.]+)", stderr))
+    silence_durations = [float(x) for x in re.findall(r"silence_duration:\s*([\d.]+)", stderr)]
+    silence = sum(silence_durations)
+    max_silence = max(silence_durations, default=0.0)
+    black_pct = black / dur * 100
+    silence_pct = silence / dur * 100
     issues = []
-    if black / dur * 100 > q.get("max_black_pct", 25):
-        issues.append(f"{black / dur:.0%} of the clip is black frames")
-    if silence / dur * 100 > q.get("max_silence_pct", 45):
-        issues.append(f"{silence / dur:.0%} of the clip is silent")
-    return {"black_pct": round(black / dur * 100, 1), "silence_pct": round(silence / dur * 100, 1),
-            "issues": issues}
+    if black_pct > q.get("max_black_pct", 12):
+        issues.append(f"{black_pct:.0f}% of the clip is black frames")
+    if silence_pct > q.get("max_silence_pct", 25):
+        issues.append(f"{silence_pct:.0f}% of the clip is silent")
+    if max_silence > q.get("max_silence_segment_s", 2.5):
+        issues.append(f"continuous silence lasts {max_silence:.1f}s")
+    return {"black_pct": round(black_pct, 1), "silence_pct": round(silence_pct, 1),
+            "max_silence_s": round(max_silence, 2), "issues": issues}
+
 
 
 QA_PROMPT = (
@@ -1086,10 +1258,17 @@ def gemini_qa(cfg, path):
                                          {"text": QA_PROMPT}]))
         if isinstance(d, list) and d:
             d = d[0]
-        approve = d.get("approve")
-        return {"approve": not (approve is False or (isinstance(approve, str) and approve.strip().lower() == "false")),
-                "score": _score(d.get("score"), 7.0), "unsafe": _truthy(d.get("unsafe")),
-                "issues": [str(x) for x in (d.get("issues") or []) if str(x).strip()][:5]}
+        if not isinstance(d, dict):
+            log.warning("Gemini final QA returned an invalid JSON object")
+            return None
+        approve, unsafe = d.get("approve"), d.get("unsafe")
+        score = _score(d.get("score"))
+        issues = d.get("issues")
+        if type(approve) is not bool or type(unsafe) is not bool or score is None or not isinstance(issues, list):
+            log.warning("Gemini final QA response is missing required typed fields")
+            return None
+        return {"approve": approve, "score": score, "unsafe": unsafe,
+                "issues": [str(x) for x in issues if str(x).strip()][:5]}
     except Exception as ex:
         log.warning("Gemini QA unavailable, continuing without it: %s", str(ex)[:200])
         return None
@@ -1112,17 +1291,28 @@ def qa_review(cfg, path):
         return {"verdict": "hard_fail", "score": 0, "issues": chk["issues"]}
     g = gemini_qa(cfg, path)
     if g is None:
-        return {"verdict": "pass", "score": None, "issues": []}
+        policy = cfg.get("qa", {}).get("ai_unavailable", "manual_review")
+        if policy == "technical_only":
+            return {"verdict": "pass", "score": None,
+                    "issues": ["AI review unavailable; technical checks only"]}
+        return {"verdict": "soft_fail", "score": None,
+                "issues": ["AI final review unavailable; manual review required"]}
     if g["unsafe"]:
         return {"verdict": "hard_fail", "score": g["score"], "issues": ["unsafe content"] + g["issues"]}
-    if not g["approve"]:
-        return {"verdict": "soft_fail", "score": g["score"], "issues": g["issues"]}
+    min_score = cfg.get("qa", {}).get("min_ai_score", 6.5)
+    if not g["approve"] or g["score"] < min_score:
+        return {"verdict": "soft_fail", "score": g["score"],
+                "issues": g["issues"] or [f"AI quality score below {min_score:.1f}/10"]}
     return {"verdict": "pass", "score": g["score"], "issues": g["issues"]}
 
 
 # =============================================================================
 # 5. PUBLISH (Instagram Graph API, resumable upload) + insights
 # =============================================================================
+class PublishUncertainError(RuntimeError):
+    """The remote publish may have succeeded but its response was lost."""
+
+
 def post_reel(cfg, video_path, caption):
     ig_id, token = os.environ["IG_USER_ID"], os.environ["IG_ACCESS_TOKEN"]
     g = graph(cfg)
@@ -1147,11 +1337,22 @@ def post_reel(cfg, video_path, caption):
         time.sleep(5)
     else:
         raise TimeoutError("Instagram processing timed out")
-    p = requests.post(f"{g}/{ig_id}/media_publish", timeout=60, data={
-        "creation_id": container["id"], "access_token": token})
+    try:
+        p = requests.post(f"{g}/{ig_id}/media_publish", timeout=60, data={
+            "creation_id": container["id"], "access_token": token})
+    except requests.RequestException as ex:
+        raise PublishUncertainError(f"media_publish request outcome unknown: {ex}") from ex
+    if p.status_code >= 500:
+        raise PublishUncertainError(f"media_publish server error may have an unknown outcome: HTTP {p.status_code} {p.text[:200]}")
     if not p.ok:
-        raise RuntimeError(f"publish failed: {p.text[:300]}")
-    return p.json()["id"]
+        raise RuntimeError(f"publish rejected by Instagram: HTTP {p.status_code} {p.text[:300]}")
+    try:
+        media_id = p.json().get("id")
+    except (ValueError, AttributeError):
+        media_id = None
+    if not media_id:
+        raise PublishUncertainError("Instagram accepted publish request but returned no media id")
+    return media_id
 
 
 def due_slot(cfg, state, now=None):
@@ -1162,8 +1363,11 @@ def due_slot(cfg, state, now=None):
     now = now or datetime.now(tz)
     sch = cfg["schedule"]
     wait_s, catch_s = sch["max_wait_min"] * 60, sch["catchup_hours"] * 3600
-    posted = [datetime.fromisoformat(c["posted_at"]) for c in state["clips"]
-              if c["status"] == "posted" and c.get("posted_at")]
+    posted = []
+    for c in state["clips"]:
+        stamp = c.get("posted_at") or c.get("publish_started_at")
+        if c.get("status") in ("posted", "publishing", "publish_uncertain") and stamp:
+            posted.append(datetime.fromisoformat(stamp))
     due = []
     for hhmm in cfg["post_times"]:
         h, m = map(int, hhmm.split(":"))
@@ -1191,13 +1395,28 @@ def _fail(state, clip, ex, stage):
 
 
 def _post_clip(cfg, state, clip, path):
+    # Persist intent before calling Instagram. A timeout during media_publish is ambiguous
+    # and must never be retried blindly; definite pre-publish/API rejections can be retried.
+    clip.update(status="publishing", publish_started_at=now_iso(), error=None)
+    jr(state, "publish_started", clip=clip["id"], channel=clip["channel"])
+    save_state(state)
     try:
         media_id = post_reel(cfg, path, clip["caption"])
-    except Exception as ex:
-        _fail(state, clip, ex, "instagram")
+    except PublishUncertainError as ex:
+        clip.update(status="publish_uncertain", error=f"Instagram outcome uncertain: {str(ex)[:300]}")
+        jr(state, "publish_uncertain", clip=clip["id"], error=clip["error"][:200])
+        save_state(state)
+        gha("warning", f"Clip {clip['id']} has an uncertain Instagram publish outcome; not retrying automatically.")
+        log.error("clip %s publish outcome uncertain: %s", clip["id"], ex)
         return False
+    except Exception as ex:
+        clip.pop("publish_started_at", None)
+        clip["status"] = "queued"
+        _fail(state, clip, ex, "instagram")
+        return None
     clip.update(status="posted", media_id=media_id, posted_at=now_iso(), error=None)
-    clip.pop("words", None)                       # not needed any more, keeps the state file small
+    clip.pop("publish_started_at", None)
+    clip.pop("words", None)
     jr(state, "posted", clip=clip["id"], media=media_id, channel=clip["channel"],
        qa=(clip.get("qa") or {}).get("verdict"))
     save_state(state)
@@ -1206,9 +1425,9 @@ def _post_clip(cfg, state, clip, path):
     return True
 
 
+
 def publish_next(cfg, wait=True, force=False):
-    """Post one clip for the slot that is due. For each candidate clip: render -> QA review -> post.
-    A clip that cannot be rendered/posted or fails QA falls through to the next one in the same slot."""
+    """Render, inspect, and publish one eligible clip; ambiguous outcomes are never auto-retried."""
     state = load_state()
     allowed_names = {c["name"] for c in authorized_channels(cfg)}
     if not allowed_names:
@@ -1242,7 +1461,7 @@ def publish_next(cfg, wait=True, force=False):
     if slot:
         jr(state, "slot_due", slot=slot[0].isoformat(timespec="minutes"))
 
-    soft = []                                     # (score, clip, path) that Gemini disapproved
+    needs_review = False
     for clip in q[:3]:
         log.info("candidate clip %d (%s %s-%s)", clip["id"], clip["channel"], hms(clip["start"]), hms(clip["end"]))
         try:
@@ -1250,7 +1469,18 @@ def publish_next(cfg, wait=True, force=False):
         except Exception as ex:
             _fail(state, clip, ex, "render")
             continue
-        review = qa_review(cfg, path)
+        if clip.get("approved_manually_at"):
+            # Human approval applies to this exact clip; deterministic media QA still runs.
+            try:
+                technical = qa_checks(cfg, path)
+                review = {"verdict": "hard_fail" if technical["issues"] else "pass",
+                          "score": None,
+                          "issues": technical["issues"] or ["Human-reviewed clip; technical QA passed"]}
+            except Exception as ex:
+                review = {"verdict": "hard_fail", "score": 0,
+                          "issues": [f"technical QA failed after manual approval: {str(ex)[:180]}"]}
+        else:
+            review = qa_review(cfg, path)
         clip["qa"] = {"verdict": review["verdict"], "score": review["score"], "issues": review["issues"]}
         if review["verdict"] == "hard_fail":
             clip.update(status="rejected", error="QA: " + "; ".join(review["issues"])[:300])
@@ -1259,32 +1489,33 @@ def publish_next(cfg, wait=True, force=False):
             gha("warning", f"Clip {clip['id']} rejected by QA: {review['issues']}")
             continue
         if review["verdict"] == "soft_fail":
-            soft.append((review["score"] or 0, clip, path))
-            continue
-        if _post_clip(cfg, state, clip, path):
-            for _, c, _ in soft:
-                c.update(status="rejected", error="QA: " + "; ".join(c["qa"]["issues"])[:300])
+            REVIEW_DIR.mkdir(parents=True, exist_ok=True)
+            review_path = REVIEW_DIR / f"clip_{clip['id']}.mp4"
+            shutil.copy2(path, review_path)
+            clip.update(status="needs_review", review_artifact_file=review_path.name,
+                        error="Manual review required: " + "; ".join(review["issues"])[:300])
+            jr(state, "clip_needs_review", clip=clip["id"], score=review.get("score"),
+               artifact=review_path.name, issues=review["issues"])
             save_state(state)
+            gha("warning", f"Clip {clip['id']} needs manual review; it will not be auto-published.")
+            needs_review = True
+            continue
+        post_result = _post_clip(cfg, state, clip, path)
+        if post_result is True:
             return True
+        if post_result is False:
+            # Ambiguous media_publish outcome: do not publish another candidate in this slot.
+            return False
+        # Definite create/upload/API failure: continue to the next queued clip.
+        continue
 
-    if soft:                                      # nothing passed cleanly: best of the disapproved, if decent
-        soft.sort(key=lambda x: -x[0])
-        score, clip, path = soft[0]
-        if score >= 5:
-            log.warning("no clip passed QA cleanly - posting the best one (QA score %.1f)", score)
-            jr(state, "qa_fallback_post", clip=clip["id"], score=score)
-            if _post_clip(cfg, state, clip, path):
-                for _, c, _ in soft[1:]:
-                    c.update(status="rejected", error="QA: " + "; ".join(c["qa"]["issues"])[:300])
-                save_state(state)
-                return True
-        for _, c, _ in soft:
-            if c["status"] == "queued":
-                c.update(status="rejected", error="QA: " + "; ".join(c["qa"]["issues"])[:300])
+    if needs_review:
+        jr(state, "slot_deferred", reason="candidate(s) moved to manual review")
+        save_state(state)
+        return True
     jr(state, "slot_missed", reason="no clip could be posted")
     save_state(state)
     return False
-
 
 def fetch_metrics(cfg, media_id):
     token, g, out = os.environ["IG_ACCESS_TOKEN"], graph(cfg), {}
@@ -1370,11 +1601,14 @@ def status_table(limit=15):
                     f"{hms(c['start'])}-{hms(c['end'])} | {views_of(c) or ''} | "
                     f"{m.get('reach', '')} | {m.get('saved', '')} | {m.get('shares', '')} |")
     q = len(queued(state))
+    review_count = sum(c.get("status") == "needs_review" for c in state["clips"])
+    uncertain_count = sum(c.get("status") in ("publishing", "publish_uncertain") for c in state["clips"])
     total = sum(views_of(c) or 0 for c in state["clips"])
     jl = [f"- `{j['t'][5:16]}` **{j['event']}** " + ", ".join(f"{k}={v}" for k, v in j.items()
                                                            if k not in ("t", "event"))[:160]
           for j in state.get("journal", [])[-8:]]
-    return (f"**Queue:** {q} waiting · **Total views tracked:** {total}\n\n" + "\n".join(rows)
+    return (f"**Queue:** {q} waiting · **Manual review:** {review_count} · "
+            f"**Publish outcome check:** {uncertain_count} · **Total views tracked:** {total}\n\n" + "\n".join(rows)
             + ("\n\n**Agent journal (latest)**\n" + "\n".join(jl) if jl else ""))
 
 
@@ -1449,9 +1683,62 @@ def check(cfg, live=False):
     return ok
 
 
+def review_action(clip_id, approve):
+    """Approve a held clip for the next publish run, or reject it permanently."""
+    if clip_id is None:
+        raise ValueError("--clip-id is required for approve/reject")
+    state = load_state()
+    clip = next((c for c in state["clips"] if c.get("id") == clip_id), None)
+    if clip is None:
+        raise ValueError(f"clip {clip_id} was not found in state")
+    if clip.get("status") != "needs_review":
+        raise ValueError(f"clip {clip_id} is {clip.get('status')!r}, not needs_review")
+    if approve:
+        clip.update(status="queued", approved_manually_at=now_iso(), error=None)
+        jr(state, "clip_manually_approved", clip=clip_id)
+        log.info("clip %s approved; run publish --force to publish it now", clip_id)
+    else:
+        clip.update(status="rejected", rejected_manually_at=now_iso(),
+                    error="Rejected during manual review")
+        jr(state, "clip_manually_rejected", clip=clip_id)
+        log.info("clip %s rejected", clip_id)
+    save_state(state)
+    return True
+
+def resolve_uncertain_publish(clip_id, media_id=None, retry=False):
+    """Resolve an ambiguous Instagram publish only after checking the account manually."""
+    if clip_id is None:
+        raise ValueError("--clip-id is required")
+    if bool(media_id) == bool(retry):
+        raise ValueError("provide exactly one of --media-id (confirm posted) or --retry")
+    state = load_state()
+    clip = next((c for c in state["clips"] if c.get("id") == clip_id), None)
+    if clip is None:
+        raise ValueError(f"clip {clip_id} was not found in state")
+    if clip.get("status") not in ("publishing", "publish_uncertain"):
+        raise ValueError(f"clip {clip_id} is {clip.get('status')!r}, not an uncertain publish")
+    if media_id:
+        clip.update(status="posted", media_id=media_id,
+                    posted_at=clip.get("publish_started_at") or now_iso(), error=None)
+        clip.pop("publish_started_at", None)
+        jr(state, "uncertain_publish_confirmed", clip=clip_id, media=media_id)
+        log.info("clip %s marked as posted (media id %s)", clip_id, media_id)
+    else:
+        clip.update(status="queued", attempts=0, error=None)
+        clip.pop("publish_started_at", None)
+        jr(state, "uncertain_publish_cleared_for_retry", clip=clip_id)
+        log.warning("clip %s returned to queue; verify it is NOT already on Instagram before retrying", clip_id)
+    save_state(state)
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
-    ap.add_argument("command", choices=["tick", "produce", "publish", "metrics", "status", "check"])
+    ap.add_argument("command", choices=["tick", "produce", "publish", "metrics", "status", "check",
+                                        "approve", "reject", "confirm-post", "retry-uncertain"])
+    ap.add_argument("--clip-id", type=int, help="clip id for manual review or publish reconciliation")
+    ap.add_argument("--media-id", help="Instagram media id when confirming an uncertain post")
+    ap.add_argument("--retry", action="store_true", help="retry an uncertain publish only after verifying it is absent from Instagram")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--force", action="store_true", help="post now, skip slot wait + duplicate guard")
     ap.add_argument("--live", action="store_true", help="check: also probe YouTube for real")
@@ -1472,6 +1759,16 @@ def main():
         update_metrics(cfg)
     elif args.command == "status":
         print(status_table(30))
+    elif args.command == "approve":
+        ok = review_action(args.clip_id, approve=True)
+        if ok and args.force:
+            ok = publish_next(cfg, wait=False, force=True)
+    elif args.command == "reject":
+        ok = review_action(args.clip_id, approve=False)
+    elif args.command == "confirm-post":
+        ok = resolve_uncertain_publish(args.clip_id, media_id=args.media_id)
+    elif args.command == "retry-uncertain":
+        ok = resolve_uncertain_publish(args.clip_id, retry=True)
     else:
         ok = check(cfg, live=args.live)
     sys.exit(0 if ok else 1)

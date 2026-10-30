@@ -5,9 +5,11 @@ Gemini ranking, vertical rendering, technical QA, Instagram publishing and perfo
 It can help find promising clips; it cannot guarantee virality or predict views reliably. Treat scores
 as ranking signals and review initial outputs before enabling unattended publishing.
 
-The current renderer uses a blurred vertical background plus a modestly enlarged centered foreground.
-It does not do true face tracking, dynamic reaction cuts, or automatic B-roll selection. Off-centre
-speakers and two-person podcasts still need review.
+The renderer now attempts a conservative face-aware 9:16 crop when OpenCV consistently detects one
+speaker. It uses the median face position across sampled frames; it is not continuous active-speaker
+tracking. Multi-person shots, uncertain detections, and portrait sources use the full-frame blurred
+background fallback so the system does not blindly crop out a co-host. There are still no automatic
+reaction cuts or B-roll selection.
 
 ## Put it on GitHub and prove it works (15 minutes)
 1. Create a repo, commit every file in this folder (including the hidden `.github` folder), push.
@@ -36,14 +38,18 @@ bot". The workflow already starts a PO-token provider. Next steps, easiest first
 
 ## How it works (an agent loop, not a script)
 **Plan -> verify -> adapt**, with a fallback at every step:
-1. **Choose** - Most-Replayed heatmap + transcript phrase boundaries + a conservative opening heuristic; Gemini (text) judges up to 20 distinct moments with alternate framings; Gemini (video) can review top candidates. Heuristics alone still work if Gemini is down, but selection quality is lower.
+1. **Choose** - transcript phrase boundaries + opening-hook and speech-density signals + Most-Replayed heatmap when available. A missing heatmap is treated as a neutral signal instead of discarding the episode. A missing/weak transcript does not produce arbitrary time-grid clips: the episode is skipped for retry/review. Gemini (text) judges up to 20 moments on hook, standalone clarity, payoff, emotion and specificity; Gemini (video) can review the shortlist.
 2. **Captions** - Gemini fixes mis-heard words, names and punctuation (a safety guard discards rewrites that change meaning); captions are burned in word-by-word with the spoken word highlighted, plus an on-screen title.
 3. **Verify before queueing** - a 3-second test download proves the episode is really downloadable. If not, the agent records why, schedules a retry in 12 h and moves to the next episode.
 4. **Download ladder** - if YouTube rejects one yt-dlp client it automatically tries the others (default, tv, ios, mweb, any-format) and remembers which one works.
-5. **QA before posting** - ffmpeg rejects mostly-black / mostly-silent clips; Gemini can review the *finished* clip. If technical QA itself fails, the clip is now rejected rather than silently passing. AI review is fallible, so inspect initial renders yourself.
+5. **QA before posting** - FFmpeg checks black frames, total silence and long continuous silent gaps; a failed FFmpeg QA run is a hard failure. Gemini reviews the final rendered clip and must return a valid typed approval plus a minimum score. If Gemini final QA is unavailable or rejects the clip, it is held for manual review, not auto-published. The MP4 is uploaded as a run artifact for 14 days.
 6. **Slot catch-up** - four cron runs a day (two primary, two backup). If GitHub drops or delays a run, the next one posts the missed slot (up to 6 h late) and never posts a slot twice.
 7. **Buffer** - the queue always holds at least one episode ahead (`refill_when_below: 3`), so a YouTube outage does not miss a post.
 8. **Learning** - Instagram insights steer which channels are scanned first. Every decision is written to a journal shown in each run's summary.
+
+If a clip needs human review, open the completed Actions run and download its `clip-review-<run id>` artifact. Then run the workflow with command `approve` or `reject` and the clip ID. Choose `force=true` with `approve` to publish immediately after the manual approval; otherwise it returns to the queue for the next slot. Technical QA still runs after manual approval.
+
+If a publish request times out or has an ambiguous server response, the clip is marked `publish_uncertain` and is not retried automatically. First inspect the Instagram account. Use `confirm-post` with the clip ID and Instagram media ID when it did publish; use `retry-uncertain` only after verifying that it did not publish.
 
 Posting is still not *guaranteed*: if YouTube blocks every download strategy for days, or Instagram revokes your token, the run fails loudly (red X + email from GitHub) instead of silently.
 
@@ -61,7 +67,7 @@ views, $1,000/month needs about 1,000,000 views/month (roughly 17,000 per post a
 Before switching from test mode to unattended posting, review at least 10 rendered clips and check:
 - The first 1-3 seconds communicate a clear idea and do not depend on prior context.
 - The segment includes its setup and payoff; the cut does not truncate a word or key answer.
-- The speaker's face is large enough and not cut off; this renderer uses a centered crop/zoom, not face tracking.
+- The speaker's face is large enough and not cut off; the optional face-aware crop is only a static single-face crop, not continuous active-speaker tracking. Review co-host, profile, and fast-cut footage manually.
 - Captions are accurate, synchronized, readable on a phone, and do not cover the speaker's mouth.
 - The title is specific and truthful, not a promise the clip fails to deliver.
 - Audio is clear and balanced; there are no black frames, long silences, or abrupt endings.
