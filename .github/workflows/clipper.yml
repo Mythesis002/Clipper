@@ -53,13 +53,28 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      # yt-dlp requires an external JS runtime for current YouTube challenge solving.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+          cache: true
+
       - name: System packages
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg fonts-noto-core
 
-      - name: Python packages (yt-dlp always latest, YouTube changes often)
-        run: pip install -U -r requirements.txt
+      - name: Python packages (yt-dlp + EJS + matching PO-token plugin)
+        run: |
+          python -m pip install --upgrade -r requirements.txt
+          python - <<'PY'
+          from importlib.metadata import version
+          import yt_dlp
+          print(f"yt-dlp: {yt_dlp.version.__version__}")
+          print(f"yt-dlp-ejs: {version('yt-dlp-ejs')}")
+          print(f"bgutil-ytdlp-pot-provider: {version('bgutil-ytdlp-pot-provider')}")
+          PY
+          deno --version
 
       - name: Regression tests
         run: python -m unittest discover -s tests -v
@@ -89,9 +104,20 @@ jobs:
               ])
           PY
 
-      - name: PO-token provider for yt-dlp (helps on datacenter IPs; non-fatal if it fails)
-        continue-on-error: true
-        run: docker run -d --name pot -p 4416:4416 brainicism/bgutil-ytdlp-pot-provider
+      - name: Start matching PO-token provider for yt-dlp
+        run: |
+          # Bind only to loopback: this unauthenticated local helper must not be exposed publicly.
+          docker run -d --name pot --init -p 127.0.0.1:4416:4416 brainicism/bgutil-ytdlp-pot-provider:2.0.2
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:4416/ping >/dev/null 2>&1; then
+              echo "PO-token provider is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::PO-token provider did not become ready on 127.0.0.1:4416."
+          docker logs pot || true
+          exit 1
 
       - name: YouTube cookies (optional secret YT_COOKIES)
         env:

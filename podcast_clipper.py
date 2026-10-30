@@ -33,6 +33,7 @@ import subprocess
 import sys
 import textwrap
 import time
+from importlib.metadata import PackageNotFoundError, version as package_version
 from bisect import bisect_left, bisect_right
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -60,6 +61,8 @@ GEMINI_CONNECT_TIMEOUT = 15
 GEMINI_TEXT_READ_TIMEOUT = 60
 GEMINI_MULTIMODAL_READ_TIMEOUT = 180
 GEMINI_MAX_ATTEMPTS = 3
+BGUTIL_PLUGIN_VERSION = "2.0.2"
+BGUTIL_PROVIDER_URL = "http://127.0.0.1:4416"
 log = logging.getLogger("clipper")
 
 
@@ -239,7 +242,10 @@ def list_recent(cfg, handle, n):
 
 
 def full_info(cfg, video_id):
-    with yt_dlp.YoutubeDL(ydl_opts(cfg, skip_download=True)) as y:
+    # Metadata/caption discovery should still work when YouTube temporarily exposes
+    # no directly downloadable formats for the selected player client. The later
+    # download probe remains strict and must successfully fetch real media.
+    with yt_dlp.YoutubeDL(ydl_opts(cfg, skip_download=True, ignore_no_formats_error=True)) as y:
         return y.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
 
 
@@ -1215,12 +1221,16 @@ def instagram_media_issues(media):
     return issues
 
 DL_FORMAT = "bv*[height<=1080]+ba/b[height<=1080]"
+DL_ANY_FORMAT = "bv*+ba/b"
 DL_STRATEGIES = [                                  # tried in order; the last one that worked goes first
-    ("default", None, DL_FORMAT),
-    ("tv-client", {"youtube": {"player_client": ["tv"]}}, DL_FORMAT),
-    ("ios-client", {"youtube": {"player_client": ["ios"]}}, DL_FORMAT),
+    # The current yt-dlp PO-token guide recommends mweb with a PO-token provider.
     ("mweb-client", {"youtube": {"player_client": ["mweb"]}}, DL_FORMAT),
-    ("any-format", None, "b"),
+    # web_safari can expose HLS formats that do not currently need a GVS PO token.
+    ("web-safari-client", {"youtube": {"player_client": ["web_safari"]}}, DL_FORMAT),
+    ("default", None, DL_FORMAT),
+    # Do not restrict the last resort to a single combined format: many videos expose
+    # separate video/audio streams only.
+    ("any-format", None, DL_ANY_FORMAT),
 ]
 _STRATEGY_CACHE = {}
 
@@ -2026,9 +2036,38 @@ def check(cfg, live=False):
                 _load_pipeline(hf_token)
                 line(True, "pyannote Community-1 model loads with this token")
             except Exception as ex:
-                line(False, f"pyannote model access/load failed: {str(ex)[:240]}")
+                # Diarization is an optional enhancement. A gated-model 403 should
+                # be visible, but must not block clipping, rendering, or publishing.
+                line(False, f"optional pyannote model unavailable: {str(ex)[:240]} "
+                     "(accept model conditions on the HF account linked to HF_TOKEN)",
+                     required=False)
 
     if live:                                        # real network probes (what unit tests cannot cover)
+        deno_path = shutil.which("deno")
+        line(bool(deno_path), "Deno JavaScript runtime for YouTube extraction")
+        try:
+            ejs_version = package_version("yt-dlp-ejs")
+        except PackageNotFoundError:
+            ejs_version = None
+        line(bool(ejs_version), "yt-dlp-ejs challenge scripts" +
+             (f" ({ejs_version})" if ejs_version else ""))
+        try:
+            bgutil_version = package_version("bgutil-ytdlp-pot-provider")
+        except PackageNotFoundError:
+            bgutil_version = None
+        line(bgutil_version == BGUTIL_PLUGIN_VERSION,
+             f"bgutil PO-token plugin version {bgutil_version or 'missing'} "
+             f"(expected {BGUTIL_PLUGIN_VERSION})")
+        try:
+            pot_response = requests.get(f"{BGUTIL_PROVIDER_URL}/ping", timeout=5)
+            pot_ok = pot_response.ok
+            pot_detail = f"HTTP {pot_response.status_code}"
+        except Exception as ex:
+            pot_ok = False
+            pot_detail = str(ex)[:120]
+        line(pot_ok, f"bgutil PO-token HTTP server ({pot_detail})")
+        line(bool(env_value("YT_COOKIES_FILE")), "YouTube cookie file configured", required=False)
+
         vid = cfg.get("check_video_id", "aqz-KE-bpKQ")     # open-licensed test video
         test_output = None
         try:

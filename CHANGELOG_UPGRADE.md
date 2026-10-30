@@ -70,3 +70,15 @@ The current face track follows a visible face position; it does not identify peo
 - Added bounded retries for connection/read timeouts and transient HTTP 408/429/5xx responses.
 - Uses shorter read timeouts for text requests and a longer allowance for video inputs; retries stay on the same model.
 - Added regression coverage for model pinning, disabled model discovery, and timeout retry behavior.
+
+
+## YouTube extraction and optional diarization hardening
+
+- Install Deno 2.x and the separate `yt-dlp-ejs` challenge scripts in GitHub Actions.
+- Pin the bgutil yt-dlp plugin and HTTP provider together at version 2.0.2; wait for the provider health endpoint before starting Clipper.
+- Bind the unauthenticated PO-token server to loopback only.
+- Prioritise the current `mweb` PO-token strategy, then `web_safari`, and remove cookie-incompatible TV/iOS strategies.
+- Make the final download strategy accept separate video/audio streams at any resolution instead of requiring one combined format.
+- Allow metadata discovery to continue when YouTube exposes no directly downloadable format; the actual media download remains strictly verified.
+- Treat unavailable/gated pyannote access as an optional diarization warning rather than a fatal preflight failure.
+- Add regression tests for the downloader strategy order and metadata-only extraction behavior.
