@@ -1270,6 +1270,7 @@ def _post_clip(cfg, state, clip, path):
         return False
     except Exception as ex:
         clip.pop("publish_started_at", None)
+        clip["status"] = "queued"
         _fail(state, clip, ex, "instagram")
         return None
     clip.update(status="posted", media_id=media_id, posted_at=now_iso(), error=None)
@@ -1448,11 +1449,14 @@ def status_table(limit=15):
                     f"{hms(c['start'])}-{hms(c['end'])} | {views_of(c) or ''} | "
                     f"{m.get('reach', '')} | {m.get('saved', '')} | {m.get('shares', '')} |")
     q = len(queued(state))
+    review_count = sum(c.get("status") == "needs_review" for c in state["clips"])
+    uncertain_count = sum(c.get("status") in ("publishing", "publish_uncertain") for c in state["clips"])
     total = sum(views_of(c) or 0 for c in state["clips"])
     jl = [f"- `{j['t'][5:16]}` **{j['event']}** " + ", ".join(f"{k}={v}" for k, v in j.items()
                                                            if k not in ("t", "event"))[:160]
           for j in state.get("journal", [])[-8:]]
-    return (f"**Queue:** {q} waiting · **Total views tracked:** {total}\n\n" + "\n".join(rows)
+    return (f"**Queue:** {q} waiting · **Manual review:** {review_count} · "
+            f"**Publish outcome check:** {uncertain_count} · **Total views tracked:** {total}\n\n" + "\n".join(rows)
             + ("\n\n**Agent journal (latest)**\n" + "\n".join(jl) if jl else ""))
 
 
