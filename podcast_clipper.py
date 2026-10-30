@@ -1765,24 +1765,30 @@ def tick(cfg, force=False):
 
 def status_table(limit=15):
     state = load_state()
-    rows = ["| id | status | channel | window | views | reach | saves | shares |",
-            "|---:|---|---|---|---:|---:|---:|---:|"]
+    rows = ["| id | status | channel | window | views | reach | saves | shares | quality | retention | skip |",
+            "|---:|---|---|---|---:|---:|---:|---:|---:|---:|---:|"]
     for c in state["clips"][-limit:][::-1]:
         m = c.get("metrics") or {}
+        detail = c.get("performance_detail") or {}
+        quality = c.get("performance_score")
         rows.append(f"| {c['id']} | {c['status']} | {c['channel']} | "
                     f"{hms(c['start'])}-{hms(c['end'])} | {views_of(c) or ''} | "
-                    f"{m.get('reach', '')} | {m.get('saved', '')} | {m.get('shares', '')} |")
+                    f"{m.get('reach', '')} | {m.get('saved', '')} | {m.get('shares', '')} | "
+                    f"{f'{quality:.2f}' if isinstance(quality, (int, float)) else ''} | "
+                    f"{detail.get('retention_pct', '')} | {detail.get('skip_rate', '')} |")
     q = len(queued(state))
     review_count = sum(c.get("status") == "needs_review" for c in state["clips"])
     uncertain_count = sum(c.get("status") in ("publishing", "publish_uncertain") for c in state["clips"])
     total = sum(views_of(c) or 0 for c in state["clips"])
+    quality_samples = sum(c.get("performance_score") is not None for c in state["clips"])
     jl = [f"- `{j['t'][5:16]}` **{j['event']}** " + ", ".join(f"{k}={v}" for k, v in j.items()
                                                            if k not in ("t", "event"))[:160]
           for j in state.get("journal", [])[-8:]]
     return (f"**Queue:** {q} waiting · **Manual review:** {review_count} · "
-            f"**Publish outcome check:** {uncertain_count} · **Total views tracked:** {total}\n\n" + "\n".join(rows)
+            f"**Publish outcome check:** {uncertain_count} · "
+            f"**Performance samples:** {quality_samples} · **Total views tracked:** {total}\n\n"
+            + "\n".join(rows)
             + ("\n\n**Agent journal (latest)**\n" + "\n".join(jl) if jl else ""))
-
 
 def write_summary():
     path = os.environ.get("GITHUB_STEP_SUMMARY")
