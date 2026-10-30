@@ -35,17 +35,16 @@ than `learning.min_channel_samples` mature Reels and only learns hook/duration p
 3. Settings -> Actions -> General -> Workflow permissions -> **Read and write**.
 4. In `config.yaml` set `permission: true` ONLY for creators whose content you are authorized to republish. Do not enable the example channels without permission/licensing. For best reliability, test using your own or explicitly licensed source videos first.
 5. Actions -> **podcast-clipper** -> Run workflow:
-   1. **check-live** - diagnostic only. It verifies YouTube download, a real 9:16 render, QA,
-      Gemini and Instagram resumable upload. It deliberately does **not** enqueue clips or call
-      Instagram `media_publish`; a successful green check-live run does not post anything.
-   2. **produce** with *dry_run* ticked - analyses a real episode and prints candidates without saving them.
-   3. **publish-now** - runs the normal production tick immediately: it fills the queue when needed,
-      renders and quality-checks a candidate, then attempts to publish one Reel without waiting for a slot.
-      Check Instagram and the run log for the returned media ID. A clip can still be held for manual review
-      or rejected by QA; those are intentional safety gates, not successful posts.
-6. After the first successful post, the cron schedules run by themselves (05:50 / 17:50 IST start and wait
-   for the exact slot; 07:50 / 19:50 IST are catch-up runs). Manual `tick` without *force* only posts when
-   a slot is due; `tick` with *force* is the alternative to `publish-now`.
+   1. **publish-now** is the default manual command. It fills the queue when needed, renders and
+      quality-checks a candidate, then attempts to publish one Reel immediately.
+   2. **check-live** is diagnostic only. It verifies YouTube download, rendering, QA, Gemini and
+      Instagram resumable upload. It deliberately does **not** enqueue clips or call Instagram
+      `media_publish`; a successful green check-live run does not post anything.
+   3. **produce** with *dry_run* ticked analyses a real episode and prints candidates without saving them.
+6. Automatic publishing runs every day at **06:00 AM and 06:00 PM IST**. The two GitHub Actions
+   schedules start at 05:50 and 17:50 IST to allow runner setup; the script waits for the exact posting
+   slots. Each scheduled run uses the normal `tick` pipeline, which fills the queue when needed, applies
+   QA/manual-review safeguards, and attempts at most one Reel per slot.
 
 ## Speaker diarization
 

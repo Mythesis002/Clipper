@@ -521,6 +521,8 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertGreaterEqual(cfg["learning"]["min_format_samples"], 1)
         self.assertEqual(cfg["llm"]["model"], "gemini-2.5-flash")
         self.assertNotIn("fallback_models", cfg["llm"])
+        self.assertEqual(cfg["timezone"], "Asia/Kolkata")
+        self.assertEqual(cfg["post_times"], ["06:00", "18:00"])
 
     def test_only_sources_with_explicit_permission_are_authorized(self):
         cfg = clipper.load_config()
