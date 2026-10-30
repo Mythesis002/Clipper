@@ -1059,6 +1059,9 @@ def detect_face_crop_x(cfg, raw):
                 centers.append(center_x_original)
             elif len(faces) > 1:
                 multi_face_frames += 1
+    except Exception as ex:
+        log.warning("face-aware reframing failed; using full-frame layout: %s", str(ex)[:180])
+        return None
     finally:
         capture.release()
 
