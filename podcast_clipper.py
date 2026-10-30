@@ -1005,6 +1005,75 @@ def download_section(cfg, vid, s, e, stem):
     raise RuntimeError(f"could not download section (tried {len(DL_STRATEGIES)} strategies): {last}")
 
 
+def detect_face_crop_x(cfg, raw):
+    """Return a safe 9:16 crop x-offset for a consistent single-face shot; otherwise None.
+
+    This is conservative face-aware reframing, not active-speaker tracking. Multi-person
+    shots and uncertain detections deliberately fall back to the full-frame layout.
+    """
+    if not cfg.get("render", {}).get("face_reframe", True):
+        return None
+    try:
+        import cv2
+    except ImportError:
+        log.warning("OpenCV is unavailable; using the full-frame vertical layout")
+        return None
+
+    media = probe_media(raw)
+    width, height, duration = media.get("w", 0), media.get("h", 0), media.get("duration", 0)
+    if not media.get("has_video") or width <= 0 or height <= 0 or duration <= 0:
+        return None
+    scaled_width = int(round((width * 1920 / height) / 2) * 2)
+    if scaled_width <= 1080 or width / height < 0.85:
+        return None
+
+    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    detector = cv2.CascadeClassifier(cascade_path)
+    if detector.empty():
+        log.warning("OpenCV face detector could not be loaded; using full-frame layout")
+        return None
+
+    sample_count = max(6, min(14, int(np.ceil(duration / 1.5))))
+    timestamps = np.linspace(min(0.2, duration / 10), max(0.2, duration - 0.2), sample_count)
+    capture = cv2.VideoCapture(str(raw))
+    if not capture.isOpened():
+        return None
+
+    centers, multi_face_frames = [], 0
+    try:
+        for stamp in timestamps:
+            capture.set(cv2.CAP_PROP_POS_MSEC, float(stamp) * 1000)
+            ok, frame = capture.read()
+            if not ok or frame is None:
+                continue
+            frame_h, frame_w = frame.shape[:2]
+            scale = min(1.0, 640.0 / max(frame_w, 1))
+            if scale < 1.0:
+                frame = cv2.resize(frame, (int(frame_w * scale), int(frame_h * scale)))
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5,
+                                              minSize=(28, 28))
+            if len(faces) == 1:
+                x, y, fw, fh = faces[0]
+                center_x_original = (x + fw / 2) / scale
+                centers.append(center_x_original)
+            elif len(faces) > 1:
+                multi_face_frames += 1
+    finally:
+        capture.release()
+
+    if len(centers) < max(4, int(np.ceil(sample_count * 0.55))):
+        return None
+    if multi_face_frames > sample_count * 0.25:
+        return None
+
+    face_center_scaled = float(np.median(centers)) * 1920 / height
+    crop_x = int(round(face_center_scaled - 540))
+    crop_x = min(max(crop_x, 0), scaled_width - 1080)
+    log.info("single-face vertical reframing selected (crop x=%d)", crop_x)
+    return crop_x
+
+
 def compose_clip(cfg, raw, clip, s, e, stem):
     """1080x1920, blurred background, title + captions, loudness-normalised."""
     # Keep the source legible while reducing the tiny-landscape-in-a-vertical-canvas
@@ -1014,10 +1083,15 @@ def compose_clip(cfg, raw, clip, s, e, stem):
     fg_scale = float(cfg.get("render", {}).get("foreground_scale", 1.16))
     fg_scale = min(max(fg_scale, 1.0), 1.35)
     fg_width = int(1080 * fg_scale)
-    fc = ("[0:v]split=2[a][b];"
-          "[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
-          "boxblur=8:3,scale=1080:1920,eq=brightness=-0.08[bg];"
-          f"[b]scale={fg_width}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2[v0]")
+    face_crop_x = detect_face_crop_x(cfg, raw)
+    if face_crop_x is not None:
+        fc = (f"[0:v]scale=-2:1920,crop=1080:1920:{face_crop_x}:0,"
+              "setsar=1,eq=contrast=1.02:saturation=1.04[v0]")
+    else:
+        fc = ("[0:v]split=2[a][b];"
+              "[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
+              "boxblur=8:3,scale=1080:1920,eq=brightness=-0.08[bg];"
+              f"[b]scale={fg_width}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2[v0]")
     if cfg["clip"]["captions"] and (clip.get("words") or clip.get("title")):
         build_ass(clip.get("words") or [], s, e, clip.get("title"), WORK / f"{stem}.ass")
         fc += f";[v0]subtitles={stem}.ass[v]"
