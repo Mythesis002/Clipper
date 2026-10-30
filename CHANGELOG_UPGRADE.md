@@ -37,3 +37,25 @@ This upgrade improves ranking and safeguards, but cannot guarantee views. It doe
 ### Remaining creator-editing limitations
 
 This is not yet a full professional NLE/AI editor: it has no continuous active-speaker tracking, diarization-driven camera switching, reaction inserts, B-roll search/generation, semantic sound design, or learned retention predictor. The new face crop is static per clip and should be evaluated on real source footage before unattended use. These changes improve selection and operational safety; they do not guarantee viral performance.
+
+## Editorial intelligence and performance learning
+
+- Added a transcript-context engine that inspects words before and after each candidate without pretending those words are in the clip.
+- Added opening-type, context-dependency, standalone-clarity and payoff signals to the ranking and Gemini editor prompt.
+- Added empirical hook-type and duration priors with a four-post minimum sample and conservative shrinkage.
+- Added optional pyannote Community-1 diarization for each rendered clip segment; speaker-turn count, switches, dominance and overlap inform safe reframing.
+- Replaced the fixed face crop with a dynamic, interpolated face-position track; ambiguous group/dialogue footage keeps the full-frame fallback.
+- Added retention-weighted performance scores using average watch time, reach-normalised shares/saves/likes and Reels skip rate where those insights are available.
+- Source ordering now explores channels with insufficient performance data first, then prioritises mature retention/engagement quality rather than raw views.
+- Added editor-intelligence, analytics and real FFmpeg render integration tests.
+
+### Optional diarization setup
+
+- Accept the Hugging Face conditions for `pyannote/speaker-diarization-community-1`.
+- Add the `HF_TOKEN` Actions secret and `ENABLE_DIARIZATION=true` repository variable.
+- Set `diarization.enabled: true` in `config.yaml`.
+- PyTorch/pyannote are installed only when explicitly opted in. Without the token/model, the pipeline continues without diarization.
+
+### Important boundaries
+
+The current face track follows a visible face position; it does not identify people or conclusively match a diarized voice to a face. The diarization output is used as conservative layout evidence, not as a multi-camera edit decision. No universal view or retention benchmark is hard-coded as a prediction of virality.
