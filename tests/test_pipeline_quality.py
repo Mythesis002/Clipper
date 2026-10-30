@@ -341,8 +341,8 @@ class PipelineQualityTests(unittest.TestCase):
             },
         )
         clipper._MODEL_CACHE.clear()
-        with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}, clear=True), \\
-             patch.object(clipper.requests, "post", return_value=response) as post_mock, \\
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}, clear=True), \
+             patch.object(clipper.requests, "post", return_value=response) as post_mock, \
              patch.object(clipper.requests, "get") as get_mock:
             result = clipper.gemini_text(cfg, [{"text": "return JSON"}])
 
@@ -354,7 +354,7 @@ class PipelineQualityTests(unittest.TestCase):
 
     def test_gemini_text_rejects_a_different_model_before_network(self):
         cfg = {"llm": {"enabled": True, "model": "gemini-3.8-flash"}}
-        with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}, clear=True), \\
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}, clear=True), \
              patch.object(clipper.requests, "post") as post_mock:
             with self.assertRaisesRegex(clipper.GeminiError, "pinned to gemini-2.5-flash"):
                 clipper.gemini_text(cfg, [{"text": "return JSON"}])
