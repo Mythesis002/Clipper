@@ -57,6 +57,9 @@ jobs:
       - name: Python packages (yt-dlp always latest, YouTube changes often)
         run: pip install -U -r requirements.txt
 
+      - name: Regression tests
+        run: python -m unittest discover -s tests -v
+
       - name: PO-token provider for yt-dlp (helps on datacenter IPs; non-fatal if it fails)
         continue-on-error: true
         run: docker run -d --name pot -p 4416:4416 brainicism/bgutil-ytdlp-pot-provider
