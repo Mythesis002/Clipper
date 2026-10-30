@@ -11,6 +11,11 @@ detections use the full-frame blurred fallback. Optional pyannote diarization ca
 and prevent aggressive face crops on dialogue-heavy clips; it does not yet match a diarized voice to a
 specific face, generate reaction cuts, or select B-roll.
 
+Every rendered MP4 is checked against the Instagram Reels media profile before QA/publishing:
+H.264/HEVC video, 4:2:0 pixel format, 23–60 fps, AAC audio at up to 48 kHz, mono/stereo,
+and conservative bitrate/file-size limits. The renderer exports H.264 at 30 fps and AAC stereo
+at 48 kHz / 128 kbps, then rejects any file that fails the compatibility checks.
+
 Candidate selection now reconstructs transcript context before and after every cut. External context is
 used to detect dangling references, never included as if they were spoken in the clip. The learning loop
 uses average watch time, reach-normalised shares/saves/likes and Reels skip rate when those insights are

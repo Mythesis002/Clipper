@@ -172,6 +172,13 @@ class EditorialEngineTests(unittest.TestCase):
             media = probe_media(output)
             self.assertEqual((media["w"], media["h"]), (1080, 1920))
             self.assertTrue(media["has_audio"])
+            self.assertEqual(media["video_codec"], "h264")
+            self.assertEqual(media["video_pix_fmt"], "yuv420p")
+            self.assertAlmostEqual(media["video_fps"], 30.0, delta=0.1)
+            self.assertEqual(media["audio_codec"], "aac")
+            self.assertEqual(media["audio_sample_rate"], 48000.0)
+            self.assertEqual(media["audio_channels"], 2)
+            self.assertEqual(__import__("podcast_clipper").instagram_media_issues(media), [])
             self.assertAlmostEqual(media["duration"], 3.8, delta=0.5)
 
 if __name__ == "__main__":
