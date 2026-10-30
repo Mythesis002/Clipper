@@ -271,7 +271,7 @@ class PipelineQualityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             video = Path(folder) / "smoke.mp4"
             video.write_bytes(b"mp4")
-            with patch.dict("os.environ", {"IG_USER_ID": "  ", "IG_ACCESS_TOKEN": "\\n"}), \
+            with patch.dict("os.environ", {"IG_USER_ID": "  ", "IG_ACCESS_TOKEN": "\n"}), \
                  patch.object(clipper.requests, "post") as post_mock:
                 with self.assertRaisesRegex(RuntimeError, "IG_USER_ID and IG_ACCESS_TOKEN"):
                     clipper.upload_reel_container(cfg, video, "smoke")
