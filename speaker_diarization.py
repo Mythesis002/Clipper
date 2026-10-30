@@ -28,7 +28,7 @@ def diarize_media(media_path, token=None):
     Model inference is opt-in. The downloaded video segment is converted to mono 16kHz
     PCM first, so the model sees audio only and inference does not depend on video codec.
     """
-    token = token or os.environ.get("HF_TOKEN")
+    token = str(token or os.environ.get("HF_TOKEN") or "").strip()
     if not token:
         log.info("speaker diarization skipped: HF_TOKEN is not configured")
         return []

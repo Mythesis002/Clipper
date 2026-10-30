@@ -184,6 +184,10 @@ def gha(level, msg):
     if os.environ.get("GITHUB_ACTIONS"):
         print(f"::{level}::{msg}")
 
+def env_value(name, default=""):
+    """Read a secret/config environment value without accidental surrounding whitespace."""
+    return str(os.environ.get(name, default) or "").strip()
+
 
 def graph(cfg):
     return f"https://graph.facebook.com/{cfg['instagram'].get('graph_version', 'v25.0')}"
@@ -207,11 +211,12 @@ def views_of(clip):
 def ydl_opts(cfg, **extra):
     o = {"quiet": True, "no_warnings": True, "retries": 5, "extractor_retries": 3,
          "socket_timeout": 30}
-    cookies = os.environ.get("YT_COOKIES_FILE") or cfg.get("cookies_file")
+    cookies = env_value("YT_COOKIES_FILE") or str(cfg.get("cookies_file") or "").strip()
     if cookies and Path(cookies).exists():
         o["cookiefile"] = cookies
-    if os.environ.get("YT_PROXY"):
-        o["proxy"] = os.environ["YT_PROXY"]
+    proxy = env_value("YT_PROXY")
+    if proxy:
+        o["proxy"] = proxy
     o.update(extra)
     return o
 
@@ -581,7 +586,9 @@ _MODEL_CACHE = {}
 
 
 def gemini_key():
-    return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    # A copied GitHub secret can include a trailing newline or spaces. Strip each
+    # candidate separately so a whitespace-only primary value does not hide fallback.
+    return env_value("GEMINI_API_KEY") or env_value("GOOGLE_API_KEY")
 
 
 def pick_flash_models(models_json):
@@ -1107,7 +1114,7 @@ def build_ass(words, start, end, title, path):
 
 def source_url(video_id):
     """Where to cut from. CLIPPER_SOURCE_URL (a local file) is a test hook, never set in production."""
-    return os.environ.get("CLIPPER_SOURCE_URL") or f"https://www.youtube.com/watch?v={video_id}"
+    return env_value("CLIPPER_SOURCE_URL") or f"https://www.youtube.com/watch?v={video_id}"
 
 
 def probe_media(path):
@@ -1340,7 +1347,7 @@ def render_clip(cfg, clip):
     if diarization_cfg.get("enabled"):
         try:
             from speaker_diarization import diarize_media
-            turns = diarize_media(raw, os.environ.get("HF_TOKEN"))
+            turns = diarize_media(raw, env_value("HF_TOKEN") or None)
             clip["speaker_analysis"] = speaker_summary(turns, 0.0, e - s)
             clip.setdefault("features", {}).update(clip["speaker_analysis"])
             speaker_count = clip["speaker_analysis"].get("speaker_count")
@@ -1473,33 +1480,66 @@ class PublishUncertainError(RuntimeError):
     """The remote publish may have succeeded but its response was lost."""
 
 
-def post_reel(cfg, video_path, caption):
-    ig_id, token = os.environ["IG_USER_ID"], os.environ["IG_ACCESS_TOKEN"]
+def upload_reel_container(cfg, video_path, caption):
+    """Upload and process a Reel container, but do NOT publish it.
+
+    Shared by the production publisher and the check-live smoke test. A FINISHED
+    container is still unpublished until media_publish is explicitly called.
+    """
+    ig_id, token = env_value("IG_USER_ID"), env_value("IG_ACCESS_TOKEN")
+    if not ig_id or not token:
+        raise RuntimeError("Instagram upload requires non-empty IG_USER_ID and IG_ACCESS_TOKEN secrets")
+    path = Path(video_path)
+    if not path.is_file() or path.stat().st_size <= 0:
+        raise RuntimeError(f"Instagram upload input is missing or empty: {path}")
     g = graph(cfg)
-    r = requests.post(f"{g}/{ig_id}/media", data={
+    response = requests.post(f"{g}/{ig_id}/media", data={
         "media_type": "REELS", "upload_type": "resumable", "caption": caption,
         "share_to_feed": "true", "access_token": token}, timeout=60)
-    if not r.ok:
-        raise RuntimeError(f"container create failed: {r.text[:300]}")
-    container = r.json()
-    data = Path(video_path).read_bytes()
-    u = requests.post(container["uri"], data=data, timeout=600, headers={
-        "Authorization": f"OAuth {token}", "offset": "0", "file_size": str(len(data))})
-    if not u.ok:
-        raise RuntimeError(f"upload failed: {u.text[:300]}")
+    if not response.ok:
+        raise RuntimeError(f"container create failed: HTTP {response.status_code} {response.text[:300]}")
+    try:
+        container = response.json()
+    except ValueError as ex:
+        raise RuntimeError("Instagram container create returned invalid JSON") from ex
+    container_id, upload_uri = container.get("id"), container.get("uri")
+    if not container_id or not upload_uri:
+        raise RuntimeError(f"Instagram container response missing id or upload URI: {container}")
+    data = path.read_bytes()
+    upload = requests.post(upload_uri, data=data, timeout=600, headers={
+        "Authorization": f"OAuth {token}", "offset": "0",
+        "file_size": str(len(data)), "Content-Type": "application/octet-stream"})
+    if not upload.ok:
+        raise RuntimeError(f"upload failed: HTTP {upload.status_code} {upload.text[:300]}")
     for _ in range(72):
-        s = requests.get(f"{g}/{container['id']}", timeout=30, params={
-            "fields": "status_code,status", "access_token": token}).json()
-        if s.get("status_code") == "FINISHED":
-            break
-        if s.get("status_code") in ("ERROR", "EXPIRED"):
-            raise RuntimeError(f"Instagram processing failed: {s}")
+        status_response = requests.get(f"{g}/{container_id}", timeout=30, params={
+            "fields": "status_code,status", "access_token": token})
+        if not status_response.ok:
+            raise RuntimeError(
+                f"Instagram processing status failed: HTTP {status_response.status_code} "
+                f"{status_response.text[:200]}")
+        try:
+            status = status_response.json()
+        except ValueError as ex:
+            raise RuntimeError("Instagram processing status returned invalid JSON") from ex
+        status_code = status.get("status_code")
+        if status_code == "FINISHED":
+            return str(container_id)
+        if status_code in ("ERROR", "EXPIRED"):
+            raise RuntimeError(f"Instagram processing failed: {status}")
+        if status_code not in ("IN_PROGRESS", "PENDING"):
+            raise RuntimeError(f"Instagram returned unexpected container status: {status}")
         time.sleep(5)
-    else:
-        raise TimeoutError("Instagram processing timed out")
+    raise TimeoutError("Instagram processing timed out")
+
+
+def post_reel(cfg, video_path, caption):
+    container_id = upload_reel_container(cfg, video_path, caption)
+    ig_id, token = env_value("IG_USER_ID"), env_value("IG_ACCESS_TOKEN")
+    g = graph(cfg)
     try:
         p = requests.post(f"{g}/{ig_id}/media_publish", timeout=60, data={
-            "creation_id": container["id"], "access_token": token})
+            "creation_id": container_id, "access_token": token})
     except requests.RequestException as ex:
         raise PublishUncertainError(f"media_publish request outcome unknown: {ex}") from ex
     if p.status_code >= 500:
@@ -1678,7 +1718,10 @@ def publish_next(cfg, wait=True, force=False):
     return False
 
 def fetch_metrics(cfg, media_id):
-    token, g, out = os.environ["IG_ACCESS_TOKEN"], graph(cfg), {}
+    token, g, out = env_value("IG_ACCESS_TOKEN"), graph(cfg), {}
+    if not token:
+        log.warning("Instagram metrics skipped: IG_ACCESS_TOKEN is not configured")
+        return out
     # Query one metric at a time: reels_skip_rate and watch-time fields are Reel-specific,
     # and one unsupported metric must not discard the other useful insights.
     for metric in (
@@ -1813,66 +1856,164 @@ def write_summary():
 
 
 def check(cfg, live=False):
+    """Validate the integrations required by this configuration; live=True exercises real media paths."""
     ok = True
 
     def line(good, text, required=True):
         nonlocal ok
-        print(("OK   " if good else ("FAIL " if required else "info ")) + text)
+        passed = bool(good)
+        print(("OK   " if passed else ("FAIL " if required else "info ")) + text)
         if required:
-            ok &= bool(good)
+            ok &= passed
 
     line(shutil.which("ffmpeg"), "ffmpeg")
     line(shutil.which("ffprobe"), "ffprobe")
-    for var in ("IG_USER_ID", "IG_ACCESS_TOKEN"):
-        line(os.environ.get(var), f"env {var}")
+
+    ig_id, ig_token = env_value("IG_USER_ID"), env_value("IG_ACCESS_TOKEN")
+    line(bool(ig_id), "env IG_USER_ID")
+    line(bool(ig_token), "env IG_ACCESS_TOKEN")
     n = len(authorized_channels(cfg))
-    line(n > 0, f"{n} channel(s) with permission: true (zero is allowed; publishing will remain idle)", required=False)
-    if os.environ.get("IG_USER_ID") and os.environ.get("IG_ACCESS_TOKEN"):
-        r = requests.get(f"{graph(cfg)}/{os.environ['IG_USER_ID']}", timeout=30, params={
-            "fields": "username", "access_token": os.environ["IG_ACCESS_TOKEN"]})
-        line(r.ok, ("Instagram account: " + r.json().get("username", "?")) if r.ok
-             else "Instagram token: " + r.text[:200])
-    if gemini_key():
+    line(n > 0, f"{n} channel(s) with permission: true")
+
+    if ig_id and ig_token:
+        try:
+            response = requests.get(
+                f"{graph(cfg)}/{ig_id}", timeout=30,
+                params={"fields": "username", "access_token": ig_token},
+            )
+            try:
+                payload = response.json()
+            except ValueError:
+                payload = {}
+            line(response.ok, ("Instagram account: " + str(payload.get("username", "?")))
+                 if response.ok else "Instagram token/account check: " + response.text[:200])
+        except Exception as ex:
+            line(False, f"Instagram account check failed: {str(ex)[:200]}")
+
+    llm = cfg.get("llm", {})
+    gemini_required = bool(llm.get("enabled") or llm.get("video_verify")
+                           or llm.get("final_qa") or llm.get("polish_captions"))
+    key = gemini_key()
+    line(bool(key), "env GEMINI_API_KEY", required=gemini_required)
+    if key:
         try:
             txt = gemini_text(cfg, [{"text": 'Reply with exactly this JSON: {"ok": true}'}])
-            line(parse_json(txt).get("ok") is True, f"Gemini works (model {_MODEL_CACHE.get('model')})")
+            valid = isinstance(parse_json(txt), dict) and parse_json(txt).get("ok") is True
+            line(valid, f"Gemini text API works (model {_MODEL_CACHE.get('model')})",
+                 required=gemini_required)
         except Exception as ex:
-            line(False, f"Gemini: {ex}", required=False)
-    else:
-        line(False, "GEMINI_API_KEY not set (optional: heuristics-only mode)", required=False)
+            line(False, f"Gemini text API failed: {str(ex)[:240]}", required=gemini_required)
+
+    diarization_enabled = bool((cfg.get("diarization") or {}).get("enabled"))
+    hf_token = env_value("HF_TOKEN")
+    if diarization_enabled:
+        line(bool(hf_token), "env HF_TOKEN for enabled speaker diarization")
+        if live and hf_token:
+            try:
+                from speaker_diarization import _load_pipeline
+                _load_pipeline(hf_token)
+                line(True, "pyannote Community-1 model loads with this token")
+            except Exception as ex:
+                line(False, f"pyannote model access/load failed: {str(ex)[:240]}")
+
     if live:                                        # real network probes (what unit tests cannot cover)
-        vid = cfg.get("check_video_id", "aqz-KE-bpKQ")     # Blender's open-licensed "Big Buck Bunny"
+        vid = cfg.get("check_video_id", "aqz-KE-bpKQ")     # open-licensed test video
+        test_output = None
         try:
             info = full_info(cfg, vid)
             line(True, f"YouTube video info works: {info['title'][:50]!r} ({info['duration']}s)")
-            line(info.get("heatmap"), "Most-Replayed heatmap present", required=False)
+            line(bool(info.get("heatmap")), "Most-Replayed heatmap present", required=False)
             s0 = float(min(30, info["duration"] * 0.3))
-            clip = {"video_id": vid, "start": s0, "end": s0 + 8, "title": "Self check",
+            clip = {"video_id": vid, "start": s0, "end": s0 + 8, "title": "Clipper preflight",
                     "words": [[s0 + i * 0.5, f"test{i}"] for i in range(14)]}
             t0 = time.time()
-            out = render_clip(cfg, clip)
-            m = probe_media(out)
-            qa = qa_checks(cfg, out)
-            line(not qa["issues"], f"technical QA: black {qa['black_pct']}% silent {qa['silence_pct']}% "
-                                   f"{qa['issues'] or ''}", required=False)
-            g = gemini_qa(cfg, out)
-            if g is not None:
-                line(g["approve"], f"Gemini watched the final clip: score {g['score']}, {g['issues'] or 'no issues'}",
-                     required=False)
-            line(m["h"] == 1920 and m["has_audio"],
-                 f"REAL section download + 9:16 render works ({m['w']}x{m['h']}, {m['duration']:.1f}s, "
-                 f"took {time.time() - t0:.0f}s)")
-            shutil.rmtree(WORK, ignore_errors=True)
+            test_output = render_clip(cfg, clip)
+            media = probe_media(test_output)
+            line(media["w"] == 1080 and media["h"] == 1920 and media["has_audio"],
+                 f"REAL YouTube download + 9:16 render works ({media['w']}x{media['h']}, "
+                 f"{media['duration']:.1f}s, took {time.time() - t0:.0f}s)")
+            technical = qa_checks(cfg, test_output)
+            line(not technical["issues"],
+                 f"technical QA: black {technical['black_pct']}% silent {technical['silence_pct']}% "
+                 f"{technical['issues'] or ''}")
+            final_review = gemini_qa(cfg, test_output)
+            if llm.get("final_qa") and key:
+                line(final_review is not None, "Gemini final-video QA returned a valid typed response")
+                if final_review is not None:
+                    line(final_review["approve"] and not final_review["unsafe"],
+                         f"Gemini test-video QA score {final_review['score']}: "
+                         f"{final_review['issues'] or 'no issues'}", required=False)
+
+            # This performs a real resumable upload and waits for FINISHED, but intentionally
+            # does not call media_publish. It leaves an unpublished container that expires.
+            if ig_id and ig_token:
+                try:
+                    container_id = upload_reel_container(
+                        cfg, test_output, "Clipper preflight upload — unpublished test container"
+                    )
+                    line(bool(container_id), "Instagram resumable upload + processing works "
+                         "(test container NOT published)")
+                except Exception as ex:
+                    line(False, f"Instagram resumable upload smoke test failed: {str(ex)[:240]}")
         except Exception as ex:
-            line(False, "YouTube download path FAILED (datacenter IP blocked? add YT_COOKIES / YT_PROXY "
-                        f"or use a self-hosted runner): {str(ex)[:300]}")
-        permitted = [c for c in cfg["channels"] if c.get("permission")]
+            line(False, "YouTube download/render/QA smoke test FAILED "
+                 f"(check YT_COOKIES / YT_PROXY): {str(ex)[:300]}")
+        finally:
+            if test_output:
+                Path(test_output).unlink(missing_ok=True)
+            shutil.rmtree(WORK, ignore_errors=True)
+
+        permitted = authorized_channels(cfg)
         if permitted:
             try:
                 entries = list_recent(cfg, permitted[0]["handle"], 3)
-                line(entries, f"channel listing works ({permitted[0]['name']}: {len(entries)} videos)")
+                line(bool(entries), f"channel listing works ({permitted[0]['name']}: {len(entries)} videos)")
             except Exception as ex:
                 line(False, f"channel listing failed: {str(ex)[:200]}")
+
+            # Exercise the same real discovery -> transcript -> candidate -> Gemini pipeline
+            # used by produce(), but never add clips to state and never publish this candidate.
+            try:
+                smoke_state = {"episodes": {}, "clips": []}
+                source_channel, episode = pick_episode(cfg, smoke_state)
+                line(bool(episode), "eligible authorised podcast episode found")
+                if episode:
+                    picks = analyse_episode(cfg, source_channel, episode, state=smoke_state)
+                    line(bool(picks), f"real episode transcript/editorial analysis produced {len(picks)} clip(s)")
+                    if picks and llm.get("enabled") and key:
+                        line(any("llm" in pick for pick in picks),
+                             "Gemini candidate ranking returned usable scores")
+                    if picks and llm.get("video_verify") and key:
+                        line(any("vid" in pick for pick in picks),
+                             "Gemini YouTube video verification returned usable scores")
+                    if picks:
+                        selected = picks[0]
+                        real_clip = {
+                            "video_id": episode["id"], "start": selected["start"],
+                            "end": selected["end"], "title": selected.get("title") or "Production smoke test",
+                            "words": [[round(t, 2), word] for t, word in selected.get("words", [])],
+                            "features": {},
+                        }
+                        rendered = None
+                        try:
+                            rendered = render_clip(cfg, real_clip)
+                            rendered_media = probe_media(rendered)
+                            line(rendered_media["w"] == 1080 and rendered_media["h"] == 1920
+                                 and rendered_media["has_audio"],
+                                 "selected real episode clip rendered to 1080x1920 with audio")
+                            rendered_qa = qa_checks(cfg, rendered)
+                            line(not rendered_qa["issues"],
+                                 f"selected clip technical QA passed: {rendered_qa['issues'] or 'clean'}")
+                            if llm.get("final_qa") and key:
+                                rendered_ai = gemini_qa(cfg, rendered)
+                                line(rendered_ai is not None,
+                                     "Gemini final QA works on a real selected podcast clip")
+                        finally:
+                            if rendered:
+                                Path(rendered).unlink(missing_ok=True)
+                            shutil.rmtree(WORK, ignore_errors=True)
+            except Exception as ex:
+                line(False, f"real episode production smoke test failed: {str(ex)[:300]}")
     return ok
 
 

@@ -1,4 +1,6 @@
+import io
 import unittest
+from contextlib import redirect_stdout
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -208,6 +210,108 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertEqual(clipper.done_ids(state), set())
 
 
+
+    def test_env_value_strips_secret_whitespace(self):
+        with patch.dict("os.environ", {"CLIPPER_TEST_SECRET": "  secret-value\r\n"}):
+            self.assertEqual(clipper.env_value("CLIPPER_TEST_SECRET"), "secret-value")
+
+    def test_gemini_key_ignores_whitespace_primary_and_uses_trimmed_fallback(self):
+        with patch.dict("os.environ", {
+            "GEMINI_API_KEY": "  \n",
+            "GOOGLE_API_KEY": "  fallback-key\r\n",
+        }, clear=True):
+            self.assertEqual(clipper.gemini_key(), "fallback-key")
+
+    def test_preflight_fails_when_gemini_is_missing_but_enabled(self):
+        cfg = {
+            "instagram": {"graph_version": "v25.0"},
+            "channels": [{"name": "Raj Shamani", "permission": True}],
+            "llm": {"enabled": True},
+        }
+        with patch.dict("os.environ", {
+            "IG_USER_ID": "  ",
+            "IG_ACCESS_TOKEN": "  ",
+            "GEMINI_API_KEY": "  ",
+        }, clear=True), patch.object(clipper.shutil, "which", return_value="/usr/bin/tool"):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = clipper.check(cfg, live=False)
+        self.assertFalse(result)
+        self.assertIn("FAIL env GEMINI_API_KEY", output.getvalue())
+        self.assertIn("FAIL env IG_USER_ID", output.getvalue())
+
+    def test_instagram_upload_smoke_uploads_and_waits_without_publishing(self):
+        import tempfile
+        from pathlib import Path
+        cfg = {"instagram": {"graph_version": "v25.0"}}
+        create_response = Mock(ok=True, status_code=200,
+                               json=lambda: {"id": "container-123", "uri": "https://upload.example/container-123"})
+        upload_response = Mock(ok=True, status_code=200)
+        status_response = Mock(ok=True, json=lambda: {"status_code": "FINISHED", "status": "ready"})
+        with tempfile.TemporaryDirectory() as folder:
+            video = Path(folder) / "smoke.mp4"
+            video.write_bytes(b"synthetic-mp4-payload")
+            with patch.dict("os.environ", {"IG_USER_ID": "ig-123", "IG_ACCESS_TOKEN": "token-123"}), \
+                 patch.object(clipper.requests, "post",
+                              side_effect=[create_response, upload_response]) as post_mock, \
+                 patch.object(clipper.requests, "get", return_value=status_response) as get_mock:
+                container_id = clipper.upload_reel_container(cfg, video, "smoke test")
+        self.assertEqual(container_id, "container-123")
+        self.assertEqual(post_mock.call_count, 2)
+        self.assertEqual(post_mock.call_args_list[1].args[0], "https://upload.example/container-123")
+        self.assertEqual(post_mock.call_args_list[1].kwargs["headers"]["Content-Type"],
+                         "application/octet-stream")
+        self.assertEqual(get_mock.call_count, 1)
+        self.assertNotIn("/media_publish", str(post_mock.call_args_list))
+
+    def test_instagram_upload_smoke_rejects_missing_credentials_before_network(self):
+        import tempfile
+        from pathlib import Path
+        cfg = {"instagram": {"graph_version": "v25.0"}}
+        with tempfile.TemporaryDirectory() as folder:
+            video = Path(folder) / "smoke.mp4"
+            video.write_bytes(b"mp4")
+            with patch.dict("os.environ", {"IG_USER_ID": "  ", "IG_ACCESS_TOKEN": "\n"}), \
+                 patch.object(clipper.requests, "post") as post_mock:
+                with self.assertRaisesRegex(RuntimeError, "IG_USER_ID and IG_ACCESS_TOKEN"):
+                    clipper.upload_reel_container(cfg, video, "smoke")
+        post_mock.assert_not_called()
+
+    def test_instagram_upload_smoke_rejects_unexpected_status(self):
+        import tempfile
+        from pathlib import Path
+        cfg = {"instagram": {"graph_version": "v25.0"}}
+        create_response = Mock(ok=True, status_code=200,
+                               json=lambda: {"id": "container-123", "uri": "https://upload.example/container-123"})
+        upload_response = Mock(ok=True, status_code=200)
+        status_response = Mock(ok=True, json=lambda: {"status_code": "UNKNOWN"})
+        with tempfile.TemporaryDirectory() as folder:
+            video = Path(folder) / "smoke.mp4"
+            video.write_bytes(b"synthetic-mp4-payload")
+            with patch.dict("os.environ", {"IG_USER_ID": "ig-123", "IG_ACCESS_TOKEN": "token-123"}), \
+                 patch.object(clipper.requests, "post",
+                              side_effect=[create_response, upload_response]), \
+                 patch.object(clipper.requests, "get", return_value=status_response):
+                with self.assertRaisesRegex(RuntimeError, "unexpected container status"):
+                    clipper.upload_reel_container(cfg, video, "smoke")
+
+    def test_preflight_requires_hugging_face_token_when_diarization_enabled(self):
+        cfg = {
+            "instagram": {"graph_version": "v25.0"},
+            "channels": [{"name": "Raj Shamani", "permission": True}],
+            "llm": {"enabled": False},
+            "diarization": {"enabled": True},
+        }
+        with patch.dict("os.environ", {
+            "IG_USER_ID": "ig-id", "IG_ACCESS_TOKEN": "ig-token", "HF_TOKEN": "  ",
+        }, clear=True), patch.object(clipper.shutil, "which", return_value="/usr/bin/tool"), patch.object(
+            clipper.requests, "get", return_value=Mock(ok=True, json=lambda: {"username": "test"})
+        ):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = clipper.check(cfg, live=False)
+        self.assertFalse(result)
+        self.assertIn("FAIL env HF_TOKEN", output.getvalue())
 
     def test_repository_config_enables_diarization_and_only_raj_shamani_source(self):
         import podcast_clipper as clipper
