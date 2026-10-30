@@ -55,20 +55,84 @@ log = logging.getLogger("clipper")
 def load_config(path=None):
     with open(path or BASE / "config.yaml", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
-    # Catch common configuration mistakes before an automated run can publish.
-    required = ("channels", "clip", "queue", "discovery", "llm", "instagram")
-    missing = [k for k in required if k not in cfg]
+    if not isinstance(cfg, dict):
+        raise ValueError("config.yaml must contain a YAML mapping")
+
+    required = ("channels", "clip", "queue", "discovery", "llm", "instagram",
+                "schedule", "learning")
+    missing = [key for key in required if key not in cfg]
     if missing:
         raise ValueError("config.yaml missing required sections: " + ", ".join(missing))
-    if int(cfg["clip"].get("min_s", 0)) < 5 or int(cfg["clip"].get("max_s", 0)) < int(cfg["clip"].get("min_s", 0)):
-        raise ValueError("clip.min_s/max_s are invalid")
+
+    for key in ("clip", "queue", "discovery", "llm", "instagram", "schedule", "learning"):
+        if not isinstance(cfg[key], dict):
+            raise ValueError(f"config.yaml section {key!r} must be a mapping")
+    if "qa" in cfg and not isinstance(cfg["qa"], dict):
+        raise ValueError("config.yaml section 'qa' must be a mapping")
+
+    try:
+        min_s, max_s = int(cfg["clip"]["min_s"]), int(cfg["clip"]["max_s"])
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("clip.min_s and clip.max_s must be integers") from None
+    if min_s < 5 or max_s < min_s or max_s > 90:
+        raise ValueError("clip.min_s/max_s must satisfy 5 <= min_s <= max_s <= 90")
+
+    for key in ("clips_per_episode", "refill_when_below"):
+        try:
+            if int(cfg["queue"].get(key, 0)) < 1:
+                raise ValueError
+        except (TypeError, ValueError):
+            raise ValueError(f"queue.{key} must be a positive integer") from None
+
+    discovery = cfg["discovery"]
+    if int(discovery.get("scan_latest", 0)) < 1 or int(discovery.get("max_episode_attempts", 1)) < 1:
+        raise ValueError("discovery.scan_latest and max_episode_attempts must be positive")
+    if float(discovery.get("min_duration_min", 0)) <= 0:
+        raise ValueError("discovery.min_duration_min must be positive")
+    if float(discovery.get("min_age_days", 0)) < 0 or float(discovery.get("max_age_days", 0)) < float(discovery.get("min_age_days", 0)):
+        raise ValueError("discovery age window is invalid")
+
     if not isinstance(cfg["channels"], list):
         raise ValueError("channels must be a list")
+    names = set()
     for ch in cfg["channels"]:
-        if not ch.get("name") or not ch.get("handle"):
-            raise ValueError("every channel needs name and handle")
-    return cfg
+        if not isinstance(ch, dict) or not ch.get("name") or not ch.get("handle"):
+            raise ValueError("every channel must be a mapping with name and handle")
+        if ch["name"] in names:
+            raise ValueError(f"duplicate channel name: {ch['name']}")
+        names.add(ch["name"])
+        if "permission" in ch and type(ch["permission"]) is not bool:
+            raise ValueError(f"channel {ch['name']!r} permission must be true or false")
 
+    try:
+        ZoneInfo(cfg.get("timezone", ""))
+    except Exception:
+        raise ValueError("timezone must be a valid IANA timezone (for example Asia/Kolkata)") from None
+    slots = cfg.get("post_times")
+    if not isinstance(slots, list) or not slots:
+        raise ValueError("post_times must be a non-empty list of HH:MM values")
+    for slot in slots:
+        try:
+            datetime.strptime(str(slot), "%H:%M")
+        except ValueError:
+            raise ValueError(f"invalid post time {slot!r}; expected HH:MM") from None
+
+    explore = float(cfg["learning"].get("explore_rate", -1))
+    if not 0 <= explore <= 1:
+        raise ValueError("learning.explore_rate must be between 0 and 1")
+
+    qa = cfg.get("qa", {})
+    for key in ("max_black_pct", "max_silence_pct"):
+        value = float(qa.get(key, 12 if key == "max_black_pct" else 25))
+        if not 0 <= value <= 100:
+            raise ValueError(f"qa.{key} must be between 0 and 100")
+    if float(qa.get("max_silence_segment_s", 2.5)) <= 0:
+        raise ValueError("qa.max_silence_segment_s must be positive")
+    if not 0 <= float(qa.get("min_ai_score", 6.5)) <= 10:
+        raise ValueError("qa.min_ai_score must be between 0 and 10")
+    if qa.get("ai_unavailable", "manual_review") not in ("manual_review", "technical_only"):
+        raise ValueError("qa.ai_unavailable must be manual_review or technical_only")
+    return cfg
 
 def load_state():
     if STATE_FILE.exists():
