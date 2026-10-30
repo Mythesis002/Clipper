@@ -264,8 +264,7 @@ def authorized_channels(cfg):
 
 
 def order_channels(cfg, state, rng=random):
-    """Learning loop: channels whose clips earn more views are scanned first.
-    Channels with no data are explored first; `explore_rate` of the time we round-robin."""
+    """Learn source priority from watch-time and reach-normalised engagement, with exploration."""
     chans = authorized_channels(cfg)
     stats = channel_stats(state)
     last = {}
@@ -1278,11 +1277,9 @@ def detect_face_crop_x(cfg, raw):
 
 
 def compose_clip(cfg, raw, clip, s, e, stem):
-    """1080x1920, blurred background, title + captions, loudness-normalised."""
-    # Keep the source legible while reducing the tiny-landscape-in-a-vertical-canvas
-    # effect. The foreground is enlarged modestly and centered over a blurred fill.
-    # This is not face tracking; for off-centre speakers, use a vertical source or
-    # manually adjust the source before publishing.
+    """1080x1920 composition with tracked portrait crop or safe blurred-background fallback."""
+    # A single consistently detected face is followed over time. We deliberately avoid
+    # face-identity claims and fall back when group/dialogue shots are ambiguous.
     fg_scale = float(cfg.get("render", {}).get("foreground_scale", 1.16))
     fg_scale = min(max(fg_scale, 1.0), 1.35)
     fg_width = int(1080 * fg_scale)
@@ -1334,6 +1331,11 @@ def render_clip(cfg, clip):
             turns = diarize_media(raw, os.environ.get("HF_TOKEN"))
             clip["speaker_analysis"] = speaker_summary(turns, 0.0, e - s)
             clip.setdefault("features", {}).update(clip["speaker_analysis"])
+            speaker_count = clip["speaker_analysis"].get("speaker_count")
+            if isinstance(speaker_count, int):
+                clip["features"]["speaker_count_bucket"] = (
+                    "1" if speaker_count == 1 else "2" if speaker_count == 2 else "3+"
+                )
         except Exception as ex:
             log.warning("speaker analysis skipped: %s", str(ex)[:200])
     out = compose_clip(cfg, raw, clip, s, e, stem)
