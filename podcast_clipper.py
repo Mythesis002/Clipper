@@ -78,6 +78,13 @@ def load_config(path=None):
             raise ValueError(f"config.yaml section {key!r} must be a mapping")
     if "qa" in cfg and not isinstance(cfg["qa"], dict):
         raise ValueError("config.yaml section 'qa' must be a mapping")
+    if "diarization" in cfg:
+        if not isinstance(cfg["diarization"], dict):
+            raise ValueError("config.yaml section 'diarization' must be a mapping")
+        if type(cfg["diarization"].get("enabled", False)) is not bool:
+            raise ValueError("diarization.enabled must be true or false")
+        if cfg["diarization"].get("model", "pyannote/speaker-diarization-community-1") != "pyannote/speaker-diarization-community-1":
+            raise ValueError("only pyannote/speaker-diarization-community-1 is currently supported")
 
     try:
         min_s, max_s = int(cfg["clip"]["min_s"]), int(cfg["clip"]["max_s"])
