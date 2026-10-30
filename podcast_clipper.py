@@ -266,9 +266,13 @@ def order_channels(cfg, state, rng=random):
         last[ep["channel"]] = max(last.get(ep["channel"], ""), ep["processed_at"])
     if rng.random() < cfg["learning"]["explore_rate"]:
         return sorted(chans, key=lambda c: last.get(c["name"], ""))
-    return sorted(chans, key=lambda c: (c["name"] in stats,
-                                        -stats.get(c["name"], {}).get("avg_views", 0),
-                                        last.get(c["name"], "")))
+    # Require a modest sample of mature Reels before exploiting a source. Rank by
+    # retention/engagement quality, never raw views alone.
+    return sorted(chans, key=lambda c: (
+        stats.get(c["name"], {}).get("quality_n", 0) < 3,
+        -stats.get(c["name"], {}).get("avg_quality", 0.5),
+        last.get(c["name"], ""),
+    ))
 
 
 def done_ids(state):
@@ -1654,17 +1658,39 @@ def publish_next(cfg, wait=True, force=False):
 
 def fetch_metrics(cfg, media_id):
     token, g, out = os.environ["IG_ACCESS_TOKEN"], graph(cfg), {}
-    for m in ("views", "reach", "likes", "comments", "shares", "saved",
-              "ig_reels_avg_watch_time"):
+    # Query one metric at a time: reels_skip_rate and watch-time fields are Reel-specific,
+    # and one unsupported metric must not discard the other useful insights.
+    for metric in (
+        "views", "reach", "likes", "comments", "shares", "saved",
+        "ig_reels_avg_watch_time", "ig_reels_video_view_total_time",
+        "reels_skip_rate",
+    ):
         try:
-            r = requests.get(f"{g}/{media_id}/insights", timeout=30,
-                             params={"metric": m, "access_token": token})
-            if r.ok:
-                out[m] = r.json()["data"][0]["values"][0]["value"]
-        except Exception:
-            pass
+            response = requests.get(
+                f"{g}/{media_id}/insights", timeout=30,
+                params={"metric": metric, "access_token": token},
+            )
+            if not response.ok:
+                log.debug("Instagram insight %s unavailable: %s", metric, response.text[:160])
+                continue
+            payload = response.json().get("data") or []
+            if not payload:
+                continue
+            item = payload[0]
+            if item.get("name") != metric:
+                item = next((entry for entry in payload if entry.get("name") == metric), item)
+            values = item.get("values") or []
+            value = values[0].get("value") if values else item.get("value")
+            if isinstance(value, (int, float)):
+                out[metric] = value
+            elif isinstance(value, str):
+                try:
+                    out[metric] = float(value)
+                except ValueError:
+                    pass
+        except Exception as ex:
+            log.debug("Instagram insight %s failed: %s", metric, str(ex)[:160])
     return out
-
 
 def update_metrics(cfg):
     state, changed, n = load_state(), False, 0
@@ -1681,6 +1707,10 @@ def update_metrics(cfg):
         n += 1
         if m:
             c["metrics"], c["metrics_at"], changed = m, now_iso(), True
+            quality = performance_quality(m, c.get("end", 0) - c.get("start", 0))
+            c["performance_detail"] = quality
+            if quality.get("score") is not None:
+                c["performance_score"] = quality["score"]
     if changed:
         save_state(state)
     return changed
