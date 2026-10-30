@@ -34,18 +34,18 @@ than `learning.min_channel_samples` mature Reels and only learns hook/duration p
    | `YT_PROXY` | if YouTube blocks | e.g. `http://user:pass@host:port` (residential) |
 3. Settings -> Actions -> General -> Workflow permissions -> **Read and write**.
 4. In `config.yaml` set `permission: true` ONLY for creators whose content you are authorized to republish. Do not enable the example channels without permission/licensing. For best reliability, test using your own or explicitly licensed source videos first.
-5. Actions -> **podcast-clipper** -> Run workflow, in this order:
-   1. **check-live** - the production preflight. It checks ffmpeg/ffprobe, Instagram account access,
-      Gemini text/video calls, YouTube download, a real 9:16 render, deterministic QA and final Gemini
-      video QA. It then discovers an eligible authorised podcast episode, analyses its transcript,
-      ranks candidates and renders one real candidate. It uploads the open-licensed test clip into an
-      Instagram resumable container and waits for processing, but deliberately does **not** call
-      `media_publish`; the unpublished test container expires. Nothing is posted. A required FAIL must
-      be fixed before production. Optional Most-Replayed/insight metrics may be unavailable by design.
-   2. **produce** with *dry_run* ticked - analyses a real episode and prints the 3 chosen clips in the log.
-   3. **tick** with *force* ticked - renders and posts ONE real Reel now. Check Instagram.
-6. After that the cron schedules run by themselves (05:50 / 17:50 IST start and wait for the exact slot; 07:50 / 19:50 IST are catch-up runs).
-   A manual `tick` without *force* does nothing unless a slot is due; a forced post counts as the nearest slot's post.
+5. Actions -> **podcast-clipper** -> Run workflow:
+   1. **check-live** - diagnostic only. It verifies YouTube download, a real 9:16 render, QA,
+      Gemini and Instagram resumable upload. It deliberately does **not** enqueue clips or call
+      Instagram `media_publish`; a successful green check-live run does not post anything.
+   2. **produce** with *dry_run* ticked - analyses a real episode and prints candidates without saving them.
+   3. **publish-now** - runs the normal production tick immediately: it fills the queue when needed,
+      renders and quality-checks a candidate, then attempts to publish one Reel without waiting for a slot.
+      Check Instagram and the run log for the returned media ID. A clip can still be held for manual review
+      or rejected by QA; those are intentional safety gates, not successful posts.
+6. After the first successful post, the cron schedules run by themselves (05:50 / 17:50 IST start and wait
+   for the exact slot; 07:50 / 19:50 IST are catch-up runs). Manual `tick` without *force* only posts when
+   a slot is due; `tick` with *force* is the alternative to `publish-now`.
 
 ## Speaker diarization
 
