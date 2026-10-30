@@ -38,20 +38,23 @@ than `learning.min_channel_samples` mature Reels and only learns hook/duration p
 6. After that the cron schedules run by themselves (05:50 / 17:50 IST start and wait for the exact slot; 07:50 / 19:50 IST are catch-up runs).
    A manual `tick` without *force* does nothing unless a slot is due; a forced post counts as the nearest slot's post.
 
-## Optional speaker diarization (advanced)
+## Speaker diarization
 
-The base workflow intentionally does not install PyTorch/pyannote. To enable local diarization:
+Speaker diarization is enabled in `config.yaml`. It remains safely inactive until the Hugging Face
+model is authorised and the repository has a token:
 
 1. Accept the model conditions for [pyannote Community-1](https://huggingface.co/pyannote/speaker-diarization-community-1).
-2. Create a Hugging Face read token and add it as Actions secret `HF_TOKEN`.
-3. Add Actions repository variable `ENABLE_DIARIZATION=true`.
-4. Set `diarization.enabled: true` in `config.yaml`.
+2. Create a Hugging Face read token and add it as the GitHub Actions repository secret `HF_TOKEN`.
 
-The workflow installs `requirements-diarization.txt` only when both the variable and secret are present.
+The workflow reads `diarization.enabled` directly from `config.yaml` and installs
+`requirements-diarization.txt` only when diarization is enabled and `HF_TOKEN` is present. No
+`ENABLE_DIARIZATION` repository variable is needed. Without the secret, diarization is skipped and the
+base clipper continues normally. Model access approval is a one-time Hugging Face account action; a
+token alone does not bypass the model conditions. Set `diarization.enabled: false` to turn it off.
+
 Diarization runs on each selected clip's downloaded audio segment, not the entire source episode. If
 the package, token, model, or inference is unavailable, the clipper logs the failure and continues with
-the non-diarized layout. Model access approval is a one-time Hugging Face account action; a token alone
-does not bypass the model conditions.
+the non-diarized layout.
 
 The diarization result describes speaker count, turns, switching, dominance and overlap. It is currently
 used as a conservative layout signal. Matching speaker identities to visible faces and cutting between
