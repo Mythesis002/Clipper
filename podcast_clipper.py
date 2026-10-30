@@ -1917,39 +1917,52 @@ def check(cfg, live=False):
                 line(False, f"pyannote model access/load failed: {str(ex)[:240]}")
 
     if live:                                        # real network probes (what unit tests cannot cover)
-        vid = cfg.get("check_video_id", "aqz-KE-bpKQ")     # Blender's open-licensed "Big Buck Bunny"
+        vid = cfg.get("check_video_id", "aqz-KE-bpKQ")     # open-licensed test video
+        test_output = None
         try:
             info = full_info(cfg, vid)
             line(True, f"YouTube video info works: {info['title'][:50]!r} ({info['duration']}s)")
             line(bool(info.get("heatmap")), "Most-Replayed heatmap present", required=False)
             s0 = float(min(30, info["duration"] * 0.3))
-
-            if llm.get("video_verify") and key:
-                probe = [{"start": s0, "end": s0 + 8, "pre": 0.5}]
-                verified = video_verify(cfg, vid, probe)
-                line("vid" in probe[0], "Gemini YouTube video verification works")
-
-            clip = {"video_id": vid, "start": s0, "end": s0 + 8, "title": "Self check",
+            clip = {"video_id": vid, "start": s0, "end": s0 + 8, "title": "Clipper preflight",
                     "words": [[s0 + i * 0.5, f"test{i}"] for i in range(14)]}
             t0 = time.time()
-            out = render_clip(cfg, clip)
-            m = probe_media(out)
-            qa = qa_checks(cfg, out)
-            line(not qa["issues"], f"technical QA: black {qa['black_pct']}% silent {qa['silence_pct']}% "
-                                   f"{qa['issues'] or ''}")
-            g = gemini_qa(cfg, out)
+            test_output = render_clip(cfg, clip)
+            media = probe_media(test_output)
+            line(media["w"] == 1080 and media["h"] == 1920 and media["has_audio"],
+                 f"REAL YouTube download + 9:16 render works ({media['w']}x{media['h']}, "
+                 f"{media['duration']:.1f}s, took {time.time() - t0:.0f}s)")
+            technical = qa_checks(cfg, test_output)
+            line(not technical["issues"],
+                 f"technical QA: black {technical['black_pct']}% silent {technical['silence_pct']}% "
+                 f"{technical['issues'] or ''}")
+            final_review = gemini_qa(cfg, test_output)
             if llm.get("final_qa") and key:
-                line(g is not None, "Gemini final-video QA returned a valid response")
-                if g is not None:
-                    line(g["approve"], f"Gemini final-video QA score {g['score']}: {g['issues'] or 'no issues'}",
-                         required=False)
-            line(m["h"] == 1920 and m["has_audio"],
-                 f"REAL section download + 9:16 render works ({m['w']}x{m['h']}, {m['duration']:.1f}s, "
-                 f"took {time.time() - t0:.0f}s)")
-            shutil.rmtree(WORK, ignore_errors=True)
+                line(final_review is not None, "Gemini final-video QA returned a valid typed response")
+                if final_review is not None:
+                    line(final_review["approve"] and not final_review["unsafe"],
+                         f"Gemini test-video QA score {final_review['score']}: "
+                         f"{final_review['issues'] or 'no issues'}", required=False)
+
+            # This performs a real resumable upload and waits for FINISHED, but intentionally
+            # does not call media_publish. It leaves an unpublished container that expires.
+            if ig_id and ig_token:
+                try:
+                    container_id = upload_reel_container(
+                        cfg, test_output, "Clipper preflight upload — unpublished test container"
+                    )
+                    line(bool(container_id), "Instagram resumable upload + processing works "
+                         "(test container NOT published)")
+                except Exception as ex:
+                    line(False, f"Instagram resumable upload smoke test failed: {str(ex)[:240]}")
         except Exception as ex:
-            line(False, "YouTube download/render path FAILED (GitHub runners may need YT_COOKIES or "
-                        f"YT_PROXY): {str(ex)[:300]}")
+            line(False, "YouTube download/render/QA smoke test FAILED "
+                 f"(check YT_COOKIES / YT_PROXY): {str(ex)[:300]}")
+        finally:
+            if test_output:
+                Path(test_output).unlink(missing_ok=True)
+            shutil.rmtree(WORK, ignore_errors=True)
+
         permitted = authorized_channels(cfg)
         if permitted:
             try:
@@ -1957,6 +1970,50 @@ def check(cfg, live=False):
                 line(bool(entries), f"channel listing works ({permitted[0]['name']}: {len(entries)} videos)")
             except Exception as ex:
                 line(False, f"channel listing failed: {str(ex)[:200]}")
+
+            # Exercise the same real discovery -> transcript -> candidate -> Gemini pipeline
+            # used by produce(), but never add clips to state and never publish this candidate.
+            try:
+                smoke_state = {"episodes": {}, "clips": []}
+                source_channel, episode = pick_episode(cfg, smoke_state)
+                line(bool(episode), "eligible authorised podcast episode found")
+                if episode:
+                    picks = analyse_episode(cfg, source_channel, episode, state=smoke_state)
+                    line(bool(picks), f"real episode transcript/editorial analysis produced {len(picks)} clip(s)")
+                    if picks and llm.get("enabled") and key:
+                        line(any("llm" in pick for pick in picks),
+                             "Gemini candidate ranking returned usable scores")
+                    if picks and llm.get("video_verify") and key:
+                        line(any("vid" in pick for pick in picks),
+                             "Gemini YouTube video verification returned usable scores")
+                    if picks:
+                        selected = picks[0]
+                        real_clip = {
+                            "video_id": episode["id"], "start": selected["start"],
+                            "end": selected["end"], "title": selected.get("title") or "Production smoke test",
+                            "words": [[round(t, 2), word] for t, word in selected.get("words", [])],
+                            "features": {},
+                        }
+                        rendered = None
+                        try:
+                            rendered = render_clip(cfg, real_clip)
+                            rendered_media = probe_media(rendered)
+                            line(rendered_media["w"] == 1080 and rendered_media["h"] == 1920
+                                 and rendered_media["has_audio"],
+                                 "selected real episode clip rendered to 1080x1920 with audio")
+                            rendered_qa = qa_checks(cfg, rendered)
+                            line(not rendered_qa["issues"],
+                                 f"selected clip technical QA passed: {rendered_qa['issues'] or 'clean'}")
+                            if llm.get("final_qa") and key:
+                                rendered_ai = gemini_qa(cfg, rendered)
+                                line(rendered_ai is not None,
+                                     "Gemini final QA works on a real selected podcast clip")
+                        finally:
+                            if rendered:
+                                Path(rendered).unlink(missing_ok=True)
+                            shutil.rmtree(WORK, ignore_errors=True)
+            except Exception as ex:
+                line(False, f"real episode production smoke test failed: {str(ex)[:300]}")
     return ok
 
 
