@@ -316,6 +316,38 @@ class PipelineQualityTests(unittest.TestCase):
         with patch.dict("os.environ", {"CLIPPER_TEST_SECRET": "  secret-value\r\n"}):
             self.assertEqual(clipper.env_value("CLIPPER_TEST_SECRET"), "secret-value")
 
+    def test_youtube_download_strategies_prioritize_mweb_and_avoid_drm_clients(self):
+        names = [name for name, _, _ in clipper.DL_STRATEGIES]
+        self.assertEqual(names[0], "mweb-client")
+        self.assertIn("web-safari-client", names)
+        self.assertNotIn("tv-client", names)
+        self.assertNotIn("ios-client", names)
+        self.assertEqual(clipper.DL_STRATEGIES[-1][2], "bv*+ba/b")
+
+    def test_full_info_ignores_no_formats_error_during_metadata_discovery(self):
+        captured = {}
+
+        class FakeYoutubeDL:
+            def __init__(self, options):
+                captured.update(options)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def extract_info(self, url, download=False):
+                self.url = url
+                self.download = download
+                return {"id": "video", "formats": []}
+
+        with patch.object(clipper.yt_dlp, "YoutubeDL", FakeYoutubeDL):
+            result = clipper.full_info({}, "video")
+        self.assertEqual(result["id"], "video")
+        self.assertTrue(captured["ignore_no_formats_error"])
+        self.assertTrue(captured["skip_download"])
+
     def test_gemini_key_ignores_whitespace_primary_and_uses_trimmed_fallback(self):
         with patch.dict("os.environ", {
             "GEMINI_API_KEY": "  \n",
