@@ -190,10 +190,10 @@ def duration_bucket(seconds):
 
 
 def performance_quality(metrics, duration):
-    """Bounded quality signal from retention and reach-normalised engagement, not raw views.
+    """Evidence-weighted quality from retention and reach-normalised engagement.
 
-    Instagram's average-watch-time metric may be exposed in milliseconds; large values
-    are converted to seconds. This is a comparative ranking signal, not a virality forecast.
+    Missing metrics are omitted and remaining weights renormalised. Instagram's average-watch
+    time can be returned in milliseconds; larger values are normalised to seconds.
     """
     metrics = metrics or {}
     duration = max(float(duration or 0), 1.0)
@@ -203,37 +203,47 @@ def performance_quality(metrics, duration):
             value = float(metrics.get(key))
             return max(value, 0.0)
         except (TypeError, ValueError):
-            return 0.0
+            return None
 
+    evidence = []
     avg_watch = number("ig_reels_avg_watch_time")
-    if avg_watch > max(180.0, duration * 3.0):
-        avg_watch /= 1000.0
-    retention = min(avg_watch / duration, 1.5)
-    reach = max(number("reach"), 1.0)
-    share_rate = number("shares") / reach
-    save_rate = number("saved") / reach
-    like_rate = number("likes") / reach
+    if avg_watch is not None and avg_watch > 0:
+        if avg_watch > max(180.0, duration * 3.0):
+            avg_watch /= 1000.0
+        retention = min(avg_watch / duration, 1.5)
+        evidence.append((0.50, min(retention / 0.75, 1.0)))
+
+    reach = number("reach")
+    if reach is not None and reach > 0:
+        for metric, weight, target in (
+            ("shares", 0.25, 0.025),
+            ("saved", 0.15, 0.020),
+            ("likes", 0.10, 0.080),
+        ):
+            value = number(metric)
+            if value is not None:
+                evidence.append((weight, min((value / reach) / target, 1.0)))
+
     skip = number("reels_skip_rate")
-    if skip > 1.0:
-        skip /= 100.0
-    skip = min(max(skip, 0.0), 1.0)
+    if skip is not None:
+        if skip > 1.0:
+            skip /= 100.0
+        skip = min(max(skip, 0.0), 1.0)
+        evidence.append((0.10, 1.0 - skip))
 
-    retention_score = min(retention / 0.75, 1.0)
-    share_score = min(share_rate / 0.025, 1.0)
-    save_score = min(save_rate / 0.02, 1.0)
-    like_score = min(like_rate / 0.08, 1.0)
-    score = (0.45 * retention_score + 0.25 * share_score + 0.15 * save_score
-             + 0.10 * like_score + 0.05 * (1.0 - skip))
+    total_weight = sum(weight for weight, _ in evidence)
+    score = (sum(weight * value for weight, value in evidence) / total_weight
+             if total_weight else None)
     return {
-        "score": round(min(max(score, 0.0), 1.0), 4),
-        "avg_watch_s": round(avg_watch, 3),
-        "retention_pct": round(retention * 100, 2),
-        "share_rate": round(share_rate, 5),
-        "save_rate": round(save_rate, 5),
-        "like_rate": round(like_rate, 5),
-        "skip_rate": round(skip, 4),
+        "score": round(min(max(score, 0.0), 1.0), 4) if score is not None else None,
+        "avg_watch_s": round(avg_watch, 3) if avg_watch is not None else None,
+        "retention_pct": round(min(avg_watch / duration, 1.5) * 100, 2) if avg_watch is not None else None,
+        "share_rate": round((number("shares") or 0.0) / reach, 5) if reach else None,
+        "save_rate": round((number("saved") or 0.0) / reach, 5) if reach else None,
+        "like_rate": round((number("likes") or 0.0) / reach, 5) if reach else None,
+        "skip_rate": round(skip, 4) if skip is not None else None,
+        "evidence_count": len(evidence),
     }
-
 
 def format_priors(clips, min_samples=4):
     """Empirical format scores with a small-sample guard and shrinkage toward neutral."""
