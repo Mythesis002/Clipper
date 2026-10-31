@@ -141,7 +141,14 @@
     "payoff_heuristic": 0.6,
     "context_dependency": 0.0,
     "hook_type": "question",
-    "duration_bucket": "30-39s"
+    "duration_bucket": "30-39s",
+    "speaker_count": 1,
+    "speaker_turns": 2,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "1"
    },
    "title": "",
    "caption": "How To Build An Unbreakable Mind & Push Beyond Your Limits | Ayyoub El Osrouti | FO578 Raj Shamani\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=BV7QRw8wtjs\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
@@ -569,8 +576,22 @@
     ]
    ],
    "status": "queued",
-   "attempts": 0,
-   "created_at": "2026-10-30T18:01:34+00:00"
+   "attempts": 1,
+   "created_at": "2026-10-30T18:01:34+00:00",
+   "speaker_analysis": {
+    "speaker_count": 1,
+    "speaker_turns": 2,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0
+   },
+   "qa": {
+    "verdict": "pass",
+    "score": 9.0,
+    "issues": []
+   },
+   "error": "instagram: upload failed: HTTP 400 {\"debug_info\":{\"retriable\":false,\"type\":\"ProcessingFailedError\",\"message\":\"Request processing failed\"}}"
   },
   {
    "id": 4,
@@ -588,280 +609,37 @@
     "payoff_heuristic": 0.9,
     "context_dependency": 0.0,
     "hook_type": "question",
-    "duration_bucket": "20-29s"
+    "duration_bucket": "20-29s",
+    "speaker_count": 2,
+    "speaker_turns": 7,
+    "speaker_switches": 5,
+    "dominant_speaker_ratio": 0.686,
+    "speaker_overlap_s": 1.16,
+    "speaker_score": 0.973,
+    "speaker_count_bucket": "2"
    },
    "title": "",
    "caption": "Why India Is Becoming Unliveable: Heat, Climate Change & AC Trap | Arunabha Ghosh |FO580 Raj Shamani\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=3ithS2A5xrI\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
    "polished": false,
-   "words": [
-    [
-     260.88,
-     "तो"
-    ],
-    [
-     261.2,
-     "आप"
-    ],
-    [
-     261.44,
-     "कैसे"
-    ],
-    [
-     261.76,
-     "उसको"
-    ],
-    [
-     262.08,
-     "समझाओगे"
-    ],
-    [
-     262.64,
-     "कि"
-    ],
-    [
-     263.12,
-     "आप"
-    ],
-    [
-     263.44,
-     "क्या"
-    ],
-    [
-     263.68,
-     "करते"
-    ],
-    [
-     263.84,
-     "हो?"
-    ],
-    [
-     264.08,
-     "आप"
-    ],
-    [
-     264.24,
-     "कौन"
-    ],
-    [
-     264.56,
-     "हो"
-    ],
-    [
-     264.8,
-     "एंड"
-    ],
-    [
-     265.04,
-     "क्यों"
-    ],
-    [
-     265.36,
-     "आपका"
-    ],
-    [
-     265.6,
-     "वर्क"
-    ],
-    [
-     265.92,
-     "बहुत"
-    ],
-    [
-     266.16,
-     "इंपॉर्टेंट"
-    ],
-    [
-     266.72,
-     "है?"
-    ],
-    [
-     267.76,
-     "एंड"
-    ],
-    [
-     268.0,
-     "उसे"
-    ],
-    [
-     268.32,
-     "सुनना"
-    ],
-    [
-     268.56,
-     "ही"
-    ],
-    [
-     268.64,
-     "क्यों"
-    ],
-    [
-     268.8,
-     "चाहिए?"
-    ],
-    [
-     269.12,
-     "ये"
-    ],
-    [
-     269.28,
-     "कोई"
-    ],
-    [
-     269.44,
-     "इंसान"
-    ],
-    [
-     269.76,
-     "आपको"
-    ],
-    [
-     270.0,
-     "क्यों"
-    ],
-    [
-     270.16,
-     "सुनेगा"
-    ],
-    [
-     270.48,
-     "इस"
-    ],
-    [
-     270.64,
-     "पॉडकास्ट"
-    ],
-    [
-     271.04,
-     "पे"
-    ],
-    [
-     271.28,
-     "आज?"
-    ],
-    [
-     272.48,
-     "वो"
-    ],
-    [
-     272.72,
-     "तो"
-    ],
-    [
-     272.88,
-     "आप"
-    ],
-    [
-     273.12,
-     "बताइए"
-    ],
-    [
-     273.52,
-     "क्यों"
-    ],
-    [
-     273.76,
-     "सुना?"
-    ],
-    [
-     273.79,
-     "[हंसी]"
-    ],
-    [
-     276.64,
-     "लेकिन"
-    ],
-    [
-     276.96,
-     "मतलब"
-    ],
-    [
-     277.36,
-     "मैं"
-    ],
-    [
-     277.84,
-     "आपके"
-    ],
-    [
-     278.08,
-     "पॉडकास्ट"
-    ],
-    [
-     278.64,
-     "में"
-    ],
-    [
-     278.72,
-     "आया"
-    ],
-    [
-     278.88,
-     "हूं।"
-    ],
-    [
-     279.12,
-     "मैं"
-    ],
-    [
-     279.28,
-     "तो"
-    ],
-    [
-     279.52,
-     "बहुत"
-    ],
-    [
-     279.76,
-     "ही"
-    ],
-    [
-     279.84,
-     "खुश"
-    ],
-    [
-     280.08,
-     "हूं।"
-    ],
-    [
-     280.48,
-     "लेकिन"
-    ],
-    [
-     281.68,
-     "जो"
-    ],
-    [
-     282.0,
-     "आपके"
-    ],
-    [
-     282.32,
-     "दर्शक"
-    ],
-    [
-     282.8,
-     "हैं"
-    ],
-    [
-     283.52,
-     "वो"
-    ],
-    [
-     285.04,
-     "उनको"
-    ],
-    [
-     285.44,
-     "क्या"
-    ],
-    [
-     285.68,
-     "बताऊं?"
-    ]
-   ],
-   "status": "queued",
+   "status": "posted",
    "attempts": 0,
-   "created_at": "2026-10-30T18:10:34+00:00"
+   "created_at": "2026-10-30T18:10:34+00:00",
+   "speaker_analysis": {
+    "speaker_count": 2,
+    "speaker_turns": 7,
+    "speaker_switches": 5,
+    "dominant_speaker_ratio": 0.686,
+    "speaker_overlap_s": 1.16,
+    "speaker_score": 0.973
+   },
+   "qa": {
+    "verdict": "pass",
+    "score": 9.0,
+    "issues": []
+   },
+   "error": null,
+   "media_id": "17986722747092884",
+   "posted_at": "2026-10-31T14:59:11+00:00"
   },
   {
    "id": 5,
@@ -1555,6 +1333,33 @@
    "event": "posted",
    "clip": 2,
    "media": "18472962673139714",
+   "channel": "Raj Shamani",
+   "qa": "pass"
+  },
+  {
+   "t": "2026-10-31T14:56:04+00:00",
+   "event": "publish_started",
+   "clip": 3,
+   "channel": "Raj Shamani"
+  },
+  {
+   "t": "2026-10-31T14:56:38+00:00",
+   "event": "clip_failed",
+   "clip": 3,
+   "stage": "instagram",
+   "error": "instagram: upload failed: HTTP 400 {\"debug_info\":{\"retriable\":false,\"type\":\"ProcessingFailedError\",\"message\":\"Request processing failed\"}}"
+  },
+  {
+   "t": "2026-10-31T14:58:36+00:00",
+   "event": "publish_started",
+   "clip": 4,
+   "channel": "Raj Shamani"
+  },
+  {
+   "t": "2026-10-31T14:59:11+00:00",
+   "event": "posted",
+   "clip": 4,
+   "media": "17986722747092884",
    "channel": "Raj Shamani",
    "qa": "pass"
   }
