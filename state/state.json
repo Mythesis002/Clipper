@@ -93,324 +93,37 @@
     "payoff_heuristic": 0.9,
     "context_dependency": 0.0,
     "hook_type": "number_or_stat",
-    "duration_bucket": "20-29s"
+    "duration_bucket": "20-29s",
+    "speaker_count": 1,
+    "speaker_turns": 1,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "1"
    },
    "title": "",
    "caption": "How To Build An Unbreakable Mind & Push Beyond Your Limits | Ayyoub El Osrouti | FO578 Raj Shamani\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=BV7QRw8wtjs\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
    "polished": false,
-   "words": [
-    [
-     216.21,
-     "That's"
-    ],
-    [
-     216.45,
-     "why"
-    ],
-    [
-     216.93,
-     "I"
-    ],
-    [
-     217.05,
-     "use"
-    ],
-    [
-     217.29,
-     "the"
-    ],
-    [
-     217.53,
-     "ASUS"
-    ],
-    [
-     218.01,
-     "ExpertBook."
-    ],
-    [
-     219.13,
-     "It"
-    ],
-    [
-     219.33,
-     "comes"
-    ],
-    [
-     219.61,
-     "with"
-    ],
-    [
-     219.81,
-     "military-grade"
-    ],
-    [
-     220.57,
-     "durability"
-    ],
-    [
-     221.33,
-     "passing"
-    ],
-    [
-     221.69,
-     "24"
-    ],
-    [
-     222.37,
-     "out"
-    ],
-    [
-     222.49,
-     "of"
-    ],
-    [
-     222.69,
-     "28"
-    ],
-    [
-     223.37,
-     "strict"
-    ],
-    [
-     223.89,
-     "US"
-    ],
-    [
-     224.29,
-     "military-grade"
-    ],
-    [
-     224.97,
-     "tests."
-    ],
-    [
-     225.41,
-     "Its"
-    ],
-    [
-     225.65,
-     "keyboard"
-    ],
-    [
-     226.05,
-     "can"
-    ],
-    [
-     226.25,
-     "handle"
-    ],
-    [
-     226.69,
-     "spills"
-    ],
-    [
-     227.29,
-     "of"
-    ],
-    [
-     227.61,
-     "up"
-    ],
-    [
-     227.89,
-     "to"
-    ],
-    [
-     228.09,
-     "355"
-    ],
-    [
-     229.01,
-     "cc"
-    ],
-    [
-     229.73,
-     "and"
-    ],
-    [
-     229.89,
-     "the"
-    ],
-    [
-     230.01,
-     "top"
-    ],
-    [
-     230.29,
-     "panel"
-    ],
-    [
-     230.97,
-     "is"
-    ],
-    [
-     231.13,
-     "strong"
-    ],
-    [
-     231.61,
-     "enough"
-    ],
-    [
-     231.97,
-     "to"
-    ],
-    [
-     232.13,
-     "take"
-    ],
-    [
-     232.37,
-     "up"
-    ],
-    [
-     232.53,
-     "to"
-    ],
-    [
-     232.69,
-     "30"
-    ],
-    [
-     233.05,
-     "kg"
-    ],
-    [
-     233.41,
-     "of"
-    ],
-    [
-     233.53,
-     "pressure."
-    ],
-    [
-     234.29,
-     "So"
-    ],
-    [
-     234.49,
-     "no"
-    ],
-    [
-     234.65,
-     "matter"
-    ],
-    [
-     235.01,
-     "how"
-    ],
-    [
-     235.21,
-     "much"
-    ],
-    [
-     235.45,
-     "pressure"
-    ],
-    [
-     235.77,
-     "you"
-    ],
-    [
-     235.93,
-     "put"
-    ],
-    [
-     236.17,
-     "it"
-    ],
-    [
-     236.29,
-     "through,"
-    ],
-    [
-     236.81,
-     "the"
-    ],
-    [
-     236.97,
-     "laptop"
-    ],
-    [
-     237.57,
-     "keeps"
-    ],
-    [
-     237.93,
-     "up"
-    ],
-    [
-     238.09,
-     "with"
-    ],
-    [
-     238.29,
-     "you."
-    ],
-    [
-     238.85,
-     "The"
-    ],
-    [
-     239.09,
-     "ASUS"
-    ],
-    [
-     239.61,
-     "ExpertBook"
-    ],
-    [
-     240.25,
-     "series"
-    ],
-    [
-     240.77,
-     "is"
-    ],
-    [
-     241.01,
-     "available"
-    ],
-    [
-     241.45,
-     "on"
-    ],
-    [
-     241.57,
-     "Flipkart."
-    ],
-    [
-     242.45,
-     "Check"
-    ],
-    [
-     242.69,
-     "the"
-    ],
-    [
-     242.81,
-     "link"
-    ],
-    [
-     243.01,
-     "in"
-    ],
-    [
-     243.09,
-     "the"
-    ],
-    [
-     243.13,
-     "description"
-    ],
-    [
-     243.65,
-     "below."
-    ]
-   ],
-   "status": "queued",
+   "status": "posted",
    "attempts": 0,
-   "created_at": "2026-10-30T18:01:34+00:00"
+   "created_at": "2026-10-30T18:01:34+00:00",
+   "speaker_analysis": {
+    "speaker_count": 1,
+    "speaker_turns": 1,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0
+   },
+   "qa": {
+    "verdict": "pass",
+    "score": 9.0,
+    "issues": []
+   },
+   "error": null,
+   "media_id": "18472962673139714",
+   "posted_at": "2026-10-31T05:48:19+00:00"
   },
   {
    "id": 3,
@@ -1825,6 +1538,25 @@
    "video": "3ithS2A5xrI",
    "channel": "Raj Shamani",
    "clips": 3
+  },
+  {
+   "t": "2026-10-31T05:45:57+00:00",
+   "event": "slot_due",
+   "slot": "2026-10-31T06:00+05:30"
+  },
+  {
+   "t": "2026-10-31T05:47:42+00:00",
+   "event": "publish_started",
+   "clip": 2,
+   "channel": "Raj Shamani"
+  },
+  {
+   "t": "2026-10-31T05:48:19+00:00",
+   "event": "posted",
+   "clip": 2,
+   "media": "18472962673139714",
+   "channel": "Raj Shamani",
+   "qa": "pass"
   }
  ]
 }
