@@ -2398,6 +2398,21 @@ def review_action(clip_id, approve):
     save_state(state)
     return True
 
+def feedback_action(clip_id, label, reasons=None, note=""):
+    """Persist structured human editorial feedback for future evaluation and learning."""
+    if clip_id is None:
+        raise ValueError("--clip-id is required for feedback")
+    if not label:
+        raise ValueError("--label is required for feedback")
+    state = load_state()
+    clip = add_feedback(state, clip_id, label, reasons=reasons, note=note)
+    jr(state, "human_feedback_recorded", clip=clip_id, label=label,
+       reasons=",".join(reasons or [])[:160])
+    save_state(state)
+    log.info("feedback recorded for clip %s: %s", clip_id, label)
+    return True
+
+
 def resolve_uncertain_publish(clip_id, media_id=None, retry=False):
     """Resolve an ambiguous Instagram publish only after checking the account manually."""
     if clip_id is None:
@@ -2428,9 +2443,15 @@ def resolve_uncertain_publish(clip_id, media_id=None, retry=False):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("command", choices=["tick", "publish-now", "produce", "publish", "metrics", "status", "check",
-                                        "approve", "reject", "confirm-post", "retry-uncertain"])
+                                        "approve", "reject", "feedback", "confirm-post", "retry-uncertain"])
     ap.add_argument("--clip-id", type=int, help="clip id for manual review or publish reconciliation")
     ap.add_argument("--media-id", help="Instagram media id when confirming an uncertain post")
+    ap.add_argument("--label", choices=["good", "weak", "needs_context", "bad_cut",
+                                         "promotional", "visual_issue", "caption_issue", "other"],
+                    help="human editorial feedback label")
+    ap.add_argument("--reason", action="append", default=[],
+                    help="optional feedback reason; may be repeated")
+    ap.add_argument("--note", default="", help="optional short reviewer note")
     ap.add_argument("--retry", action="store_true", help="retry an uncertain publish only after verifying it is absent from Instagram")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--force", action="store_true", help="post now, skip slot wait + duplicate guard")
@@ -2464,6 +2485,10 @@ def main():
             ok = publish_next(cfg, wait=False, force=True)
     elif args.command == "reject":
         ok = review_action(args.clip_id, approve=False)
+    elif args.command == "feedback":
+        if args.clip_id is None or not args.label:
+            ap.error("feedback requires --clip-id and --label")
+        ok = feedback_action(args.clip_id, args.label, reasons=args.reason, note=args.note)
     elif args.command == "confirm-post":
         ok = resolve_uncertain_publish(args.clip_id, media_id=args.media_id)
     elif args.command == "retry-uncertain":
