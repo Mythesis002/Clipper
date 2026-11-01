@@ -10,6 +10,7 @@ queue:
   clips_per_episode: 3
   refill_when_below: 3                # keeps >= 1 full episode of buffer, so a YouTube block never misses a slot
                                       # (set 1 to analyse the next episode only when the queue is empty)
+  publish_candidate_limit: 10         # scan past review-held clips; only publish one Reel per slot
 
 clip:
   min_s: 15

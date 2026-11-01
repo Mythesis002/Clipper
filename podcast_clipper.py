@@ -134,6 +134,12 @@ def load_config(path=None):
                 raise ValueError
         except (TypeError, ValueError):
             raise ValueError(f"queue.{key} must be a positive integer") from None
+    try:
+        publish_candidate_limit = int(cfg["queue"].get("publish_candidate_limit", 10))
+        if publish_candidate_limit < 1 or publish_candidate_limit > 100:
+            raise ValueError
+    except (TypeError, ValueError):
+        raise ValueError("queue.publish_candidate_limit must be an integer between 1 and 100") from None
 
     discovery = cfg["discovery"]
     if int(discovery.get("scan_latest", 0)) < 1 or int(discovery.get("max_episode_attempts", 1)) < 1:
@@ -671,7 +677,7 @@ def _gemini_post(model, body, key, timeout=(GEMINI_CONNECT_TIMEOUT, GEMINI_TEXT_
     raise GeminiError(f"{model} request failed after {max_attempts} attempts")
 
 
-def gemini_text(cfg, parts, temperature=0.2, max_tokens=8192):
+def gemini_text(cfg, parts, temperature=0.2, max_tokens=8192, response_schema=None):
     """Call only Gemini 2.5 Flash; never switch or auto-discover another model."""
     key = gemini_key()
     if not key:
@@ -685,9 +691,15 @@ def gemini_text(cfg, parts, temperature=0.2, max_tokens=8192):
             f"{configured_model!r}; update config.yaml"
         )
 
+    generation_config = {
+        "temperature": temperature,
+        "maxOutputTokens": max_tokens,
+        "responseMimeType": "application/json",
+    }
+    if response_schema is not None:
+        generation_config["responseSchema"] = response_schema
     body = {"contents": [{"role": "user", "parts": parts}],
-            "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens,
-                                 "responseMimeType": "application/json"}}
+            "generationConfig": generation_config}
     multimodal = any(
         isinstance(part, dict) and ("fileData" in part or "inlineData" in part)
         for part in parts
@@ -724,20 +736,25 @@ def gemini_text(cfg, parts, temperature=0.2, max_tokens=8192):
 
 
 def parse_json(text):
-    """Tolerant JSON extraction: plain JSON, ```json fences, or JSON buried in prose."""
-    t = text.strip()
-    t = re.sub(r"^```(?:json)?\s*|\s*```$", "", t, flags=re.I)
+    """Parse plain, fenced, or prose-wrapped JSON without greedy regex extraction."""
+    if not isinstance(text, str) or not text.strip():
+        raise GeminiError("response was empty or not text")
+    decoder = json.JSONDecoder()
+    source = text.strip()
+    # Prefer a complete top-level JSON value, even when a model adds a short preamble.
     try:
-        return json.loads(t)
+        return json.loads(source)
     except ValueError:
         pass
-    for pat in (r"\[.*\]", r"\{.*\}"):
-        m = re.search(pat, t, re.S)
-        if m:
-            try:
-                return json.loads(m.group(0))
-            except ValueError:
-                continue
+    for index, char in enumerate(source):
+        if char not in "{[":
+            continue
+        try:
+            value, _ = decoder.raw_decode(source[index:])
+            if isinstance(value, (dict, list)):
+                return value
+        except ValueError:
+            continue
     raise GeminiError("response was not valid JSON")
 
 
@@ -2052,9 +2069,29 @@ def _post_clip(cfg, state, clip, path):
 
 
 
-PROMOTION_SCREEN_VERSION = "publish-promotion-screen-v1"
+PROMOTION_SCREEN_VERSION = "publish-promotion-screen-v2"
 PROMOTION_TYPES = {"none", "sponsor_read", "affiliate", "product_pitch",
                    "self_promotion", "unclear"}
+PROMOTION_SCREEN_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "content_type": {
+            "type": "STRING",
+            "enum": ["story", "insight", "explanation", "opinion", "debate",
+                     "question_answer", "reaction", "promotion", "other"],
+        },
+        "promotion_type": {
+            "type": "STRING",
+            "enum": ["none", "sponsor_read", "affiliate", "product_pitch",
+                     "self_promotion", "unclear"],
+        },
+        "promotion_confidence": {"type": "NUMBER"},
+        "classification_confidence": {"type": "NUMBER"},
+        "evidence": {"type": "STRING"},
+    },
+    "required": ["content_type", "promotion_type", "promotion_confidence",
+                 "classification_confidence", "evidence"],
+}
 
 
 def screen_queued_clip_for_promotion(cfg, clip):
@@ -2124,43 +2161,94 @@ def screen_queued_clip_for_promotion(cfg, clip):
         "Clip title: " + str(clip.get("title") or "")[:160] +
         "\nTranscript:\n" + transcript[:7000]
     )
-    try:
-        response = parse_json(gemini_text(cfg, [{"text": prompt}],
-                                          temperature=0.1, max_tokens=800))
-        if isinstance(response, list) and response:
-            response = response[0]
-        if not isinstance(response, dict):
-            raise ValueError("screen returned no JSON object")
-        promotion_type = str(response.get("promotion_type") or "").strip().lower()
-        content_type = str(response.get("content_type") or "other").strip().lower()
-        if promotion_type not in PROMOTION_TYPES:
-            raise ValueError("screen returned an unsupported promotion_type")
-        if content_type not in {
-            "story", "insight", "explanation", "opinion", "debate",
-            "question_answer", "reaction", "promotion", "other",
-        }:
-            content_type = "other"
+    response = None
+    last_screen_error = None
+    for attempt in range(2):
+        retry_prompt = prompt
+        if attempt:
+            retry_prompt += (
+                "\nRETRY: The previous response could not be parsed or validated. "
+                "Return exactly one JSON object matching the required schema. "
+                "Do not add Markdown, commentary, or code fences."
+            )
         try:
-            promotion_confidence = float(response.get("promotion_confidence"))
-            classification_confidence = float(response.get("classification_confidence"))
-        except (TypeError, ValueError):
-            raise ValueError("screen omitted numeric confidence values") from None
-        if (not np.isfinite(promotion_confidence)
-                or not np.isfinite(classification_confidence)):
-            raise ValueError("screen returned non-finite confidence values")
-        promotion_confidence = min(max(promotion_confidence, 0.0), 1.0)
-        classification_confidence = min(max(classification_confidence, 0.0), 1.0)
-        evidence = str(response.get("evidence") or "")[:240]
-    except Exception as ex:
-        clip["promotion_screen_error"] = str(ex)[:240]
+            response = parse_json(gemini_text(
+                cfg, [{"text": retry_prompt}],
+                temperature=0.0 if attempt else 0.1,
+                max_tokens=1200,
+                response_schema=PROMOTION_SCREEN_SCHEMA,
+            ))
+            if isinstance(response, list) and response:
+                response = response[0]
+            if not isinstance(response, dict):
+                raise ValueError("screen returned no JSON object")
+
+            promotion_type = str(response.get("promotion_type") or "").strip().lower()
+            content_type = str(response.get("content_type") or "other").strip().lower()
+            if promotion_type not in PROMOTION_TYPES:
+                raise ValueError("screen returned an unsupported promotion_type")
+            if content_type not in {
+                "story", "insight", "explanation", "opinion", "debate",
+                "question_answer", "reaction", "promotion", "other",
+            }:
+                raise ValueError("screen returned an unsupported content_type")
+            try:
+                promotion_confidence = float(response.get("promotion_confidence"))
+                classification_confidence = float(response.get("classification_confidence"))
+            except (TypeError, ValueError):
+                raise ValueError("screen omitted numeric confidence values") from None
+            if (not np.isfinite(promotion_confidence)
+                    or not np.isfinite(classification_confidence)):
+                raise ValueError("screen returned non-finite confidence values")
+            if not (0.0 <= promotion_confidence <= 1.0
+                    and 0.0 <= classification_confidence <= 1.0):
+                raise ValueError("screen returned confidence outside the 0..1 range")
+            promotion_confidence = min(max(promotion_confidence, 0.0), 1.0)
+            classification_confidence = min(max(classification_confidence, 0.0), 1.0)
+            evidence = str(response.get("evidence") or "")[:240]
+            break
+        except Exception as ex:
+            last_screen_error = ex
+            retryable_response_error = (
+                isinstance(ex, ValueError)
+                or (isinstance(ex, GeminiError)
+                    and "response was not valid JSON" in str(ex))
+            )
+            if attempt == 0 and retryable_response_error:
+                log.warning(
+                    "promotion screen response was invalid; retrying once with strict JSON schema (%s)",
+                    str(ex)[:180],
+                )
+                continue
+            clip["promotion_screen_error"] = (
+                f"{type(ex).__name__}: {str(ex)}"
+            )[:240]
+            clip["promotion_screen_attempts"] = attempt + 1
+            log.error(
+                "promotion screen failed for clip %s after %d attempt(s): %s",
+                clip.get("id", "?"), attempt + 1, clip["promotion_screen_error"],
+            )
+            return {
+                "review_required": True, "excluded": False,
+                "issues": [
+                    "Promotion screen failed or returned an uncertain result; manual review required."
+                ],
+            }
+    if response is None:
+        # Defensive guard: a screen that somehow exits the retry loop without a
+        # validated response must never be interpreted as a clean classification.
+        clip["promotion_screen_error"] = str(last_screen_error or "no validated response")[:240]
+        clip["promotion_screen_attempts"] = 2
         return {
             "review_required": True, "excluded": False,
-            "issues": ["Promotion screen failed or returned an uncertain result; manual review required."],
+            "issues": ["Promotion screen did not produce a validated result; manual review required."],
         }
 
     policy = cfg.get("intelligence", {}).get("promotion_policy", "manual_review")
     threshold = float(cfg.get("intelligence", {}).get("promotion_threshold", 0.72))
-    explicit_promotion = promotion_type not in ("none",)
+    explicit_promotion = (
+        promotion_type not in ("none",) or content_type == "promotion"
+    )
     uncertain = (promotion_type == "unclear"
                  or classification_confidence < 0.60)
     flagged = explicit_promotion and (
@@ -2179,6 +2267,7 @@ def screen_queued_clip_for_promotion(cfg, clip):
         "promotion_confidence": round(promotion_confidence, 3),
         "classification_confidence": round(classification_confidence, 3),
         "promotion_evidence": evidence,
+        "promotion_screen_attempts": attempt + 1,
         "promotion_screen_error": None,
     })
     if flagged:
@@ -2238,7 +2327,14 @@ def publish_next(cfg, wait=True, force=False):
         jr(state, "slot_due", slot=slot[0].isoformat(timespec="minutes"))
 
     needs_review = False
-    for clip in q[:3]:
+    candidate_limit = int(cfg.get("queue", {}).get("publish_candidate_limit", 10))
+    candidates_to_check = q[:candidate_limit]
+    if len(q) > len(candidates_to_check):
+        log.warning(
+            "Checking the first %d of %d queued clips this run; remaining clips stay queued.",
+            len(candidates_to_check), len(q),
+        )
+    for clip in candidates_to_check:
         log.info("candidate clip %d (%s %s-%s)", clip["id"], clip["channel"], hms(clip["start"]), hms(clip["end"]))
         try:
             path = render_clip(cfg, clip)
@@ -2326,9 +2422,17 @@ def publish_next(cfg, wait=True, force=False):
         continue
 
     if needs_review:
-        jr(state, "slot_deferred", reason="candidate(s) moved to manual review")
+        remaining = max(0, len(q) - len(candidates_to_check))
+        reason = (
+            "no Reel published; candidate(s) moved to manual review"
+            + (f"; {remaining} queued candidate(s) not scanned due to publish_candidate_limit"
+               if remaining else "")
+        )
+        jr(state, "slot_deferred", reason=reason,
+           checked_candidates=len(candidates_to_check), queued_remaining=remaining)
         save_state(state)
-        return True
+        gha("error", "No Reel was published: checked candidates require manual review.")
+        return False
     jr(state, "slot_missed", reason="no clip could be posted")
     save_state(state)
     return False
