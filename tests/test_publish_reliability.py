@@ -1,0 +1,140 @@
+"""Regression tests for Gemini editorial screening and publish queue resilience."""
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+import podcast_clipper as clipper
+
+
+class PromotionScreenTests(unittest.TestCase):
+    def setUp(self):
+        self.cfg = {
+            "llm": {"enabled": True},
+            "intelligence": {
+                "promotion_policy": "manual_review",
+                "promotion_threshold": 0.72,
+            },
+        }
+        self.clip = {
+            "id": 101,
+            "title": "A factual discussion",
+            "words": [[0.0, "Here"], [0.4, "is"], [0.8, "the"], [1.2, "evidence."]],
+        }
+        self.clean_response = {
+            "content_type": "insight",
+            "promotion_type": "none",
+            "promotion_confidence": 0.0,
+            "classification_confidence": 0.99,
+            "evidence": "",
+        }
+
+    def test_parse_json_accepts_fences_and_prose_wrappers(self):
+        payload = {"promotion_type": "none", "confidence": 0.99}
+        self.assertEqual(clipper.parse_json(" ```json\n" + json.dumps(payload) + "\n``` "), payload)
+        self.assertEqual(clipper.parse_json("Result:\n" + json.dumps(payload) + "\nThanks."), payload)
+
+    @patch.object(clipper, "gemini_key", return_value="test-key")
+    @patch.object(clipper, "gemini_text")
+    def test_invalid_json_retries_once_then_accepts_valid_result(self, gemini_text, _key):
+        gemini_text.side_effect = ["not-json", json.dumps(self.clean_response)]
+        result = clipper.screen_queued_clip_for_promotion(self.cfg, self.clip)
+        self.assertFalse(result["review_required"])
+        self.assertFalse(result["excluded"])
+        self.assertEqual(gemini_text.call_count, 2)
+        self.assertEqual(self.clip["promotion_screen_attempts"], 2)
+        self.assertEqual(self.clip["promotion_type"], "none")
+        self.assertIsNone(self.clip["promotion_screen_error"])
+        self.assertIn("response_schema", gemini_text.call_args.kwargs)
+
+    @patch.object(clipper, "gemini_key", return_value="test-key")
+    @patch.object(clipper, "gemini_text", return_value="still-not-json")
+    def test_two_invalid_responses_fail_closed_for_manual_review(self, gemini_text, _key):
+        result = clipper.screen_queued_clip_for_promotion(self.cfg, self.clip)
+        self.assertTrue(result["review_required"])
+        self.assertFalse(result["excluded"])
+        self.assertEqual(gemini_text.call_count, 2)
+        self.assertEqual(self.clip["promotion_screen_attempts"], 2)
+        self.assertIn("GeminiError", self.clip["promotion_screen_error"])
+
+    @patch.object(clipper, "gemini_key", return_value="test-key")
+    @patch.object(clipper, "gemini_text")
+    def test_sponsor_read_is_held_for_human_review(self, gemini_text, _key):
+        response = dict(self.clean_response, content_type="promotion",
+                        promotion_type="sponsor_read", promotion_confidence=0.99,
+                        evidence="This episode is brought to you by Acme.")
+        gemini_text.return_value = json.dumps(response)
+        result = clipper.screen_queued_clip_for_promotion(self.cfg, self.clip)
+        self.assertTrue(result["review_required"])
+        self.assertFalse(result["excluded"])
+        self.assertEqual(self.clip["promotion_type"], "sponsor_read")
+
+
+class PublishQueueTests(unittest.TestCase):
+    def _state(self, count=4):
+        return {
+            "episodes": {},
+            "clips": [
+                {
+                    "id": i + 1, "status": "queued", "channel": "Allowed",
+                    "start": 0, "end": 20, "title": f"Clip {i + 1}",
+                    "words": [[0.0, "test"]],
+                }
+                for i in range(count)
+            ],
+            "journal": [],
+        }
+
+    def _run_with_screens(self, screens):
+        state = self._state()
+        cfg = {
+            "queue": {"publish_candidate_limit": 10},
+            "intelligence": {"promotion_policy": "manual_review"},
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            rendered = Path(temp_dir) / "rendered.mp4"
+            rendered.write_bytes(b"test media")
+            review_dir = Path(temp_dir) / "review"
+            with (
+                patch.object(clipper, "load_state", return_value=state),
+                patch.object(clipper, "save_state"),
+                patch.object(clipper, "authorized_channels", return_value=[{"name": "Allowed"}]),
+                patch.object(clipper, "render_clip", return_value=rendered),
+                patch.object(clipper, "screen_queued_clip_for_promotion", side_effect=screens) as screen,
+                patch.object(clipper, "qa_review", return_value={
+                    "verdict": "pass", "score": 9.0, "issues": [],
+                }),
+                patch.object(clipper, "_post_clip", return_value=True) as post,
+                patch.object(clipper, "jr"),
+                patch.object(clipper, "gha"),
+                patch.object(clipper, "REVIEW_DIR", review_dir),
+            ):
+                result = clipper.publish_next(cfg, wait=False, force=True)
+        return result, state, screen, post
+
+    def test_queue_continues_after_three_review_holds_and_posts_fourth(self):
+        held = {"review_required": True, "excluded": False,
+                "issues": ["human review"], "already_screened": False}
+        clean = {"review_required": False, "excluded": False,
+                 "issues": [], "already_screened": False}
+        result, state, screen, post = self._run_with_screens([held, held, held, clean])
+        self.assertTrue(result)
+        self.assertEqual(screen.call_count, 4)
+        self.assertEqual([c["status"] for c in state["clips"][:3]], ["needs_review"] * 3)
+        self.assertEqual(post.call_count, 1)
+        self.assertEqual(post.call_args.args[2]["id"], 4)
+
+    def test_review_only_slot_returns_failure_instead_of_green_success(self):
+        held = {"review_required": True, "excluded": False,
+                "issues": ["human review"], "already_screened": False}
+        result, state, screen, post = self._run_with_screens([held] * 4)
+        self.assertFalse(result)
+        self.assertEqual(screen.call_count, 4)
+        self.assertTrue(all(c["status"] == "needs_review" for c in state["clips"]))
+        post.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()
