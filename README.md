@@ -22,6 +22,21 @@ Give the pipeline an authorised podcast source. Clipper works through the steps:
 
 The goal is to reduce repetitive clipping work while keeping quality checks and review safeguards in the loop.
 
+## Intelligence layers
+
+Clipper now uses three connected intelligence stages:
+
+- **Editorial intelligence:** Gemini builds a timestamped episode outline, identifies semantic story/idea spans, and evaluates candidates on hook, clarity, payoff, emotion, specificity, curiosity, value and story structure. A separate content-intent classification identifies sponsor reads, affiliate pitches, product pitches and self-promotion. The default `intelligence.promotion_policy: manual_review` holds high-confidence promotional or uncertain classifications for a human decision; it does not automatically reject every product mention.
+- **Adaptive editing:** each queued clip receives a validated `edit_plan`. Supported plans adjust caption grouping, caption emphasis, font sizing and restrained motion according to the clip category. The existing face-aware crop and multi-speaker fallback remain in place. The planner does not yet generate B-roll or switch between camera angles; those require licensed assets and reliable active-speaker-to-face association.
+- **Self-improvement:** Clipper records compact decisions for candidates considered, stores human feedback, and snapshots available Instagram insights at 24-hour, 72-hour and 7-day maturity bands. Once enough labelled outcomes exist (20 examples, including at least 6 positive and 6 negative), a small regularised local ranker can learn a low-strength preference adjustment. Until then, the existing editorial scoring remains in control.
+
+### Give Clipper editorial feedback
+
+After a clip has a stored clip ID, use **Actions → podcast-clipper → Run workflow**, select `feedback`, provide the clip ID and a label (`good`, `weak`, `needs_context`, `bad_cut`, `promotional`, `visual_issue`, `caption_issue` or `other`). Feedback is stored with the clip and can contribute to future ranker training. Do not label a clip based only on its view count.
+
+The intelligence layers improve the decision process; they cannot guarantee a perfect edit, virality or a successful Instagram post. Review early outputs and retain the publishing safeguards.
+
+
 ## Who is it for?
 
 - **Podcasters and hosts** who want to repurpose their own long-form episodes.
