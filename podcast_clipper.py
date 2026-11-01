@@ -1799,6 +1799,75 @@ class PublishUncertainError(RuntimeError):
     """The remote publish may have succeeded but its response was lost."""
 
 
+class InstagramProcessingFailedError(RuntimeError):
+    """Instagram's media processor rejected the uploaded video bytes."""
+
+
+def _instagram_error_payload(response):
+    try:
+        payload = response.json()
+        return payload if isinstance(payload, dict) else {}
+    except (ValueError, AttributeError):
+        return {}
+
+
+def _instagram_error_type(response):
+    payload = _instagram_error_payload(response)
+    return str((payload.get("debug_info") or {}).get("type")
+               or (payload.get("error") or {}).get("type") or "")
+
+
+def media_summary(media):
+    """Safe diagnostic summary of a media file; never includes credentials or upload URLs."""
+    return (
+        f"{media.get('w')}x{media.get('h')} {media.get('video_codec')}/"
+        f"{media.get('video_pix_fmt')} {media.get('video_fps')}fps "
+        f"{media.get('audio_codec')} {media.get('audio_sample_rate')}Hz/"
+        f"{media.get('audio_channels')}ch duration={media.get('duration')}s "
+        f"size={media.get('size_bytes')}B"
+    )
+
+
+def normalize_reel_for_instagram(video_path):
+    """Create one conservative H.264/AAC compatibility encode after a processing rejection."""
+    source = Path(video_path)
+    output = source.with_name(source.stem + "_instagram_compat.mp4")
+    output.unlink(missing_ok=True)
+    command = [
+        "ffmpeg", "-y", "-i", str(source),
+        "-map", "0:v:0", "-map", "0:a:0",
+        "-vf", (
+            "scale=1080:1920:force_original_aspect_ratio=decrease,"
+            "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p"
+        ),
+        "-c:v", "libx264", "-profile:v", "high", "-level:v", "4.1",
+        "-preset", "medium", "-crf", "22", "-maxrate", "8M", "-bufsize", "16M",
+        "-g", "60", "-keyint_min", "60", "-sc_threshold", "0",
+        "-c:a", "aac", "-profile:a", "aac_low", "-b:a", "128k",
+        "-ar", "48000", "-ac", "2",
+        "-map_metadata", "-1", "-map_chapters", "-1",
+        "-avoid_negative_ts", "make_zero", "-movflags", "+faststart",
+        str(output),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0 or not output.is_file() or output.stat().st_size <= 0:
+        output.unlink(missing_ok=True)
+        detail = (result.stderr or "")[-500:]
+        raise RuntimeError("Instagram compatibility re-encode failed: " + detail)
+    media = probe_media(output)
+    issues = instagram_media_issues(media)
+    if (media.get("w"), media.get("h")) != (1080, 1920):
+        issues.append("normalised output is not 1080x1920")
+    if issues:
+        output.unlink(missing_ok=True)
+        raise RuntimeError(
+            "normalised Instagram media did not pass validation: "
+            + "; ".join(issues) + " (" + media_summary(media) + ")"
+        )
+    log.warning("created Instagram compatibility encode: %s", media_summary(media))
+    return output
+
+
 def upload_reel_container(cfg, video_path, caption):
     """Upload and process a Reel container, but do NOT publish it.
 
@@ -1812,44 +1881,82 @@ def upload_reel_container(cfg, video_path, caption):
     if not path.is_file() or path.stat().st_size <= 0:
         raise RuntimeError(f"Instagram upload input is missing or empty: {path}")
     g = graph(cfg)
-    response = requests.post(f"{g}/{ig_id}/media", data={
-        "media_type": "REELS", "upload_type": "resumable", "caption": caption,
-        "share_to_feed": "true", "access_token": token}, timeout=60)
-    if not response.ok:
-        raise RuntimeError(f"container create failed: HTTP {response.status_code} {response.text[:300]}")
-    try:
-        container = response.json()
-    except ValueError as ex:
-        raise RuntimeError("Instagram container create returned invalid JSON") from ex
-    container_id, upload_uri = container.get("id"), container.get("uri")
-    if not container_id or not upload_uri:
-        raise RuntimeError(f"Instagram container response missing id or upload URI: {container}")
-    data = path.read_bytes()
-    upload = requests.post(upload_uri, data=data, timeout=600, headers={
-        "Authorization": f"OAuth {token}", "offset": "0",
-        "file_size": str(len(data)), "Content-Type": "application/octet-stream"})
-    if not upload.ok:
-        raise RuntimeError(f"upload failed: HTTP {upload.status_code} {upload.text[:300]}")
-    for _ in range(72):
-        status_response = requests.get(f"{g}/{container_id}", timeout=30, params={
-            "fields": "status_code,status", "access_token": token})
-        if not status_response.ok:
+
+    def upload_and_wait(candidate_path):
+        response = requests.post(f"{g}/{ig_id}/media", data={
+            "media_type": "REELS", "upload_type": "resumable", "caption": caption,
+            "share_to_feed": "true", "access_token": token}, timeout=60)
+        if not response.ok:
             raise RuntimeError(
-                f"Instagram processing status failed: HTTP {status_response.status_code} "
-                f"{status_response.text[:200]}")
+                f"container create failed: HTTP {response.status_code} {response.text[:300]}")
+        container = _instagram_error_payload(response)
+        if not container:
+            try:
+                container = response.json()
+            except ValueError as ex:
+                raise RuntimeError("Instagram container create returned invalid JSON") from ex
+        container_id, upload_uri = container.get("id"), container.get("uri")
+        if not container_id or not upload_uri:
+            raise RuntimeError(f"Instagram container response missing id or upload URI: {container}")
+
+        data = candidate_path.read_bytes()
+        upload = requests.post(upload_uri, data=data, timeout=600, headers={
+            "Authorization": f"OAuth {token}", "offset": "0",
+            "file_size": str(len(data)), "Content-Type": "application/octet-stream"})
+        if not upload.ok:
+            error = f"HTTP {upload.status_code} {upload.text[:400]}"
+            if _instagram_error_type(upload) == "ProcessingFailedError":
+                raise InstagramProcessingFailedError(error)
+            raise RuntimeError("Instagram resumable upload failed: " + error)
+
+        for _ in range(72):
+            status_response = requests.get(f"{g}/{container_id}", timeout=30, params={
+                "fields": "status_code,status", "access_token": token})
+            if not status_response.ok:
+                raise RuntimeError(
+                    f"Instagram processing status failed: HTTP {status_response.status_code} "
+                    f"{status_response.text[:200]}")
+            try:
+                status = status_response.json()
+            except ValueError as ex:
+                raise RuntimeError("Instagram processing status returned invalid JSON") from ex
+            status_code = status.get("status_code")
+            if status_code == "FINISHED":
+                return str(container_id)
+            if status_code in ("ERROR", "EXPIRED"):
+                error = json.dumps(status, ensure_ascii=False)[:400]
+                if "ProcessingFailedError" in error:
+                    raise InstagramProcessingFailedError(error)
+                raise RuntimeError(f"Instagram processing failed: {error}")
+            if status_code not in ("IN_PROGRESS", "PENDING"):
+                raise RuntimeError(f"Instagram returned unexpected container status: {status}")
+            time.sleep(5)
+        raise TimeoutError("Instagram processing timed out")
+
+    try:
+        return upload_and_wait(path)
+    except InstagramProcessingFailedError as original_error:
+        # The original container cannot be repaired in-place. Re-encode the file and
+        # create a fresh container once; never retry the same rejected bytes.
         try:
-            status = status_response.json()
-        except ValueError as ex:
-            raise RuntimeError("Instagram processing status returned invalid JSON") from ex
-        status_code = status.get("status_code")
-        if status_code == "FINISHED":
-            return str(container_id)
-        if status_code in ("ERROR", "EXPIRED"):
-            raise RuntimeError(f"Instagram processing failed: {status}")
-        if status_code not in ("IN_PROGRESS", "PENDING"):
-            raise RuntimeError(f"Instagram returned unexpected container status: {status}")
-        time.sleep(5)
-    raise TimeoutError("Instagram processing timed out")
+            original_media = probe_media(path)
+            log.warning("Instagram rejected original upload (%s); media=%s",
+                        str(original_error)[:300], media_summary(original_media))
+        except Exception:
+            log.warning("Instagram rejected original upload (%s)", str(original_error)[:300])
+        compatible = None
+        try:
+            compatible = normalize_reel_for_instagram(path)
+            return upload_and_wait(compatible)
+        except Exception as fallback_error:
+            raise RuntimeError(
+                "Instagram rejected the original file and the single compatibility retry failed. "
+                f"Original rejection: {str(original_error)[:250]}; "
+                f"fallback: {str(fallback_error)[:400]}"
+            ) from fallback_error
+        finally:
+            if compatible is not None:
+                compatible.unlink(missing_ok=True)
 
 
 def post_reel(cfg, video_path, caption):
@@ -1945,6 +2052,156 @@ def _post_clip(cfg, state, clip, path):
 
 
 
+PROMOTION_SCREEN_VERSION = "publish-promotion-screen-v1"
+PROMOTION_TYPES = {"none", "sponsor_read", "affiliate", "product_pitch",
+                   "self_promotion", "unclear"}
+
+
+def screen_queued_clip_for_promotion(cfg, clip):
+    """Final fail-closed transcript screen for queued clips, including legacy state entries.
+
+    It is run on the rendered clip's stored transcript immediately before QA/publishing.
+    A failed or low-confidence screen is sent to human review, never silently approved.
+    """
+    if clip.get("promotion_screen_version") == PROMOTION_SCREEN_VERSION:
+        policy = cfg.get("intelligence", {}).get("promotion_policy", "manual_review")
+        threshold = float(cfg.get("intelligence", {}).get("promotion_threshold", 0.72))
+        promotion_type = str(clip.get("promotion_type") or "none").lower()
+        promotion_confidence = float(clip.get("promotion_confidence") or 0.0)
+        classification_confidence = float(clip.get("classification_confidence") or 0.0)
+        flagged = promotion_type not in ("none",) and (
+            promotion_confidence >= threshold or classification_confidence >= 0.60
+        )
+        uncertain = (promotion_type == "unclear" or classification_confidence < 0.60)
+        excluded = flagged and policy == "exclude"
+        review_required = (
+            bool(clip.get("editorial_review_required"))
+            or uncertain
+            or (flagged and policy == "manual_review")
+        )
+        if excluded:
+            return {"review_required": False, "excluded": True,
+                    "issues": ["Clip classified as promotional and excluded by editorial policy."],
+                    "already_screened": True}
+        return {
+            "review_required": review_required, "excluded": False,
+            "issues": ([str(clip.get("editorial_gate_reason") or "promotion classification requires review")]
+                       if review_required else []),
+            "already_screened": True,
+        }
+
+    words = clip.get("words") or []
+    transcript = " ".join(str(item[1]) for item in words
+                          if isinstance(item, (list, tuple)) and len(item) >= 2).strip()
+    if not transcript:
+        clip["promotion_screen_error"] = "no stored transcript is available for publication screening"
+        return {
+            "review_required": True, "excluded": False,
+            "issues": ["Promotion screen cannot run because the clip transcript is missing."],
+        }
+    if not cfg.get("llm", {}).get("enabled") or not gemini_key():
+        clip["promotion_screen_error"] = "Gemini unavailable"
+        return {
+            "review_required": True, "excluded": False,
+            "issues": ["Promotion screen unavailable; manual review required."],
+        }
+
+    prompt = (
+        "You are a strict final editorial safety reviewer for a podcast clip that is about to be "
+        "published as an Instagram Reel. Classify ONLY the supplied clip transcript. Detect a "
+        "sponsor read, paid brand integration, affiliate pitch, creator self-promotion, or direct "
+        "product/service sales pitch. A casual product/brand mention, a factual example, or an "
+        "ordinary recommendation in a broader discussion is NOT automatically an advertisement. "
+        "Look for actual selling intent: sponsor disclosure, repeated product benefits, pricing, "
+        "discounts, calls to action, app/service instructions, or a direction to a link/description. "
+        "Do not infer sponsorship merely from a brand name. If evidence is ambiguous, return "
+        "promotion_type='unclear' and request human review.\n"
+        "Return ONLY one valid JSON object with: content_type (story, insight, explanation, opinion, "
+        "debate, question_answer, reaction, promotion, other), promotion_type "
+        "(none, sponsor_read, affiliate, product_pitch, self_promotion, unclear), "
+        "promotion_confidence (0 to 1), classification_confidence (0 to 1), evidence (short exact "
+        "phrase from the supplied transcript). Never invent words or context.\n"
+        "Clip title: " + str(clip.get("title") or "")[:160] +
+        "\nTranscript:\n" + transcript[:7000]
+    )
+    try:
+        response = parse_json(gemini_text(cfg, [{"text": prompt}],
+                                          temperature=0.1, max_tokens=800))
+        if isinstance(response, list) and response:
+            response = response[0]
+        if not isinstance(response, dict):
+            raise ValueError("screen returned no JSON object")
+        promotion_type = str(response.get("promotion_type") or "").strip().lower()
+        content_type = str(response.get("content_type") or "other").strip().lower()
+        if promotion_type not in PROMOTION_TYPES:
+            raise ValueError("screen returned an unsupported promotion_type")
+        if content_type not in {
+            "story", "insight", "explanation", "opinion", "debate",
+            "question_answer", "reaction", "promotion", "other",
+        }:
+            content_type = "other"
+        try:
+            promotion_confidence = float(response.get("promotion_confidence"))
+            classification_confidence = float(response.get("classification_confidence"))
+        except (TypeError, ValueError):
+            raise ValueError("screen omitted numeric confidence values") from None
+        if (not np.isfinite(promotion_confidence)
+                or not np.isfinite(classification_confidence)):
+            raise ValueError("screen returned non-finite confidence values")
+        promotion_confidence = min(max(promotion_confidence, 0.0), 1.0)
+        classification_confidence = min(max(classification_confidence, 0.0), 1.0)
+        evidence = str(response.get("evidence") or "")[:240]
+    except Exception as ex:
+        clip["promotion_screen_error"] = str(ex)[:240]
+        return {
+            "review_required": True, "excluded": False,
+            "issues": ["Promotion screen failed or returned an uncertain result; manual review required."],
+        }
+
+    policy = cfg.get("intelligence", {}).get("promotion_policy", "manual_review")
+    threshold = float(cfg.get("intelligence", {}).get("promotion_threshold", 0.72))
+    explicit_promotion = promotion_type not in ("none",)
+    uncertain = (promotion_type == "unclear"
+                 or classification_confidence < 0.60)
+    flagged = explicit_promotion and (
+        promotion_confidence >= threshold or classification_confidence >= 0.60
+    )
+    excluded = flagged and policy == "exclude"
+    review_required = uncertain or (flagged and policy == "manual_review")
+    if policy == "allow" and flagged:
+        review_required = False
+
+    clip.update({
+        "promotion_screen_version": PROMOTION_SCREEN_VERSION,
+        "promotion_screened_at": now_iso(),
+        "content_type": content_type,
+        "promotion_type": promotion_type,
+        "promotion_confidence": round(promotion_confidence, 3),
+        "classification_confidence": round(classification_confidence, 3),
+        "promotion_evidence": evidence,
+        "promotion_screen_error": None,
+    })
+    if flagged:
+        clip["editorial_review_required"] = review_required
+        clip["editorial_gate_reason"] = (
+            "promotional_content" if policy == "manual_review"
+            else "promotional_content_excluded" if policy == "exclude" else ""
+        )
+    elif uncertain:
+        clip["editorial_review_required"] = True
+        clip["editorial_gate_reason"] = "promotion_classification_uncertain"
+    issues = []
+    if excluded:
+        issues.append("Clip classified as promotional and excluded by editorial policy.")
+    elif review_required:
+        issues.append(
+            "Clip appears promotional or its promotion classification is uncertain. "
+            + (f"Evidence: {evidence}" if evidence else "Human decision required.")
+        )
+    return {"review_required": review_required, "excluded": excluded,
+            "issues": issues, "already_screened": False}
+
+
 def publish_next(cfg, wait=True, force=False):
     """Render, inspect, and publish one eligible clip; ambiguous outcomes are never auto-retried."""
     state = load_state()
@@ -1999,6 +2256,37 @@ def publish_next(cfg, wait=True, force=False):
                 review = {"verdict": "hard_fail", "score": 0,
                           "issues": [f"technical QA failed after manual approval: {str(ex)[:180]}"]}
         else:
+            # Mandatory final transcript screen also covers clips queued by older code
+            # before editorial classification existed in state.json.
+            promotion_screen = screen_queued_clip_for_promotion(cfg, clip)
+            if promotion_screen["excluded"]:
+                clip.update(status="rejected", error="Editorial policy: promotional content")
+                clip["qa"] = {"verdict": "hard_fail", "score": None,
+                              "issues": promotion_screen["issues"]}
+                jr(state, "clip_rejected", clip=clip["id"], issues=promotion_screen["issues"])
+                save_state(state)
+                gha("warning", f"Clip {clip['id']} excluded by promotional-content policy.")
+                continue
+            if (promotion_screen["review_required"]
+                    or clip.get("editorial_review_required")):
+                issues = promotion_screen["issues"] or [
+                    "Existing editorial classification requires a human decision."
+                ]
+                REVIEW_DIR.mkdir(parents=True, exist_ok=True)
+                review_path = REVIEW_DIR / f"clip_{clip['id']}.mp4"
+                shutil.copy2(path, review_path)
+                clip["editorial_review_required"] = True
+                clip.update(status="needs_review", review_artifact_file=review_path.name,
+                            error="Manual editorial review required: " + "; ".join(issues)[:300])
+                clip["qa"] = {"verdict": "soft_fail", "score": None, "issues": issues}
+                jr(state, "clip_needs_review", clip=clip["id"], artifact=review_path.name,
+                   issues=issues, review_stage="promotion_screen")
+                save_state(state)
+                gha("warning", f"Clip {clip['id']} needs editorial review; it will not be auto-published.")
+                needs_review = True
+                continue
+            # Persist the clean publication screen before proceeding to the normal quality gate.
+            save_state(state)
             review = qa_review(cfg, path, clip)
         if (clip.get("editorial_review_required")
                 and not clip.get("approved_manually_at")
