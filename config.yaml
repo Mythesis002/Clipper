@@ -33,6 +33,12 @@ discovery:
   caption_langs: ["en", "hi"]
   max_episode_attempts: 3             # unusable episode -> adapt and try the next one
 
+intelligence:
+  episode_understanding: true
+  max_transcript_chars: 90000       # compressed timestamped transcript supplied to episode-level analysis
+  promotion_policy: manual_review  # manual_review | exclude | allow
+  promotion_threshold: 0.72       # confidence required before a promotion is held for review
+
 qa:
   max_black_pct: 12                  # reject clips with substantial black-frame intervals
   max_silence_pct: 25                 # total detected silence budget
@@ -41,6 +47,8 @@ qa:
   ai_unavailable: manual_review      # never auto-publish if the final AI review is unavailable
 
 learning:
+  min_ranker_samples: 20            # require labelled outcome evidence before fitting the learned ranker
+  min_ranker_per_class: 6           # require both positive and negative examples
   explore_rate: 0.25                  # keep exploring while testing source formats
   min_channel_samples: 3              # require this many mature Reels before ranking a channel by quality
   min_format_samples: 4               # require this many posts before learning a hook/duration prior

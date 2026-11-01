@@ -50,6 +50,16 @@ from editorial_engine import (
     apply_format_priors, editorial_signals, enrich_candidates_with_context,
     format_priors, performance_quality, speaker_summary,
 )
+from intelligence_engine import (
+    attach_semantic_context, candidate_feature_record, editorial_gate,
+    episode_understanding_prompt, semantic_candidate_windows, timed_transcript,
+    validate_episode_map,
+)
+from editing_engine import build_edit_plan, validate_edit_plan
+from learning_engine import (
+    add_feedback, add_metric_snapshot, learning_counts, predict_editorial_score,
+    record_candidate_decisions, train_editorial_ranker,
+)
 
 BASE = Path(__file__).resolve().parent
 WORK = BASE / "work"
@@ -84,6 +94,18 @@ def load_config(path=None):
     for key in ("clip", "queue", "discovery", "llm", "instagram", "schedule", "learning"):
         if not isinstance(cfg[key], dict):
             raise ValueError(f"config.yaml section {key!r} must be a mapping")
+    cfg.setdefault("intelligence", {})
+    if not isinstance(cfg["intelligence"], dict):
+        raise ValueError("config.yaml section 'intelligence' must be a mapping")
+    intelligence = cfg["intelligence"]
+    if intelligence.get("promotion_policy", "manual_review") not in ("manual_review", "exclude", "allow"):
+        raise ValueError("intelligence.promotion_policy must be manual_review, exclude or allow")
+    threshold = float(intelligence.get("promotion_threshold", 0.72))
+    if not 0.0 <= threshold <= 1.0:
+        raise ValueError("intelligence.promotion_threshold must be between 0 and 1")
+    max_chars = int(intelligence.get("max_transcript_chars", 90000))
+    if max_chars < 1000 or max_chars > 250000:
+        raise ValueError("intelligence.max_transcript_chars must be between 1000 and 250000")
     configured_gemini_model = str(cfg["llm"].get("model", GEMINI_MODEL)).strip()
     if configured_gemini_model != GEMINI_MODEL:
         raise ValueError(
@@ -721,7 +743,8 @@ def parse_json(text):
 
 def _score(x, default=None):
     try:
-        return min(max(float(x), 0.0), 10.0)
+        value = float(x)
+        return min(max(value, 0.0), 10.0) if np.isfinite(value) else default
     except (TypeError, ValueError):
         return default
 
@@ -730,13 +753,21 @@ def _truthy(x):
     return x is True or (isinstance(x, str) and x.strip().lower() == "true")
 
 
-def build_rerank_prompt(ep_title, cands):
+def build_rerank_prompt(ep_title, cands, episode_map=None):
     payload = [{
         "id": i,
         "t": hms(c["start"]),
         "clip": c["text"][:850],
         "context_before_not_in_clip": c.get("context_before", "")[-300:],
         "context_after_not_in_clip": c.get("context_after", "")[:200],
+        "semantic": {
+            "kind": c.get("semantic_kind"),
+            "topic": c.get("semantic_topic"),
+            "summary": c.get("semantic_summary"),
+            "confidence": c.get("semantic_confidence"),
+            "promotion_type": c.get("promotion_type"),
+            "promotion_evidence": c.get("promotion_evidence"),
+        },
         "heuristics": {
             "opening_type": c.get("hook_type"),
             "context_dependency": c.get("context_dependency"),
@@ -744,28 +775,35 @@ def build_rerank_prompt(ep_title, cands):
             "payoff_estimate": c.get("payoff_heuristic"),
         },
     } for i, c in enumerate(cands)]
+    summary = (episode_map or {}).get("summary", "")
     return (
-        f"You are a senior short-form editor choosing complete podcast moments from {ep_title!r}.\n"
+        f"You are a senior short-form podcast editor choosing complete moments from {ep_title!r}.\n"
+        f"Episode context: {summary[:1200]}\n"
         "The clip field is the ONLY content that will appear in the Reel. Context fields are provided "
         "only to detect dangling references; they are NOT part of the clip.\n"
-        "Evaluate each candidate from the actual spoken words, not sensationalism. Score 0-10: "
-        "hook (first 1-3 seconds), standalone clarity, payoff (does the clip fulfil its opening), "
-        "emotion, specificity, and context independence. Prefer a clear premise, a concrete insight "
-        "or story, and a satisfying end. Penalise a cut that begins with a pronoun or continuation "
-        "whose referent exists only in the external context. If it needs context that viewers won't "
-        "hear, set reject=true. Also reject broken sentences, filler-only segments, misleading claims, "
-        "or unsafe content. Do not reward clickbait, outrage, or unverified allegations.\n"
-        "Create a truthful concise title in the same language/script as the clip and a caption hook "
-        "that doesn't promise anything the spoken clip fails to deliver.\n"
-        "Return ONLY JSON array: "
+        "Evaluate actual spoken content, not sensationalism. Score each from 0-10: hook, standalone "
+        "clarity, payoff, emotion, specificity, context independence, curiosity, practical or emotional "
+        "value, and story structure. Prefer a complete idea, useful insight or story with a satisfying "
+        "payoff. Do not reward clickbait, outrage or unverified allegations.\n"
+        "Classify content_type as one of story, insight, explanation, opinion, debate, question_answer, "
+        "reaction, promotion, or other. Identify promotional intent separately: none, sponsor_read, "
+        "affiliate, product_pitch, self_promotion or unclear. A brief natural mention of a product is "
+        "NOT automatically promotional. Mark promotional only when the speaker is actually selling, "
+        "endorsing as an integration, reading a sponsor message or directing viewers to buy/use a "
+        "product or service. Give promotion_confidence and classification_confidence between 0 and 1. "
+        "Include a short evidence phrase. Do not infer sponsorship from a brand name alone.\n"
+        "Set reject=true for broken/incomplete segments, misleading or unsafe content. Set "
+        "promotion_type and content_type accurately even when the clip is otherwise excellent.\n"
+        "Create a truthful title in the same language/script as the clip. Return ONLY JSON array: "
         '[{"id":0,"hook":0,"standalone":0,"payoff":0,"emotion":0,"specificity":0,'
-        '"context_independence":0,"reject":false,"title":"","caption_hook":"","hashtags":["#x"]}]\n\n'
+        '"context_independence":0,"curiosity":0,"value":0,"story_structure":0,'
+        '"content_type":"story","classification_confidence":0.0,"promotion_type":"none",'
+        '"promotion_confidence":0.0,"promotion_evidence":"","reject":false,'
+        '"title":"","caption_hook":"","hashtags":["#x"]}]\n\n'
         + json.dumps(payload, ensure_ascii=False))
 
-
-
 def apply_rerank(cands, data):
-    """Merge Gemini's answer into candidates. Defensive: bad ids/scores/types are ignored."""
+    """Merge Gemini's editorial scorecard and content classification into candidates."""
     if isinstance(data, dict):
         data = data.get("clips") or data.get("results") or []
     applied = 0
@@ -778,53 +816,105 @@ def apply_rerank(cands, data):
             continue
         if not 0 <= i < len(cands):
             continue
-        h, s, e = (_score(d.get(k)) for k in ("hook", "standalone", "emotion"))
-        if None in (h, s, e):
+        scores = {key: _score(d.get(key)) for key in
+                  ("hook", "standalone", "payoff", "emotion", "specificity",
+                   "context_independence", "curiosity", "value", "story_structure")}
+        if any(scores[key] is None for key in ("hook", "standalone", "emotion")):
             continue
-        payoff = _score(d.get("payoff"), s)
-        specificity = _score(d.get("specificity"), h)
         c = cands[i]
-        context_independence = _score(d.get("context_independence"), max(0.0, 10.0 * (1.0 - cands[i].get("context_dependency", 0.5))))
-        c["llm"] = (h * 0.25 + s * 0.22 + payoff * 0.23
-                    + e * 0.10 + specificity * 0.10 + context_independence * 0.10) / 10
-        c["context_independence_llm"] = context_independence / 10
-        c["payoff"] = payoff / 10
-        c["specificity"] = specificity / 10
+        scores["payoff"] = scores["payoff"] if scores["payoff"] is not None else scores["standalone"]
+        scores["specificity"] = scores["specificity"] if scores["specificity"] is not None else scores["hook"]
+        scores["context_independence"] = (scores["context_independence"]
+            if scores["context_independence"] is not None
+            else max(0.0, 10.0 * (1.0 - c.get("context_dependency", 0.5))))
+        scores["curiosity"] = scores["curiosity"] if scores["curiosity"] is not None else scores["hook"]
+        scores["value"] = scores["value"] if scores["value"] is not None else scores["specificity"]
+        scores["story_structure"] = (scores["story_structure"]
+            if scores["story_structure"] is not None else scores["payoff"])
+        c["editorial_scores"] = {key: round(value, 2) for key, value in scores.items()}
+        c["llm"] = (
+            scores["hook"] * 0.16 + scores["standalone"] * 0.14
+            + scores["payoff"] * 0.15 + scores["emotion"] * 0.10
+            + scores["specificity"] * 0.10 + scores["context_independence"] * 0.10
+            + scores["curiosity"] * 0.10 + scores["value"] * 0.10
+            + scores["story_structure"] * 0.05
+        ) / 10
+        c["context_independence_llm"] = scores["context_independence"] / 10
+        c["payoff"] = scores["payoff"] / 10
+        c["specificity"] = scores["specificity"] / 10
         c["reject"] = _truthy(d.get("reject"))
+        allowed_types = {"story", "insight", "explanation", "opinion", "debate",
+                         "question_answer", "reaction", "promotion", "other"}
+        content_type = str(d.get("content_type") or c.get("semantic_kind") or "other").lower()
+        c["content_type"] = content_type if content_type in allowed_types else "other"
+        promotion_types = {"none", "sponsor_read", "affiliate", "product_pitch",
+                           "self_promotion", "unclear"}
+        proposed_promotion_type = str(d.get("promotion_type") or "").lower()
+        if proposed_promotion_type not in promotion_types:
+            proposed_promotion_type = "unclear"
+        try:
+            proposed_promotion_confidence = float(d.get("promotion_confidence", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            proposed_promotion_confidence = 0.0
+        if proposed_promotion_confidence > 1.0:
+            proposed_promotion_confidence /= 10.0
+        proposed_promotion_confidence = max(0.0, min(1.0, proposed_promotion_confidence))
+        existing_promotion_type = str(c.get("promotion_type") or "none").lower()
+        existing_promotion_confidence = float(c.get("promotion_confidence") or 0.0)
+        # Conflicting text/video judgements preserve the stronger risk signal for review.
+        if (proposed_promotion_type not in ("none", "")
+                and proposed_promotion_confidence >= existing_promotion_confidence):
+            c["promotion_type"] = proposed_promotion_type
+        else:
+            c["promotion_type"] = existing_promotion_type
+        c["promotion_confidence"] = max(
+            existing_promotion_confidence, proposed_promotion_confidence)
+        try:
+            classification_confidence = float(d.get("classification_confidence", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            classification_confidence = 0.0
+        if classification_confidence > 1.0:
+            classification_confidence /= 10.0
+        c["classification_confidence"] = max(0.0, min(1.0, classification_confidence))
+        c["promotion_evidence"] = str(d.get("promotion_evidence") or "")[:240]
         c["title"] = str(d.get("title") or "").strip()[:80]
         c["caption_hook"] = str(d.get("caption_hook") or "").strip()[:140]
         tags = d.get("hashtags") if isinstance(d.get("hashtags"), list) else []
-        clean = [re.sub(r"\W", "", str(t)) for t in tags if isinstance(t, (str, int)) and not isinstance(t, bool)]
+        clean = [re.sub(r"\W", "", str(t)) for t in tags
+                 if isinstance(t, (str, int)) and not isinstance(t, bool)]
         c["hashtags"] = ["#" + t for t in clean if t][:6]
         applied += 1
     return applied
 
-
-def llm_rerank(cfg, cands, ep_title):
-    """Stage 1 (text): Gemini judges hook / standalone clarity / emotion, writes title + hashtags."""
+def llm_rerank(cfg, cands, ep_title, episode_map=None):
+    """Stage 1: Gemini evaluates editorial quality and labels the content intent."""
     if not cfg["llm"]["enabled"] or not gemini_key():
         log.info("Gemini rerank off (disabled or no GEMINI_API_KEY) - heuristics only")
         return cands
     try:
-        data = parse_json(gemini_text(cfg, [{"text": build_rerank_prompt(ep_title, cands)}]))
+        data = parse_json(gemini_text(
+            cfg, [{"text": build_rerank_prompt(ep_title, cands, episode_map)}]))
         n = apply_rerank(cands, data)
-        log.info("Gemini scored %d/%d candidates (model %s)", n, len(cands), _MODEL_CACHE.get("model"))
+        log.info("Gemini scored and classified %d/%d candidates (model %s)",
+                 n, len(cands), _MODEL_CACHE.get("model"))
     except Exception as ex:
-        log.warning("Gemini rerank failed, heuristics only: %s", ex)
+        log.warning("Gemini editorial evaluation failed, using semantic/heuristic fallback: %s", ex)
     return cands
 
-
 VERIFY_PROMPT = (
-    "Watch this short podcast segment (video AND audio; often 15-45 seconds). Score 0-10: hook (does the first "
-    "3 seconds grab attention), standalone (clear with zero context), delivery (energy, emotion, "
-    "laughter, clarity of voice), visual (framing, nothing distracting). Set reject=true if it "
-    "starts or ends badly mid-sentence, has long silence, crosstalk/inaudible speech, or unsafe "
-    'content. Reply with ONLY a JSON object: {"hook":0,"standalone":0,"delivery":0,"visual":0,'
+    "Watch this podcast segment with sound. Evaluate whether it starts and ends cleanly, "
+    "makes sense without context, has compelling delivery and useful framing. Also detect "
+    "whether the segment is primarily a sponsor read, paid integration, affiliate pitch, "
+    "product/service sales pitch or creator self-promotion. A passing mention of a product "
+    "is not automatically an advertisement. Return promotion_type (none, sponsor_read, "
+    "affiliate, product_pitch, self_promotion, unclear), promotion_confidence from 0 to 1, "
+    "and a short evidence phrase. Score hook, standalone, delivery and visual from 0 to 10. "
+    'Return ONLY JSON: {"hook":0,"standalone":0,"delivery":0,"visual":0,'
+    '"promotion_type":"none","promotion_confidence":0.0,"promotion_evidence":"",'
     '"reject":false}')
 
-
 def video_verify(cfg, video_id, cands):
-    """Stage 2 (optional): Gemini WATCHES the top candidates (public YouTube URL + time offsets)."""
+    """Stage 2: Gemini watches the strongest candidates and checks audiovisual quality."""
     llm = cfg["llm"]
     if not (llm.get("video_verify") and gemini_key()):
         return cands
@@ -842,12 +932,26 @@ def video_verify(cfg, video_id, cands):
             if None in (h, s, dl, v):
                 continue
             c["vid"] = (h * 0.35 + s * 0.25 + dl * 0.30 + v * 0.10) / 10
+            promotion_type = str(d.get("promotion_type") or "none").lower()
+            try:
+                video_promotion_confidence = float(d.get(
+                    "promotion_confidence", c.get("promotion_confidence", 0)) or 0)
+            except (TypeError, ValueError):
+                video_promotion_confidence = 0.0
+            video_promotion_confidence = max(0.0, min(1.0, video_promotion_confidence))
+            existing_confidence = float(c.get("promotion_confidence") or 0.0)
+            if (promotion_type in {"sponsor_read", "affiliate", "product_pitch",
+                                   "self_promotion", "unclear"}
+                    and video_promotion_confidence >= existing_confidence):
+                c["promotion_type"] = promotion_type
+            c["promotion_confidence"] = max(existing_confidence, video_promotion_confidence)
+            if d.get("promotion_evidence"):
+                c["promotion_evidence"] = str(d["promotion_evidence"])[:240]
             if _truthy(d.get("reject")):
                 c["reject"] = True
         except Exception as ex:
             log.warning("video verify failed for %s: %s", hms(c["start"]), ex)
     return cands
-
 
 def retime(words, text):
     """Apply caption corrections only when token count is unchanged; keep exact timestamps."""
@@ -914,8 +1018,12 @@ def final_score(c):
     base = sum(value * weight for value, weight in parts) / sum(weight for _, weight in parts)
     prior = c.get("performance_prior")
     if prior is not None:
-        # Learned historical performance can adjust a creative decision, never override it.
+        # Learned historical format priors are deliberately low influence.
         base = base * 0.92 + float(prior) * 0.08
+    learned = c.get("learned_score")
+    if learned is not None:
+        # Feedback-trained ranker is a small nudge, never a replacement for editorial judgement.
+        base = base * 0.85 + float(learned) * 0.15
     return min(max(base, 0.0), 1.0)
 
 
@@ -950,22 +1058,81 @@ def make_caption(cfg, ch, info, cand):
 # =============================================================================
 # 3. PRODUCE (discover -> analyse -> queue; no video is downloaded here)
 # =============================================================================
-def analyse_episode(cfg, ch, info, state=None):
-    """Transcript/context analysis -> heuristic shortlist -> Gemini/video judgement -> clip picks."""
+def understand_episode(cfg, info, words):
+    """Build a compact episode map once; failures fall back to deterministic transcript signals."""
+    if not cfg.get("intelligence", {}).get("episode_understanding", True):
+        return {"summary": "", "topics": [], "moments": []}
+    if not cfg.get("llm", {}).get("enabled") or not gemini_key():
+        return {"summary": "", "topics": [], "moments": []}
+    transcript = timed_transcript(
+        words, bucket_seconds=20,
+        max_chars=int(cfg.get("intelligence", {}).get("max_transcript_chars", 90000)))
+    if not transcript:
+        return {"summary": "", "topics": [], "moments": []}
+    try:
+        prompt = episode_understanding_prompt(info.get("title", ""), info.get("duration", 0), transcript)
+        result = parse_json(gemini_text(cfg, [{"text": prompt}], temperature=0.1, max_tokens=5000))
+        episode_map = validate_episode_map(result, float(info.get("duration") or 0))
+        log.info("episode understanding: %d topics, %d semantic moments",
+                 len(episode_map["topics"]), len(episode_map["moments"]))
+        return episode_map
+    except Exception as ex:
+        log.warning("episode understanding unavailable; using transcript candidate fallback: %s",
+                    str(ex)[:200])
+        return {"summary": "", "topics": [], "moments": []}
+
+
+def apply_editorial_policy(cfg, candidates):
+    policy = cfg.get("intelligence", {}).get("promotion_policy", "manual_review")
+    threshold = float(cfg.get("intelligence", {}).get("promotion_threshold", 0.72))
+    for candidate in candidates:
+        decision = editorial_gate(candidate, promotion_policy=policy, threshold=threshold)
+        candidate["editorial_eligible"] = decision["eligible"]
+        candidate["editorial_review_required"] = decision["review_required"]
+        candidate["editorial_gate_reason"] = decision["reason"]
+        if not decision["eligible"]:
+            candidate["reject"] = True
+    return candidates
+
+
+def analyse_episode(cfg, ch, info, state=None, decision_sink=None):
+    """Episode map -> semantic + transcript candidates -> editorial and video evaluation."""
     words = fetch_words(cfg, info)
-    heat = heat_per_second(info.get("heatmap") or [], info["duration"])
-    cands = score_candidates(cfg, heat, words, info["duration"])
-    if not cands:
+    if not words:
         log.warning("no candidate moments: usable timestamped transcript is missing or too short")
         return []
-
+    episode_map = understand_episode(cfg, info, words)
+    heat = heat_per_second(info.get("heatmap") or [], info["duration"])
+    cands = score_candidates(cfg, heat, words, info["duration"])
+    semantic = semantic_candidate_windows(
+        episode_map, words, cfg["clip"]["min_s"], cfg["clip"]["max_s"], info["duration"])
+    for candidate in semantic:
+        a, b = int(candidate["start"]), min(int(candidate["end"]), len(heat))
+        seg = heat[a:max(a + 1, b)]
+        heat_part = (0.55 * float(seg.mean()) + 0.20 * float(seg.max())
+                     + 0.25 * float(seg[:5].mean())) if len(seg) else 0.5
+        tokens = candidate["text"].split()
+        hook = hook_score(" ".join(tokens[:18]))
+        duration_s = max(candidate["end"] - candidate["start"], 1.0)
+        density = min(len(tokens) / duration_s / 2.8, 1.0)
+        candidate.update({"heat": heat_part, "hook": hook, "density": density,
+                          "pre": 0.42 * heat_part + 0.40 * hook + 0.18 * density})
+    # Retain the original heuristic windows and add semantically complete ideas/stories.
+    existing = {(round(c["start"]), round(c["end"])) for c in cands}
+    cands.extend(c for c in semantic
+                 if (round(c["start"]), round(c["end"])) not in existing)
+    if not cands:
+        log.warning("no candidate moments after transcript and semantic analysis")
+        return []
+    attach_semantic_context(cands, episode_map)
     enrich_candidates_with_context(cands, words)
     for candidate in cands:
-        editorial = (0.50 * candidate.get("standalone_heuristic", 0.5)
-                     + 0.40 * candidate.get("payoff_heuristic", 0.5)
-                     + 0.10 * (1.0 - candidate.get("context_dependency", 0.5)))
+        editorial = (0.45 * candidate.get("standalone_heuristic", 0.5)
+                     + 0.35 * candidate.get("payoff_heuristic", 0.5)
+                     + 0.10 * (1.0 - candidate.get("context_dependency", 0.5))
+                     + 0.10 * min(1.0, float(candidate.get("semantic_confidence", 0.0))))
         candidate["editorial_score"] = round(editorial, 4)
-        candidate["pre"] = 0.72 * candidate["pre"] + 0.28 * editorial
+        candidate["pre"] = 0.68 * candidate["pre"] + 0.32 * editorial
 
     if state:
         priors = format_priors(
@@ -977,17 +1144,32 @@ def analyse_episode(cfg, ch, info, state=None):
     cands.sort(key=lambda item: -item["pre"])
     cands = diversify(cands, cfg["llm"]["candidates"], cfg["clip"]["min_gap_s"],
                       variants=cfg["llm"].get("variants", 3) if gemini_key() else 1)
-    cands = llm_rerank(cfg, cands, info["title"])
+    cands = llm_rerank(cfg, cands, info["title"], episode_map)
     cands = video_verify(cfg, info["id"], cands)
+    apply_editorial_policy(cfg, cands)
+    ranker = train_editorial_ranker(
+        state or {},
+        min_samples=int(cfg.get("learning", {}).get("min_ranker_samples", 20)),
+        min_per_class=int(cfg.get("learning", {}).get("min_ranker_per_class", 6)),
+    )
+    if ranker:
+        for candidate in cands:
+            candidate["learned_score"] = predict_editorial_score(candidate, ranker)
+        log.info("feedback ranker active: %d labelled samples (%d positive, %d negative)",
+                 ranker["samples"], ranker["positive_samples"], ranker["negative_samples"])
     picks = select_top(cands, cfg["queue"]["clips_per_episode"], cfg["clip"]["min_gap_s"])
     wt = [w[0] for w in words]
     for p in picks:
         i0, i1 = bisect_left(wt, p["start"]), bisect_left(wt, p["end"] + 0.2)
         p["words"] = list(words[i0:i1])
     polish_captions(cfg, picks, info["title"])
+    if decision_sink is not None:
+        for candidate in cands:
+            candidate["learning_features"] = candidate_feature_record(candidate)
+        record_candidate_decisions(
+            {"candidate_decisions": decision_sink}, info.get("id"), ch.get("name"),
+            cands, [(p["start"], p["end"]) for p in picks])
     return picks
-
-
 
 def probe_download(cfg, vid, pick):
     """Plan -> verify: prove a 3 s section of this episode can really be downloaded BEFORE queueing it."""
@@ -1021,7 +1203,12 @@ def produce(cfg, dry_run=False):
             return 0
         log.info("episode: %s | %s (%ds, %s views)", ch["name"], info["title"], info["duration"],
                  info.get("view_count"))
-        picks = analyse_episode(cfg, ch, info, state=state)
+        decision_sink = []
+        picks = analyse_episode(cfg, ch, info, state=state, decision_sink=decision_sink)
+        if not dry_run and decision_sink:
+            decisions = state.setdefault("candidate_decisions", [])
+            decisions.extend(decision_sink)
+            del decisions[:-600]
         for p in picks:
             log.info("pick %s-%s final=%.3f heat=%.2f hook=%.2f llm=%s vid=%s | %s", hms(p["start"]),
                      hms(p["end"]), p["final"], p["heat"], p["hook"], p.get("llm"), p.get("vid"),
@@ -1053,7 +1240,7 @@ def produce(cfg, dry_run=False):
                 "start": round(p["start"], 2), "end": round(p["end"], 2), "score": round(p["final"], 4),
                 "features": {k: round(p[k], 3) for k in (
                     "heat", "hook", "density", "editorial_score", "standalone_heuristic",
-                    "payoff_heuristic", "context_dependency"
+                    "payoff_heuristic", "context_dependency", "learned_score"
                 ) if k in p}
                             | {k: round(p[k], 3) for k in ("llm", "vid") if k in p}
                             | {k: p[k] for k in ("hook_type",) if p.get(k)}
@@ -1063,6 +1250,16 @@ def produce(cfg, dry_run=False):
                                 "30-39s" if p["end"] - p["start"] < 40 else "40s+"
                             )},
                 "title": p.get("title", ""), "caption": make_caption(cfg, ch, info, p),
+                "content_type": p.get("content_type") or p.get("semantic_kind") or "other",
+                "promotion_type": p.get("promotion_type", "none"),
+                "promotion_confidence": round(float(p.get("promotion_confidence", 0.0) or 0.0), 3),
+                "promotion_evidence": p.get("promotion_evidence", ""),
+                "editorial_review_required": bool(p.get("editorial_review_required")),
+                "editorial_gate_reason": p.get("editorial_gate_reason", ""),
+                "editorial_scores": p.get("editorial_scores", {}),
+                "semantic_topic": p.get("semantic_topic", ""),
+                "semantic_summary": p.get("semantic_summary", ""),
+                "edit_plan": build_edit_plan(p, cfg),
                 "polished": bool(p.get("polished")),
                 "words": [[round(t, 2), w] for t, w in p["words"]],
                 "status": "queued", "attempts": 0, "created_at": now_iso()})
@@ -1107,16 +1304,20 @@ def clean_cap(w):
     return w.replace("{", "").replace("}", "").replace("\\", "").replace("\n", " ").upper()
 
 
-def build_ass(words, start, end, title, path):
-    """Title on top + word-by-word highlighted captions (the spoken word is yellow)."""
+def build_ass(words, start, end, title, path, edit_plan=None):
+    """Render word-synchronised captions using a validated content-specific caption plan."""
+    plan = validate_edit_plan(edit_plan or {})
     ws = [(t - start, w) for t, w in words if start - 0.05 <= t < end]
+    font_size = plan["caption_font_size"]
+    margin_v = plan["caption_margin_v"]
+    highlight = "&H0000D7FF&" if plan["caption_style"] == "emphasis" else "&H0000E5FF&"
     head = (
         "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n"
         "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
         "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, "
         "Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        "Style: Default,Noto Sans,68,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,1,0,0,0,100,100,"
-        "0,0,1,6,2,2,60,60,420,1\n"
+        f"Style: Default,Noto Sans,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H64000000,1,0,0,0,100,100,"
+        f"0,0,1,6,2,2,60,60,{margin_v},1\n"
         "Style: Title,Noto Sans,64,&H0000E5FF,&H000000FF,&H00000000,&H64000000,1,0,0,0,100,100,"
         "0,0,1,6,2,8,70,70,360,1\n\n"
         "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
@@ -1124,7 +1325,7 @@ def build_ass(words, start, end, title, path):
     if title:
         wrapped = "\\N".join(textwrap.wrap(clean_cap(title), 22)[:3])
         lines.append(f"Dialogue: 1,{ass_time(0)},{ass_time(end - start)},Title,,0,0,0,,{wrapped}")
-    groups = group_words(ws)
+    groups = group_words(ws, max_words=plan["caption_group_words"])
     for gi, g in enumerate(groups):
         next_start = groups[gi + 1][0][0] if gi + 1 < len(groups) else None
         for i, (t, w) in enumerate(g):
@@ -1136,7 +1337,7 @@ def build_ass(words, start, end, title, path):
                     en = min(en, next_start)
             en = max(en, t + 0.08)
             text = " ".join(
-                f"{{\\c&H00E5FF&}}{clean_cap(x)}{{\\c&HFFFFFF&}}" if j == i else clean_cap(x)
+                f"{{\\c{highlight}}}{clean_cap(x)}{{\\c&H00FFFFFF&}}" if j == i else clean_cap(x)
                 for j, (_, x) in enumerate(g))
             lines.append(f"Dialogue: 0,{ass_time(t)},{ass_time(en)},Default,,0,0,0,,{text}")
     Path(path).write_text(head + "\n".join(lines) + "\n", encoding="utf-8")
@@ -1396,7 +1597,9 @@ def compose_clip(cfg, raw, clip, s, e, stem):
     fg_scale = float(cfg.get("render", {}).get("foreground_scale", 1.16))
     fg_scale = min(max(fg_scale, 1.0), 1.35)
     fg_width = int(1080 * fg_scale)
-    face_track = detect_face_crop_points(cfg, raw, clip.get("speaker_analysis"))
+    edit_plan = validate_edit_plan(clip.get("edit_plan") or {})
+    face_track = (detect_face_crop_points(cfg, raw, clip.get("speaker_analysis"))
+                  if edit_plan["crop_strategy"] == "face_track" else None)
     crop_expr = face_crop_expression(face_track)
     if crop_expr:
         fc = (f"[0:v]scale=-2:1920,crop=1080:1920:'{crop_expr}':0,"
@@ -1406,11 +1609,17 @@ def compose_clip(cfg, raw, clip, s, e, stem):
               "[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
               "boxblur=8:3,scale=1080:1920,eq=brightness=-0.08[bg];"
               f"[b]scale={fg_width}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2[v0]")
+    video_label = "v0"
+    if edit_plan["motion"] == "subtle":
+        # A restrained 4% punch-in is applied only to story/conversation plans.
+        fc += ";[v0]scale=1124:1998:flags=lanczos,crop=1080:1920:(in_w-out_w)/2:(in_h-out_h)/2[vzoom]"
+        video_label = "vzoom"
     if cfg["clip"]["captions"] and (clip.get("words") or clip.get("title")):
-        build_ass(clip.get("words") or [], s, e, clip.get("title"), WORK / f"{stem}.ass")
-        fc += f";[v0]subtitles={stem}.ass[v]"
+        build_ass(clip.get("words") or [], s, e, clip.get("title"),
+                  WORK / f"{stem}.ass", edit_plan=edit_plan)
+        fc += f";[{video_label}]subtitles={stem}.ass[v]"
     else:
-        fc += ";[v0]null[v]"
+        fc += f";[{video_label}]null[v]"
     out = WORK / f"{stem}.mp4"
     cmd = ["ffmpeg", "-y", "-i", Path(raw).name, "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0",
            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:v", "libx264", "-preset", "veryfast",
@@ -1498,16 +1707,19 @@ def qa_checks(cfg, path):
 
 QA_PROMPT = (
     "You are the final QA editor for an Instagram Reel cut from a podcast. Watch it WITH SOUND. Check: "
-    "(1) it starts and ends cleanly, not in the middle of a word or sentence; (2) a viewer with no prior context can understand the setup and payoff; (3) the first 1-3 seconds earn attention without misleading clickbait; (4) the burned-in captions "
-    "match what is said, are readable and in sync; (3) the yellow title on top fits the content; (4) the "
-    "audio is clear; (5) a stranger with no context would understand it and want to keep watching; "
-    "(6) nothing unsafe: hate, harassment, explicit content, dangerous misinformation, defamation of a "
-    'named person. Reply with ONLY JSON: {"approve":true,"score":0,"unsafe":false,"issues":[""]}. '
-    "approve=false only for serious problems. score is 0-10 overall quality.")
+    "(1) it starts and ends cleanly, not in the middle of a word or sentence; (2) a viewer with no prior "
+    "context can understand the setup and payoff; (3) the first 1-3 seconds earn attention without "
+    "misleading clickbait; (4) captions match the speech, are readable and synchronised; (5) the title "
+    "matches the actual spoken content; (6) framing, cuts and visual emphasis suit the type of conversation; "
+    "(7) audio is clear and balanced; (8) nothing unsafe: hate, harassment, explicit content, dangerous "
+    "misinformation or defamation. Note an obviously promotional segment in issues when the editorial "
+    "context suggests it, but do not infer an advertisement from a passing product mention alone. "
+    'Reply with ONLY JSON: {"approve":true,"score":0,"unsafe":false,"issues":[""]}. '
+    "approve=false only for serious quality or safety problems. score is 0-10 overall quality.")
 
 
-def gemini_qa(cfg, path):
-    """Gemini watches a small preview of the FINAL rendered clip. Returns None if unavailable."""
+def gemini_qa(cfg, path, clip=None):
+    """Gemini watches the final render with its editorial intent and edit plan as context."""
     if not (cfg["llm"].get("final_qa") and gemini_key()):
         return None
     prev = Path(path).with_name(Path(path).stem + "_preview.mp4")
@@ -1518,8 +1730,18 @@ def gemini_qa(cfg, path):
         if prev.stat().st_size > 14 * 1024 * 1024:
             return None
         data = base64.b64encode(prev.read_bytes()).decode()
-        d = parse_json(gemini_text(cfg, [{"inlineData": {"mimeType": "video/mp4", "data": data}},
-                                         {"text": QA_PROMPT}]))
+        clip = clip or {}
+        context = {
+            "content_type": clip.get("content_type"),
+            "promotion_type": clip.get("promotion_type"),
+            "promotion_confidence": clip.get("promotion_confidence"),
+            "edit_plan": clip.get("edit_plan"),
+        }
+        d = parse_json(gemini_text(cfg, [
+            {"inlineData": {"mimeType": "video/mp4", "data": data}},
+            {"text": QA_PROMPT + "\\nEditorial context (verify against the video): "
+                    + json.dumps(context, ensure_ascii=False)}
+        ]))
         if isinstance(d, list) and d:
             d = d[0]
         if not isinstance(d, dict):
@@ -1540,9 +1762,9 @@ def gemini_qa(cfg, path):
         prev.unlink(missing_ok=True)
 
 
-def qa_review(cfg, path):
+def qa_review(cfg, path, clip=None):
     """-> {'verdict': pass | soft_fail | hard_fail, 'score', 'issues'}.
-    hard_fail = never post (technical problem or unsafe). soft_fail = Gemini disapproves."""
+    hard_fail = never post (technical problem or unsafe). soft_fail = review is required."""
     try:
         chk = qa_checks(cfg, path)
     except Exception as ex:
@@ -1553,7 +1775,7 @@ def qa_review(cfg, path):
                 "issues": [f"technical QA could not complete: {str(ex)[:180]}"]}
     if chk["issues"]:
         return {"verdict": "hard_fail", "score": 0, "issues": chk["issues"]}
-    g = gemini_qa(cfg, path)
+    g = gemini_qa(cfg, path, clip)
     if g is None:
         policy = cfg.get("qa", {}).get("ai_unavailable", "manual_review")
         if policy == "technical_only":
@@ -1777,7 +1999,16 @@ def publish_next(cfg, wait=True, force=False):
                 review = {"verdict": "hard_fail", "score": 0,
                           "issues": [f"technical QA failed after manual approval: {str(ex)[:180]}"]}
         else:
-            review = qa_review(cfg, path)
+            review = qa_review(cfg, path, clip)
+        if (clip.get("editorial_review_required")
+                and not clip.get("approved_manually_at")
+                and review["verdict"] == "pass"):
+            review = {
+                "verdict": "soft_fail", "score": review.get("score"),
+                "issues": ["Editorial classification needs a human decision: "
+                           + str(clip.get("editorial_gate_reason") or "editorial review"),
+                           "Candidate has a high-confidence promotional or uncertain content classification"],
+            }
         clip["qa"] = {"verdict": review["verdict"], "score": review["score"], "issues": review["issues"]}
         if review["verdict"] == "hard_fail":
             clip.update(status="rejected", error="QA: " + "; ".join(review["issues"])[:300])
@@ -1867,7 +2098,9 @@ def update_metrics(cfg):
         m = fetch_metrics(cfg, c["media_id"])
         n += 1
         if m:
-            c["metrics"], c["metrics_at"], changed = m, now_iso(), True
+            sampled_at = now_iso()
+            c["metrics"], c["metrics_at"], changed = m, sampled_at, True
+            add_metric_snapshot(c, m, c.get("posted_at"), sampled_at=sampled_at)
             quality = performance_quality(m, c.get("end", 0) - c.get("start", 0))
             c["performance_detail"] = quality
             if quality.get("score") is not None:
@@ -1939,9 +2172,13 @@ def status_table(limit=15):
     jl = [f"- `{j['t'][5:16]}` **{j['event']}** " + ", ".join(f"{k}={v}" for k, v in j.items()
                                                            if k not in ("t", "event"))[:160]
           for j in state.get("journal", [])[-8:]]
+    learning = learning_counts(state)
     return (f"**Queue:** {q} waiting · **Manual review:** {review_count} · "
             f"**Publish outcome check:** {uncertain_count} · "
-            f"**Performance samples:** {quality_samples} · **Total views tracked:** {total}\n\n"
+            f"**Performance samples:** {quality_samples} · **Total views tracked:** {total}\n"
+            f"**Learning data:** {learning['candidate_decisions']} candidate decisions · "
+            f"{learning['human_feedback']} human feedback records · "
+            f"{learning['published']} published clips\n\n"
             + "\n".join(rows)
             + ("\n\n**Agent journal (latest)**\n" + "\n".join(jl) if jl else ""))
 
@@ -2197,6 +2434,21 @@ def review_action(clip_id, approve):
     save_state(state)
     return True
 
+def feedback_action(clip_id, label, reasons=None, note=""):
+    """Persist structured human editorial feedback for future evaluation and learning."""
+    if clip_id is None:
+        raise ValueError("--clip-id is required for feedback")
+    if not label:
+        raise ValueError("--label is required for feedback")
+    state = load_state()
+    clip = add_feedback(state, clip_id, label, reasons=reasons, note=note)
+    jr(state, "human_feedback_recorded", clip=clip_id, label=label,
+       reasons=",".join(reasons or [])[:160])
+    save_state(state)
+    log.info("feedback recorded for clip %s: %s", clip_id, label)
+    return True
+
+
 def resolve_uncertain_publish(clip_id, media_id=None, retry=False):
     """Resolve an ambiguous Instagram publish only after checking the account manually."""
     if clip_id is None:
@@ -2227,9 +2479,15 @@ def resolve_uncertain_publish(clip_id, media_id=None, retry=False):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("command", choices=["tick", "publish-now", "produce", "publish", "metrics", "status", "check",
-                                        "approve", "reject", "confirm-post", "retry-uncertain"])
+                                        "approve", "reject", "feedback", "confirm-post", "retry-uncertain"])
     ap.add_argument("--clip-id", type=int, help="clip id for manual review or publish reconciliation")
     ap.add_argument("--media-id", help="Instagram media id when confirming an uncertain post")
+    ap.add_argument("--label", choices=["good", "weak", "needs_context", "bad_cut",
+                                         "promotional", "visual_issue", "caption_issue", "other"],
+                    help="human editorial feedback label")
+    ap.add_argument("--reason", action="append", default=[],
+                    help="optional feedback reason; may be repeated")
+    ap.add_argument("--note", default="", help="optional short reviewer note")
     ap.add_argument("--retry", action="store_true", help="retry an uncertain publish only after verifying it is absent from Instagram")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--force", action="store_true", help="post now, skip slot wait + duplicate guard")
@@ -2263,6 +2521,10 @@ def main():
             ok = publish_next(cfg, wait=False, force=True)
     elif args.command == "reject":
         ok = review_action(args.clip_id, approve=False)
+    elif args.command == "feedback":
+        if args.clip_id is None or not args.label:
+            ap.error("feedback requires --clip-id and --label")
+        ok = feedback_action(args.clip_id, args.label, reasons=args.reason, note=args.note)
     elif args.command == "confirm-post":
         ok = resolve_uncertain_publish(args.clip_id, media_id=args.media_id)
     elif args.command == "retry-uncertain":
