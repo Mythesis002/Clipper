@@ -57,7 +57,8 @@ from intelligence_engine import (
 )
 from editing_engine import build_edit_plan, validate_edit_plan
 from learning_engine import (
-    add_feedback, add_metric_snapshot, learning_counts, record_candidate_decisions,
+    add_feedback, add_metric_snapshot, learning_counts, predict_editorial_score,
+    record_candidate_decisions, train_editorial_ranker,
 )
 
 BASE = Path(__file__).resolve().parent
@@ -1001,8 +1002,12 @@ def final_score(c):
     base = sum(value * weight for value, weight in parts) / sum(weight for _, weight in parts)
     prior = c.get("performance_prior")
     if prior is not None:
-        # Learned historical performance can adjust a creative decision, never override it.
+        # Learned historical format priors are deliberately low influence.
         base = base * 0.92 + float(prior) * 0.08
+    learned = c.get("learned_score")
+    if learned is not None:
+        # Feedback-trained ranker is a small nudge, never a replacement for editorial judgement.
+        base = base * 0.85 + float(learned) * 0.15
     return min(max(base, 0.0), 1.0)
 
 
@@ -1126,6 +1131,16 @@ def analyse_episode(cfg, ch, info, state=None, decision_sink=None):
     cands = llm_rerank(cfg, cands, info["title"], episode_map)
     cands = video_verify(cfg, info["id"], cands)
     apply_editorial_policy(cfg, cands)
+    ranker = train_editorial_ranker(
+        state or {},
+        min_samples=int(cfg.get("learning", {}).get("min_ranker_samples", 20)),
+        min_per_class=int(cfg.get("learning", {}).get("min_ranker_per_class", 6)),
+    )
+    if ranker:
+        for candidate in cands:
+            candidate["learned_score"] = predict_editorial_score(candidate, ranker)
+        log.info("feedback ranker active: %d labelled samples (%d positive, %d negative)",
+                 ranker["samples"], ranker["positive_samples"], ranker["negative_samples"])
     picks = select_top(cands, cfg["queue"]["clips_per_episode"], cfg["clip"]["min_gap_s"])
     wt = [w[0] for w in words]
     for p in picks:
@@ -1209,7 +1224,7 @@ def produce(cfg, dry_run=False):
                 "start": round(p["start"], 2), "end": round(p["end"], 2), "score": round(p["final"], 4),
                 "features": {k: round(p[k], 3) for k in (
                     "heat", "hook", "density", "editorial_score", "standalone_heuristic",
-                    "payoff_heuristic", "context_dependency"
+                    "payoff_heuristic", "context_dependency", "learned_score"
                 ) if k in p}
                             | {k: round(p[k], 3) for k in ("llm", "vid") if k in p}
                             | {k: p[k] for k in ("hook_type",) if p.get(k)}
