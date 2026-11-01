@@ -2246,7 +2246,9 @@ def screen_queued_clip_for_promotion(cfg, clip):
 
     policy = cfg.get("intelligence", {}).get("promotion_policy", "manual_review")
     threshold = float(cfg.get("intelligence", {}).get("promotion_threshold", 0.72))
-    explicit_promotion = promotion_type not in ("none",)
+    explicit_promotion = (
+        promotion_type not in ("none",) or content_type == "promotion"
+    )
     uncertain = (promotion_type == "unclear"
                  or classification_confidence < 0.60)
     flagged = explicit_promotion and (
@@ -2325,7 +2327,7 @@ def publish_next(cfg, wait=True, force=False):
         jr(state, "slot_due", slot=slot[0].isoformat(timespec="minutes"))
 
     needs_review = False
-    candidate_limit = int(cfg["queue"].get("publish_candidate_limit", 10))
+    candidate_limit = int(cfg.get("queue", {}).get("publish_candidate_limit", 10))
     candidates_to_check = q[:candidate_limit]
     if len(q) > len(candidates_to_check):
         log.warning(
