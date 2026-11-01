@@ -201,7 +201,7 @@ def candidate_feature_record(candidate):
             "context_dependency", "llm", "vid", "content_type", "semantic_kind",
             "semantic_topic", "semantic_confidence", "promotion_type",
             "promotion_confidence", "classification_confidence", "hook_type",
-            "title", "reject", "editorial_review_required", "editorial_gate_reason")
+            "title", "reject", "editorial_review_required", "editorial_gate_reason", "learned_score")
     out = {}
     for key in keys:
         value = candidate.get(key)
