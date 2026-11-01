@@ -4,6 +4,7 @@ These functions are deterministic. Gemini supplies structured interpretation; th
 validates and converts it into timestamped, bounded candidate windows.
 """
 from bisect import bisect_left, bisect_right
+import math
 import re
 
 VERSION = "editorial-v1"
@@ -12,7 +13,7 @@ VERSION = "editorial-v1"
 def _safe_float(value, default=None):
     try:
         result = float(value)
-        return result if result >= 0 else default
+        return result if math.isfinite(result) and result >= 0 else default
     except (TypeError, ValueError):
         return default
 
