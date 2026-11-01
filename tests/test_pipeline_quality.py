@@ -117,7 +117,7 @@ class PipelineQualityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             with patch.object(clipper, "REVIEW_DIR", Path(folder)):
                 result = clipper.publish_next(cfg, wait=False, force=True)
-        self.assertTrue(result)
+        self.assertFalse(result)  # no Reel was published; the slot must not report success
         self.assertEqual(clip["status"], "needs_review")
         post_mock.assert_not_called()
         save_mock.assert_called()
