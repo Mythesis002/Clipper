@@ -177,7 +177,10 @@ def editorial_gate(candidate, promotion_policy="manual_review", threshold=0.72):
     confidence = max(float(candidate.get("promotion_confidence") or 0.0),
                      float(candidate.get("semantic_confidence") or 0.0)
                      if promo_type != "none" else 0.0)
-    explicit = promo_type not in ("none", "", "unclear")
+    explicit = (promo_type not in ("none", "", "unclear")
+                or kind in ("promotion", "sponsored", "advertisement"))
+    if explicit and confidence == 0:
+        confidence = float(candidate.get("classification_confidence") or 0.0)
     is_promo = explicit and confidence >= threshold
     if is_promo and promotion_policy == "exclude":
         return {"eligible": False, "review_required": False, "reason": "promotional_content"}
@@ -203,5 +206,5 @@ def candidate_feature_record(candidate):
         value = candidate.get(key)
         if isinstance(value, (str, int, float, bool)) or value is None:
             out[key] = value
-    out["transcript_excerpt"] = str(candidate.get("text") or "")[:700]
+    out["transcript_excerpt"] = str(candidate.get("text") or "")[:350]
     return out
