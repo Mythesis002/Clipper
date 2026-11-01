@@ -3,6 +3,7 @@ import unittest
 import editing_engine
 import intelligence_engine
 import learning_engine
+import podcast_clipper as clipper
 
 
 class IntelligentSystemTests(unittest.TestCase):
@@ -53,6 +54,28 @@ class IntelligentSystemTests(unittest.TestCase):
         self.assertTrue(decision["eligible"])
         self.assertTrue(decision["review_required"])
         self.assertEqual(decision["reason"], "promotional_content")
+
+    def test_uncertain_promotion_with_high_confidence_requires_review(self):
+        decision = intelligence_engine.editorial_gate({
+            "content_type": "story", "promotion_type": "unclear",
+            "promotion_confidence": 0.86, "classification_confidence": 0.86,
+        })
+        self.assertTrue(decision["review_required"])
+
+    def test_later_non_promo_rerank_cannot_erase_stronger_episode_promo_signal(self):
+        candidates = [{
+            "start": 10, "end": 30, "pre": 0.8,
+            "promotion_type": "sponsor_read", "promotion_confidence": 0.92,
+            "semantic_kind": "story", "semantic_confidence": 0.90,
+        }]
+        clipper.apply_rerank(candidates, [{
+            "id": 0, "hook": 8, "standalone": 8, "emotion": 8,
+            "content_type": "story", "promotion_type": "none",
+            "promotion_confidence": 0.0, "classification_confidence": 0.9,
+        }])
+        self.assertEqual(candidates[0]["promotion_type"], "sponsor_read")
+        decision = intelligence_engine.editorial_gate(candidates[0])
+        self.assertTrue(decision["review_required"])
 
     def test_promotional_exclusion_policy_is_explicit(self):
         decision = intelligence_engine.editorial_gate({
