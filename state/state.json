@@ -31,6 +31,14 @@
    "views": 1230581,
    "processed_at": "2026-11-01T13:48:15+00:00",
    "clips": 3
+  },
+  "lgBLqo8TwgE": {
+   "channel": "Raj Shamani",
+   "title": "Death Investigator: What Dead Bodies Reveal About Murder | Barbara Butcher | FO575 Raj Shamani",
+   "url": "https://www.youtube.com/watch?v=lgBLqo8TwgE",
+   "views": 1997926,
+   "processed_at": "2026-11-01T16:37:03+00:00",
+   "clips": 2
   }
  },
  "clips": [
@@ -629,7 +637,7 @@
      "away."
     ]
    ],
-   "status": "queued",
+   "status": "needs_review",
    "attempts": 2,
    "created_at": "2026-10-30T18:01:34+00:00",
    "speaker_analysis": {
@@ -641,11 +649,16 @@
     "speaker_score": 1.0
    },
    "qa": {
-    "verdict": "pass",
-    "score": 9.0,
-    "issues": []
+    "verdict": "soft_fail",
+    "score": null,
+    "issues": [
+     "Promotion screen failed or returned an uncertain result; manual review required."
+    ]
    },
-   "error": "instagram: upload failed: HTTP 400 {\"debug_info\":{\"retriable\":false,\"type\":\"ProcessingFailedError\",\"message\":\"Request processing failed\"}}"
+   "error": "Manual editorial review required: Promotion screen failed or returned an uncertain result; manual review required.",
+   "promotion_screen_error": "response was not valid JSON",
+   "editorial_review_required": true,
+   "review_artifact_file": "clip_3.mp4"
   },
   {
    "id": 4,
@@ -693,7 +706,48 @@
    },
    "error": null,
    "media_id": "17986722747092884",
-   "posted_at": "2026-10-31T14:59:11+00:00"
+   "posted_at": "2026-10-31T14:59:11+00:00",
+   "metrics": {
+    "views": 895,
+    "reach": 746,
+    "likes": 4,
+    "comments": 2,
+    "shares": 0,
+    "saved": 0,
+    "ig_reels_avg_watch_time": 8336,
+    "ig_reels_video_view_total_time": 6527744,
+    "reels_skip_rate": 33
+   },
+   "metrics_at": "2026-11-01T16:37:25+00:00",
+   "metric_snapshots": [
+    {
+     "band": "24h",
+     "age_hours": 25.6,
+     "sampled_at": "2026-11-01T16:37:25+00:00",
+     "metrics": {
+      "views": 895,
+      "reach": 746,
+      "likes": 4,
+      "comments": 2,
+      "shares": 0,
+      "saved": 0,
+      "ig_reels_avg_watch_time": 8336,
+      "ig_reels_video_view_total_time": 6527744,
+      "reels_skip_rate": 33
+     }
+    }
+   ],
+   "performance_detail": {
+    "score": 0.2634,
+    "avg_watch_s": 8.336,
+    "retention_pct": 32.41,
+    "share_rate": 0.0,
+    "save_rate": 0.0,
+    "like_rate": 0.00536,
+    "skip_rate": 0.33,
+    "evidence_count": 5
+   },
+   "performance_score": 0.2634
   },
   {
    "id": 5,
@@ -1401,7 +1455,14 @@
     "llm": 0.99,
     "vid": 0.97,
     "hook_type": "number_or_stat",
-    "duration_bucket": "40s+"
+    "duration_bucket": "40s+",
+    "speaker_count": 1,
+    "speaker_turns": 1,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "1"
    },
    "title": "The Terrifying Reality of a Nuclear Bomb Explosion",
    "caption": "What truly happens when a one-megaton thermonuclear bomb explodes? The immediate devastation and the grim fate of survivors.\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=qa31tANX0tU\n\nFollow for daily podcast clips\n\n#NuclearBomb #Thermonuclear #Doomsday #NuclearWar #Apocalypse",
@@ -1836,9 +1897,28 @@
      ">> Who"
     ]
    ],
-   "status": "queued",
+   "status": "needs_review",
    "attempts": 0,
-   "created_at": "2026-11-01T13:48:31+00:00"
+   "created_at": "2026-11-01T13:48:31+00:00",
+   "speaker_analysis": {
+    "speaker_count": 1,
+    "speaker_turns": 1,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0
+   },
+   "promotion_screen_error": "response was not valid JSON",
+   "editorial_review_required": true,
+   "review_artifact_file": "clip_7.mp4",
+   "error": "Manual editorial review required: Promotion screen failed or returned an uncertain result; manual review required.",
+   "qa": {
+    "verdict": "soft_fail",
+    "score": null,
+    "issues": [
+     "Promotion screen failed or returned an uncertain result; manual review required."
+    ]
+   }
   },
   {
    "id": 8,
@@ -1857,7 +1937,14 @@
     "context_dependency": 0.0,
     "vid": 0.655,
     "hook_type": "number_or_stat",
-    "duration_bucket": "20-29s"
+    "duration_bucket": "20-29s",
+    "speaker_count": 1,
+    "speaker_turns": 2,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "1"
    },
    "title": "",
    "caption": "How A Nuclear War Ends The World In 72 Minutes | Annie Jacobsen | FO581 Raj Shamani\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=qa31tANX0tU\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
@@ -2212,9 +2299,28 @@
      "below."
     ]
    ],
-   "status": "queued",
+   "status": "needs_review",
    "attempts": 0,
-   "created_at": "2026-11-01T13:48:31+00:00"
+   "created_at": "2026-11-01T13:48:31+00:00",
+   "speaker_analysis": {
+    "speaker_count": 1,
+    "speaker_turns": 2,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0
+   },
+   "promotion_screen_error": "response was not valid JSON",
+   "editorial_review_required": true,
+   "review_artifact_file": "clip_8.mp4",
+   "error": "Manual editorial review required: Promotion screen failed or returned an uncertain result; manual review required.",
+   "qa": {
+    "verdict": "soft_fail",
+    "score": null,
+    "issues": [
+     "Promotion screen failed or returned an uncertain result; manual review required."
+    ]
+   }
   },
   {
    "id": 9,
@@ -2411,9 +2517,830 @@
    "status": "queued",
    "attempts": 0,
    "created_at": "2026-11-01T13:48:31+00:00"
+  },
+  {
+   "id": 10,
+   "video_id": "lgBLqo8TwgE",
+   "channel": "Raj Shamani",
+   "start": 32.76,
+   "end": 64.12,
+   "score": 0.7913,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.52,
+    "density": 1.0,
+    "editorial_score": 0.71,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.94,
+    "vid": 0.9,
+    "hook_type": "question",
+    "duration_bucket": "30-39s"
+   },
+   "title": "The Dead Body That Moved and Got Shot",
+   "caption": "Can dead bodies move or make sounds? A death investigator shares a chilling story of a rookie cop's terrifying encounter.\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=lgBLqo8TwgE\n\nFollow for daily podcast clips\n\n#DeathInvestigator #TrueCrime #CreepyStories #PodcastClip #BarbaraButcher",
+   "content_type": "story",
+   "promotion_type": "none",
+   "promotion_confidence": 1.0,
+   "promotion_evidence": "The content is a discussion, not an active promotion, despite a sponsor logo being present.",
+   "editorial_review_required": false,
+   "editorial_gate_reason": "",
+   "editorial_scores": {
+    "hook": 10.0,
+    "standalone": 10.0,
+    "payoff": 10.0,
+    "emotion": 8.0,
+    "specificity": 9.0,
+    "context_independence": 10.0,
+    "curiosity": 9.0,
+    "value": 8.0,
+    "story_structure": 10.0
+   },
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v1",
+    "format": "story",
+    "caption_style": "minimal",
+    "caption_group_words": 4,
+    "caption_font_size": 68,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "subtle",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Natural pacing for a story."
+   },
+   "polished": false,
+   "words": [
+    [
+     32.76,
+     ">> Can"
+    ],
+    [
+     32.96,
+     "a"
+    ],
+    [
+     33.04,
+     "dead"
+    ],
+    [
+     33.52,
+     "body"
+    ],
+    [
+     34.32,
+     "move"
+    ],
+    [
+     34.8,
+     "or"
+    ],
+    [
+     34.88,
+     "like"
+    ],
+    [
+     35.16,
+     "make"
+    ],
+    [
+     35.4,
+     "sound?"
+    ],
+    [
+     35.96,
+     ">> It's"
+    ],
+    [
+     36.04,
+     "happened"
+    ],
+    [
+     36.36,
+     "to"
+    ],
+    [
+     36.48,
+     "me."
+    ],
+    [
+     36.76,
+     ">>"
+    ],
+    [
+     37.36,
+     ">> Yeah."
+    ],
+    [
+     37.8,
+     "Because"
+    ],
+    [
+     38.3,
+     "Really?"
+    ],
+    [
+     38.64,
+     "even"
+    ],
+    [
+     38.92,
+     "after"
+    ],
+    [
+     39.16,
+     "they're"
+    ],
+    [
+     39.4,
+     "dead,"
+    ],
+    [
+     39.84,
+     "they"
+    ],
+    [
+     39.92,
+     "still"
+    ],
+    [
+     40.36,
+     "hold"
+    ],
+    [
+     40.52,
+     "those"
+    ],
+    [
+     40.8,
+     "gases"
+    ],
+    [
+     41.36,
+     "inside"
+    ],
+    [
+     41.92,
+     "them."
+    ],
+    [
+     42.16,
+     "Now,"
+    ],
+    [
+     42.36,
+     "there's"
+    ],
+    [
+     42.6,
+     "a"
+    ],
+    [
+     42.68,
+     "story"
+    ],
+    [
+     43.24,
+     "that"
+    ],
+    [
+     43.48,
+     "there"
+    ],
+    [
+     43.6,
+     "was"
+    ],
+    [
+     43.8,
+     "a"
+    ],
+    [
+     43.88,
+     "rookie"
+    ],
+    [
+     44.24,
+     "cop"
+    ],
+    [
+     44.76,
+     "and"
+    ],
+    [
+     44.88,
+     "they"
+    ],
+    [
+     45.0,
+     "said"
+    ],
+    [
+     45.28,
+     "to"
+    ],
+    [
+     45.4,
+     "him,"
+    ],
+    [
+     45.84,
+     "um,"
+    ],
+    [
+     46.08,
+     "you"
+    ],
+    [
+     46.16,
+     "know,"
+    ],
+    [
+     46.28,
+     "you're"
+    ],
+    [
+     46.44,
+     "going"
+    ],
+    [
+     46.6,
+     "to"
+    ],
+    [
+     46.68,
+     "sit"
+    ],
+    [
+     46.92,
+     "and"
+    ],
+    [
+     47.04,
+     "guard"
+    ],
+    [
+     47.28,
+     "this"
+    ],
+    [
+     47.52,
+     "body."
+    ],
+    [
+     48.16,
+     "And"
+    ],
+    [
+     48.28,
+     "he's"
+    ],
+    [
+     48.48,
+     "sitting"
+    ],
+    [
+     48.88,
+     "there"
+    ],
+    [
+     49.16,
+     "and"
+    ],
+    [
+     49.28,
+     "he's"
+    ],
+    [
+     49.48,
+     "very"
+    ],
+    [
+     49.76,
+     "afraid."
+    ],
+    [
+     50.48,
+     "And"
+    ],
+    [
+     50.64,
+     "then,"
+    ],
+    [
+     51.2,
+     "as"
+    ],
+    [
+     51.48,
+     "the"
+    ],
+    [
+     51.6,
+     "body"
+    ],
+    [
+     52.2,
+     "jerked"
+    ],
+    [
+     52.6,
+     "a"
+    ],
+    [
+     52.68,
+     "little,"
+    ],
+    [
+     54.76,
+     "it"
+    ],
+    [
+     55.08,
+     "moved"
+    ],
+    [
+     55.64,
+     "and"
+    ],
+    [
+     55.76,
+     "then"
+    ],
+    [
+     55.88,
+     "it"
+    ],
+    [
+     56.0,
+     "made"
+    ],
+    [
+     56.2,
+     "a"
+    ],
+    [
+     56.24,
+     "sound"
+    ],
+    [
+     56.92,
+     "like"
+    ],
+    [
+     60.2,
+     "He"
+    ],
+    [
+     60.36,
+     "got"
+    ],
+    [
+     60.64,
+     "so"
+    ],
+    [
+     60.88,
+     "frightened"
+    ],
+    [
+     61.36,
+     "that"
+    ],
+    [
+     61.48,
+     "he"
+    ],
+    [
+     61.64,
+     "shot"
+    ],
+    [
+     62.0,
+     "it"
+    ],
+    [
+     63.2,
+     "twice."
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-11-01T16:37:19+00:00"
+  },
+  {
+   "id": 11,
+   "video_id": "lgBLqo8TwgE",
+   "channel": "Raj Shamani",
+   "start": 212.52,
+   "end": 242.12,
+   "score": 0.7113,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.58,
+    "density": 1.0,
+    "editorial_score": 0.852,
+    "standalone_heuristic": 0.972,
+    "payoff_heuristic": 0.9,
+    "context_dependency": 0.0,
+    "llm": 0.656,
+    "hook_type": "number_or_stat",
+    "duration_bucket": "20-29s"
+   },
+   "title": "Porter: Your Reliable Transport Partner",
+   "caption": "Need to send something small? Discover Porter's affordable and stress-free transport solutions!\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=lgBLqo8TwgE\n\nFollow for daily podcast clips\n\n#Porter #SponsorRead #Logistics #Transport #podcast",
+   "content_type": "promotion",
+   "promotion_type": "sponsor_read",
+   "promotion_confidence": 1.0,
+   "promotion_evidence": "To know more about our title sponsor, Porter, and their services, check out the link in the description below.",
+   "editorial_review_required": true,
+   "editorial_gate_reason": "promotional_content",
+   "editorial_scores": {
+    "hook": 1.0,
+    "standalone": 10.0,
+    "payoff": 10.0,
+    "emotion": 0.0,
+    "specificity": 10.0,
+    "context_independence": 10.0,
+    "curiosity": 0.0,
+    "value": 10.0,
+    "story_structure": 10.0
+   },
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v1",
+    "format": "general",
+    "caption_style": "minimal",
+    "caption_group_words": 4,
+    "caption_font_size": 68,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "off",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Use the safe default conversational treatment."
+   },
+   "polished": false,
+   "words": [
+    [
+     212.52,
+     "That's"
+    ],
+    [
+     212.8,
+     "why"
+    ],
+    [
+     213.12,
+     "I"
+    ],
+    [
+     213.24,
+     "use"
+    ],
+    [
+     213.52,
+     "Porter."
+    ],
+    [
+     214.32,
+     "Their"
+    ],
+    [
+     214.52,
+     "two-wheelers"
+    ],
+    [
+     215.16,
+     "can"
+    ],
+    [
+     215.4,
+     "carry"
+    ],
+    [
+     215.76,
+     "up"
+    ],
+    [
+     215.96,
+     "to"
+    ],
+    [
+     216.08,
+     "20"
+    ],
+    [
+     216.56,
+     "kg."
+    ],
+    [
+     217.36,
+     "And"
+    ],
+    [
+     217.56,
+     "for"
+    ],
+    [
+     217.72,
+     "things"
+    ],
+    [
+     218.08,
+     "that"
+    ],
+    [
+     218.32,
+     "need"
+    ],
+    [
+     218.68,
+     "a"
+    ],
+    [
+     218.76,
+     "little"
+    ],
+    [
+     219.04,
+     "more"
+    ],
+    [
+     219.24,
+     "space"
+    ],
+    [
+     219.64,
+     "and"
+    ],
+    [
+     219.84,
+     "care,"
+    ],
+    [
+     220.44,
+     "Porter"
+    ],
+    [
+     220.8,
+     "scooter"
+    ],
+    [
+     221.32,
+     "is"
+    ],
+    [
+     221.56,
+     "available"
+    ],
+    [
+     222.0,
+     "with"
+    ],
+    [
+     222.16,
+     "the"
+    ],
+    [
+     222.24,
+     "same"
+    ],
+    [
+     222.6,
+     "20"
+    ],
+    [
+     222.96,
+     "kg"
+    ],
+    [
+     223.28,
+     "capacity."
+    ],
+    [
+     224.48,
+     "The"
+    ],
+    [
+     224.6,
+     "best"
+    ],
+    [
+     224.96,
+     "part"
+    ],
+    [
+     225.52,
+     "is"
+    ],
+    [
+     225.68,
+     "that"
+    ],
+    [
+     225.92,
+     "it's"
+    ],
+    [
+     226.2,
+     "affordable"
+    ],
+    [
+     227.28,
+     "and"
+    ],
+    [
+     227.48,
+     "there's"
+    ],
+    [
+     227.72,
+     "no"
+    ],
+    [
+     228.08,
+     "negotiating."
+    ],
+    [
+     229.24,
+     "What"
+    ],
+    [
+     229.44,
+     "you"
+    ],
+    [
+     229.56,
+     "see"
+    ],
+    [
+     229.84,
+     "on"
+    ],
+    [
+     230.0,
+     "the"
+    ],
+    [
+     230.16,
+     "app"
+    ],
+    [
+     230.56,
+     "is"
+    ],
+    [
+     230.8,
+     "exactly"
+    ],
+    [
+     231.44,
+     "what"
+    ],
+    [
+     231.64,
+     "you"
+    ],
+    [
+     231.76,
+     "pay."
+    ],
+    [
+     232.48,
+     "So,"
+    ],
+    [
+     232.64,
+     "whatever"
+    ],
+    [
+     233.04,
+     "you"
+    ],
+    [
+     233.16,
+     "need"
+    ],
+    [
+     233.44,
+     "to"
+    ],
+    [
+     233.56,
+     "send,"
+    ],
+    [
+     234.2,
+     "Porter"
+    ],
+    [
+     234.56,
+     "makes"
+    ],
+    [
+     234.84,
+     "it"
+    ],
+    [
+     235.0,
+     "simple"
+    ],
+    [
+     235.52,
+     "and"
+    ],
+    [
+     235.72,
+     "stress-free."
+    ],
+    [
+     236.64,
+     "To"
+    ],
+    [
+     236.76,
+     "know"
+    ],
+    [
+     236.92,
+     "more"
+    ],
+    [
+     237.2,
+     "about"
+    ],
+    [
+     237.48,
+     "our"
+    ],
+    [
+     237.56,
+     "title"
+    ],
+    [
+     237.96,
+     "sponsor,"
+    ],
+    [
+     238.36,
+     "Porter,"
+    ],
+    [
+     238.84,
+     "and"
+    ],
+    [
+     239.0,
+     "their"
+    ],
+    [
+     239.12,
+     "services,"
+    ],
+    [
+     239.88,
+     "check"
+    ],
+    [
+     240.12,
+     "out"
+    ],
+    [
+     240.28,
+     "the"
+    ],
+    [
+     240.36,
+     "link"
+    ],
+    [
+     240.56,
+     "in"
+    ],
+    [
+     240.64,
+     "the"
+    ],
+    [
+     240.72,
+     "description"
+    ],
+    [
+     241.2,
+     "below."
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-11-01T16:37:19+00:00"
   }
  ],
- "next_id": 10,
+ "next_id": 12,
  "journal": [
   {
    "t": "2026-10-30T17:57:06+00:00",
@@ -2547,6 +3474,284 @@
    "video": "qa31tANX0tU",
    "channel": "Raj Shamani",
    "clips": 3
+  },
+  {
+   "t": "2026-11-01T16:29:08+00:00",
+   "event": "clip_needs_review",
+   "clip": 3,
+   "artifact": "clip_3.mp4",
+   "issues": [
+    "Promotion screen failed or returned an uncertain result; manual review required."
+   ],
+   "review_stage": "promotion_screen"
+  },
+  {
+   "t": "2026-11-01T16:32:11+00:00",
+   "event": "clip_needs_review",
+   "clip": 7,
+   "artifact": "clip_7.mp4",
+   "issues": [
+    "Promotion screen failed or returned an uncertain result; manual review required."
+   ],
+   "review_stage": "promotion_screen"
+  },
+  {
+   "t": "2026-11-01T16:34:33+00:00",
+   "event": "clip_needs_review",
+   "clip": 8,
+   "artifact": "clip_8.mp4",
+   "issues": [
+    "Promotion screen failed or returned an uncertain result; manual review required."
+   ],
+   "review_stage": "promotion_screen"
+  },
+  {
+   "t": "2026-11-01T16:34:33+00:00",
+   "event": "slot_deferred",
+   "reason": "candidate(s) moved to manual review"
+  },
+  {
+   "t": "2026-11-01T16:37:19+00:00",
+   "event": "episode_queued",
+   "video": "lgBLqo8TwgE",
+   "channel": "Raj Shamani",
+   "clips": 2
+  }
+ ],
+ "candidate_decisions": [
+  {
+   "episode_id": "lgBLqo8TwgE",
+   "channel": "Raj Shamani",
+   "start": 32.76,
+   "end": 64.12,
+   "rank": 1,
+   "selected": true,
+   "recorded_at": "2026-11-01T16:37:03+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 32.759,
+    "end": 64.12,
+    "heat": 0.5,
+    "hook": 0.52,
+    "density": 1.0,
+    "pre": 0.633712,
+    "final": 0.7913248,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.9400000000000001,
+    "vid": 0.9,
+    "content_type": "story",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 1.0,
+    "hook_type": "question",
+    "title": "The Dead Body That Moved and Got Shot",
+    "reject": false,
+    "editorial_review_required": false,
+    "editorial_gate_reason": "",
+    "learned_score": null,
+    "transcript_excerpt": ">> Can a dead body move or like make sound? >> It's happened to me. >> >> Yeah. Because Really? even after they're dead, they still hold those gases inside them. Now, there's a story that there was a rookie cop and they said to him, um, you know, you're going to sit and guard this body. And he's sitting there and he's very afraid. And then, as the "
+   }
+  },
+  {
+   "episode_id": "lgBLqo8TwgE",
+   "channel": "Raj Shamani",
+   "start": 66.24,
+   "end": 109.24,
+   "rank": 2,
+   "selected": false,
+   "recorded_at": "2026-11-01T16:37:03+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 66.24,
+    "end": 109.23999999999998,
+    "heat": 0.5,
+    "hook": 0.52,
+    "density": 1.0,
+    "pre": 0.633712,
+    "final": 0.7885248,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.914,
+    "vid": 0.925,
+    "content_type": "explanation",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 1.0,
+    "hook_type": "question",
+    "title": "How Death Investigators Know a Body Has Been Moved",
+    "reject": false,
+    "editorial_review_required": false,
+    "editorial_gate_reason": "",
+    "learned_score": null,
+    "transcript_excerpt": ">> Tell me the moment you walk into a death scene, what do you first look at? >> I don't look at the body first. I stand at the doorway and I take in the totality of the scene. Now I'll start examining the body. I'll look for a stab wound or a gunshot wound. I'll look under the fingernails and see is there flesh or hair or blood because someone was"
+   }
+  },
+  {
+   "episode_id": "lgBLqo8TwgE",
+   "channel": "Raj Shamani",
+   "start": 35.96,
+   "end": 64.12,
+   "rank": 3,
+   "selected": false,
+   "recorded_at": "2026-11-01T16:37:03+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 35.96,
+    "end": 64.12,
+    "heat": 0.5,
+    "hook": 0.52,
+    "density": 1.0,
+    "pre": 0.633712,
+    "final": 0.7710248000000001,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.8790000000000001,
+    "vid": 0.89,
+    "content_type": "story",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 1.0,
+    "hook_type": "question",
+    "title": "The Dead Body That Moved and Got Shot",
+    "reject": false,
+    "editorial_review_required": false,
+    "editorial_gate_reason": "",
+    "learned_score": null,
+    "transcript_excerpt": ">> It's happened to me. >> >> Yeah. Because Really? even after they're dead, they still hold those gases inside them. Now, there's a story that there was a rookie cop and they said to him, um, you know, you're going to sit and guard this body. And he's sitting there and he's very afraid. And then, as the body jerked a little, it moved and then it m"
+   }
+  },
+  {
+   "episode_id": "lgBLqo8TwgE",
+   "channel": "Raj Shamani",
+   "start": 212.52,
+   "end": 242.12,
+   "rank": 4,
+   "selected": true,
+   "recorded_at": "2026-11-01T16:37:03+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 212.519,
+    "end": 242.11999999999998,
+    "heat": 0.5,
+    "hook": 0.5800000000000001,
+    "density": 1.0,
+    "pre": 0.6957280000000001,
+    "final": 0.7113140000000001,
+    "editorial_score": 0.8524,
+    "standalone_heuristic": 0.972,
+    "payoff_heuristic": 0.9,
+    "context_dependency": 0.0,
+    "llm": 0.656,
+    "vid": null,
+    "content_type": "promotion",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "sponsor_read",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 1.0,
+    "hook_type": "number_or_stat",
+    "title": "Porter: Your Reliable Transport Partner",
+    "reject": false,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "promotional_content",
+    "learned_score": null,
+    "transcript_excerpt": "That's why I use Porter. Their two-wheelers can carry up to 20 kg. And for things that need a little more space and care, Porter scooter is available with the same 20 kg capacity. The best part is that it's affordable and there's no negotiating. What you see on the app is exactly what you pay. So, whatever you need to send, Porter makes it simple a"
+   }
+  },
+  {
+   "episode_id": "lgBLqo8TwgE",
+   "channel": "Raj Shamani",
+   "start": 258.92,
+   "end": 283.18,
+   "rank": 5,
+   "selected": false,
+   "recorded_at": "2026-11-01T16:37:03+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 258.92,
+    "end": 283.18,
+    "heat": 0.5,
+    "hook": 0.66,
+    "density": 0.8980096572841836,
+    "pre": 0.6593083820515842,
+    "final": 0.6937041910257921,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.7180000000000001,
+    "vid": null,
+    "content_type": "reaction",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 0.9,
+    "hook_type": "question",
+    "title": "The Safest People in the World",
+    "reject": false,
+    "editorial_review_required": false,
+    "editorial_gate_reason": "",
+    "learned_score": null,
+    "transcript_excerpt": ">> Don't be nervous. >> I'm a little bit scared. >> >> Really? >> Yeah. >> I don't know. Why? I just everything you will say, I'll have visuals in my head. >> Yeah. Yeah. >> That scares me. >> I can assure you of Well, one thing. The safest people in the world are dead people. They will not hurt you in any way."
+   }
+  },
+  {
+   "episode_id": "lgBLqo8TwgE",
+   "channel": "Raj Shamani",
+   "start": 177.24,
+   "end": 217.27,
+   "rank": 6,
+   "selected": false,
+   "recorded_at": "2026-11-01T16:37:03+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 177.24,
+    "end": 217.27,
+    "heat": 0.5,
+    "hook": 0.42,
+    "density": 1.0,
+    "pre": 0.6522080000000001,
+    "final": 0.6764432,
+    "editorial_score": 0.8524,
+    "standalone_heuristic": 0.972,
+    "payoff_heuristic": 0.9,
+    "context_dependency": 0.0,
+    "llm": 0.602,
+    "vid": 0.7050000000000001,
+    "content_type": "promotion",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "sponsor_read",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 0.9,
+    "hook_type": "strong_statement",
+    "title": "Support the Show & Solve Your Transport Needs",
+    "reject": false,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "promotional_content",
+    "learned_score": null,
+    "transcript_excerpt": "I have a small favor to ask you. I need you to subscribe to our channel. The more subscribers we have, the better and bigger guests we can bring and provide you more value through these conversations. And the full audio experience of this show is also available on Spotify where you can follow us and listen to the new episodes as well. You know that"
+   }
   }
  ]
 }
