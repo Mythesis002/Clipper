@@ -932,17 +932,21 @@ def video_verify(cfg, video_id, cands):
             if None in (h, s, dl, v):
                 continue
             c["vid"] = (h * 0.35 + s * 0.25 + dl * 0.30 + v * 0.10) / 10
-            promotion_type = str(d.get("promotion_type") or c.get("promotion_type") or "none").lower()
-            if promotion_type in {"none", "sponsor_read", "affiliate", "product_pitch",
-                                  "self_promotion", "unclear"}:
-                c["promotion_type"] = promotion_type
+            promotion_type = str(d.get("promotion_type") or "none").lower()
             try:
-                c["promotion_confidence"] = max(0.0, min(1.0, float(
-                    d.get("promotion_confidence", c.get("promotion_confidence", 0)) or 0)))
+                video_promotion_confidence = float(d.get(
+                    "promotion_confidence", c.get("promotion_confidence", 0)) or 0)
             except (TypeError, ValueError):
-                pass
-            c["promotion_evidence"] = str(d.get("promotion_evidence") or
-                                           c.get("promotion_evidence") or "")[:240]
+                video_promotion_confidence = 0.0
+            video_promotion_confidence = max(0.0, min(1.0, video_promotion_confidence))
+            existing_confidence = float(c.get("promotion_confidence") or 0.0)
+            if (promotion_type in {"sponsor_read", "affiliate", "product_pitch",
+                                   "self_promotion", "unclear"}
+                    and video_promotion_confidence >= existing_confidence):
+                c["promotion_type"] = promotion_type
+            c["promotion_confidence"] = max(existing_confidence, video_promotion_confidence)
+            if d.get("promotion_evidence"):
+                c["promotion_evidence"] = str(d["promotion_evidence"])[:240]
             if _truthy(d.get("reject")):
                 c["reject"] = True
         except Exception as ex:
