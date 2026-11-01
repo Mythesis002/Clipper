@@ -50,6 +50,15 @@ from editorial_engine import (
     apply_format_priors, editorial_signals, enrich_candidates_with_context,
     format_priors, performance_quality, speaker_summary,
 )
+from intelligence_engine import (
+    attach_semantic_context, candidate_feature_record, editorial_gate,
+    episode_understanding_prompt, semantic_candidate_windows, timed_transcript,
+    validate_episode_map,
+)
+from editing_engine import build_edit_plan
+from learning_engine import (
+    add_feedback, add_metric_snapshot, learning_counts, record_candidate_decisions,
+)
 
 BASE = Path(__file__).resolve().parent
 WORK = BASE / "work"
@@ -730,13 +739,19 @@ def _truthy(x):
     return x is True or (isinstance(x, str) and x.strip().lower() == "true")
 
 
-def build_rerank_prompt(ep_title, cands):
+def build_rerank_prompt(ep_title, cands, episode_map=None):
     payload = [{
         "id": i,
         "t": hms(c["start"]),
         "clip": c["text"][:850],
         "context_before_not_in_clip": c.get("context_before", "")[-300:],
         "context_after_not_in_clip": c.get("context_after", "")[:200],
+        "semantic": {
+            "kind": c.get("semantic_kind"),
+            "topic": c.get("semantic_topic"),
+            "summary": c.get("semantic_summary"),
+            "confidence": c.get("semantic_confidence"),
+        },
         "heuristics": {
             "opening_type": c.get("hook_type"),
             "context_dependency": c.get("context_dependency"),
@@ -744,28 +759,35 @@ def build_rerank_prompt(ep_title, cands):
             "payoff_estimate": c.get("payoff_heuristic"),
         },
     } for i, c in enumerate(cands)]
+    summary = (episode_map or {}).get("summary", "")
     return (
-        f"You are a senior short-form editor choosing complete podcast moments from {ep_title!r}.\n"
+        f"You are a senior short-form podcast editor choosing complete moments from {ep_title!r}.\n"
+        f"Episode context: {summary[:1200]}\n"
         "The clip field is the ONLY content that will appear in the Reel. Context fields are provided "
         "only to detect dangling references; they are NOT part of the clip.\n"
-        "Evaluate each candidate from the actual spoken words, not sensationalism. Score 0-10: "
-        "hook (first 1-3 seconds), standalone clarity, payoff (does the clip fulfil its opening), "
-        "emotion, specificity, and context independence. Prefer a clear premise, a concrete insight "
-        "or story, and a satisfying end. Penalise a cut that begins with a pronoun or continuation "
-        "whose referent exists only in the external context. If it needs context that viewers won't "
-        "hear, set reject=true. Also reject broken sentences, filler-only segments, misleading claims, "
-        "or unsafe content. Do not reward clickbait, outrage, or unverified allegations.\n"
-        "Create a truthful concise title in the same language/script as the clip and a caption hook "
-        "that doesn't promise anything the spoken clip fails to deliver.\n"
-        "Return ONLY JSON array: "
+        "Evaluate actual spoken content, not sensationalism. Score each from 0-10: hook, standalone "
+        "clarity, payoff, emotion, specificity, context independence, curiosity, practical or emotional "
+        "value, and story structure. Prefer a complete idea, useful insight or story with a satisfying "
+        "payoff. Do not reward clickbait, outrage or unverified allegations.\n"
+        "Classify content_type as one of story, insight, explanation, opinion, debate, question_answer, "
+        "reaction, promotion, or other. Identify promotional intent separately: none, sponsor_read, "
+        "affiliate, product_pitch, self_promotion or unclear. A brief natural mention of a product is "
+        "NOT automatically promotional. Mark promotional only when the speaker is actually selling, "
+        "endorsing as an integration, reading a sponsor message or directing viewers to buy/use a "
+        "product or service. Give promotion_confidence and classification_confidence between 0 and 1. "
+        "Include a short evidence phrase. Do not infer sponsorship from a brand name alone.\n"
+        "Set reject=true for broken/incomplete segments, misleading or unsafe content. Set "
+        "promotion_type and content_type accurately even when the clip is otherwise excellent.\n"
+        "Create a truthful title in the same language/script as the clip. Return ONLY JSON array: "
         '[{"id":0,"hook":0,"standalone":0,"payoff":0,"emotion":0,"specificity":0,'
-        '"context_independence":0,"reject":false,"title":"","caption_hook":"","hashtags":["#x"]}]\n\n'
+        '"context_independence":0,"curiosity":0,"value":0,"story_structure":0,'
+        '"content_type":"story","classification_confidence":0.0,"promotion_type":"none",'
+        '"promotion_confidence":0.0,"promotion_evidence":"","reject":false,'
+        '"title":"","caption_hook":"","hashtags":["#x"]}]\n\n'
         + json.dumps(payload, ensure_ascii=False))
 
-
-
 def apply_rerank(cands, data):
-    """Merge Gemini's answer into candidates. Defensive: bad ids/scores/types are ignored."""
+    """Merge Gemini's editorial scorecard and content classification into candidates."""
     if isinstance(data, dict):
         data = data.get("clips") or data.get("results") or []
     applied = 0
@@ -778,53 +800,85 @@ def apply_rerank(cands, data):
             continue
         if not 0 <= i < len(cands):
             continue
-        h, s, e = (_score(d.get(k)) for k in ("hook", "standalone", "emotion"))
-        if None in (h, s, e):
+        scores = {key: _score(d.get(key)) for key in
+                  ("hook", "standalone", "payoff", "emotion", "specificity",
+                   "context_independence", "curiosity", "value", "story_structure")}
+        if any(scores[key] is None for key in ("hook", "standalone", "emotion")):
             continue
-        payoff = _score(d.get("payoff"), s)
-        specificity = _score(d.get("specificity"), h)
         c = cands[i]
-        context_independence = _score(d.get("context_independence"), max(0.0, 10.0 * (1.0 - cands[i].get("context_dependency", 0.5))))
-        c["llm"] = (h * 0.25 + s * 0.22 + payoff * 0.23
-                    + e * 0.10 + specificity * 0.10 + context_independence * 0.10) / 10
-        c["context_independence_llm"] = context_independence / 10
-        c["payoff"] = payoff / 10
-        c["specificity"] = specificity / 10
+        scores["payoff"] = scores["payoff"] if scores["payoff"] is not None else scores["standalone"]
+        scores["specificity"] = scores["specificity"] if scores["specificity"] is not None else scores["hook"]
+        scores["context_independence"] = (scores["context_independence"]
+            if scores["context_independence"] is not None
+            else max(0.0, 10.0 * (1.0 - c.get("context_dependency", 0.5))))
+        scores["curiosity"] = scores["curiosity"] if scores["curiosity"] is not None else scores["hook"]
+        scores["value"] = scores["value"] if scores["value"] is not None else scores["specificity"]
+        scores["story_structure"] = (scores["story_structure"]
+            if scores["story_structure"] is not None else scores["payoff"])
+        c["editorial_scores"] = {key: round(value, 2) for key, value in scores.items()}
+        c["llm"] = (
+            scores["hook"] * 0.16 + scores["standalone"] * 0.14
+            + scores["payoff"] * 0.15 + scores["emotion"] * 0.10
+            + scores["specificity"] * 0.10 + scores["context_independence"] * 0.10
+            + scores["curiosity"] * 0.10 + scores["value"] * 0.10
+            + scores["story_structure"] * 0.05
+        ) / 10
+        c["context_independence_llm"] = scores["context_independence"] / 10
+        c["payoff"] = scores["payoff"] / 10
+        c["specificity"] = scores["specificity"] / 10
         c["reject"] = _truthy(d.get("reject"))
+        allowed_types = {"story", "insight", "explanation", "opinion", "debate",
+                         "question_answer", "reaction", "promotion", "other"}
+        content_type = str(d.get("content_type") or c.get("semantic_kind") or "other").lower()
+        c["content_type"] = content_type if content_type in allowed_types else "other"
+        promotion_types = {"none", "sponsor_read", "affiliate", "product_pitch",
+                           "self_promotion", "unclear"}
+        promotion_type = str(d.get("promotion_type") or c.get("promotion_type") or "none").lower()
+        c["promotion_type"] = promotion_type if promotion_type in promotion_types else "unclear"
+        c["promotion_confidence"] = _score(d.get("promotion_confidence"), 0.0) / 10 if _score(
+            d.get("promotion_confidence")) is not None and float(d.get("promotion_confidence")) > 1 else (
+            max(0.0, min(1.0, float(d.get("promotion_confidence", 0) or 0))))
+        c["classification_confidence"] = max(0.0, min(1.0, float(
+            d.get("classification_confidence", 0.0) or 0.0)))
+        c["promotion_evidence"] = str(d.get("promotion_evidence") or "")[:240]
         c["title"] = str(d.get("title") or "").strip()[:80]
         c["caption_hook"] = str(d.get("caption_hook") or "").strip()[:140]
         tags = d.get("hashtags") if isinstance(d.get("hashtags"), list) else []
-        clean = [re.sub(r"\W", "", str(t)) for t in tags if isinstance(t, (str, int)) and not isinstance(t, bool)]
+        clean = [re.sub(r"\W", "", str(t)) for t in tags
+                 if isinstance(t, (str, int)) and not isinstance(t, bool)]
         c["hashtags"] = ["#" + t for t in clean if t][:6]
         applied += 1
     return applied
 
-
-def llm_rerank(cfg, cands, ep_title):
-    """Stage 1 (text): Gemini judges hook / standalone clarity / emotion, writes title + hashtags."""
+def llm_rerank(cfg, cands, ep_title, episode_map=None):
+    """Stage 1: Gemini evaluates editorial quality and labels the content intent."""
     if not cfg["llm"]["enabled"] or not gemini_key():
         log.info("Gemini rerank off (disabled or no GEMINI_API_KEY) - heuristics only")
         return cands
     try:
-        data = parse_json(gemini_text(cfg, [{"text": build_rerank_prompt(ep_title, cands)}]))
+        data = parse_json(gemini_text(
+            cfg, [{"text": build_rerank_prompt(ep_title, cands, episode_map)}]))
         n = apply_rerank(cands, data)
-        log.info("Gemini scored %d/%d candidates (model %s)", n, len(cands), _MODEL_CACHE.get("model"))
+        log.info("Gemini scored and classified %d/%d candidates (model %s)",
+                 n, len(cands), _MODEL_CACHE.get("model"))
     except Exception as ex:
-        log.warning("Gemini rerank failed, heuristics only: %s", ex)
+        log.warning("Gemini editorial evaluation failed, using semantic/heuristic fallback: %s", ex)
     return cands
 
-
 VERIFY_PROMPT = (
-    "Watch this short podcast segment (video AND audio; often 15-45 seconds). Score 0-10: hook (does the first "
-    "3 seconds grab attention), standalone (clear with zero context), delivery (energy, emotion, "
-    "laughter, clarity of voice), visual (framing, nothing distracting). Set reject=true if it "
-    "starts or ends badly mid-sentence, has long silence, crosstalk/inaudible speech, or unsafe "
-    'content. Reply with ONLY a JSON object: {"hook":0,"standalone":0,"delivery":0,"visual":0,'
+    "Watch this podcast segment with sound. Evaluate whether it starts and ends cleanly, "
+    "makes sense without context, has compelling delivery and useful framing. Also detect "
+    "whether the segment is primarily a sponsor read, paid integration, affiliate pitch, "
+    "product/service sales pitch or creator self-promotion. A passing mention of a product "
+    "is not automatically an advertisement. Return promotion_type (none, sponsor_read, "
+    "affiliate, product_pitch, self_promotion, unclear), promotion_confidence from 0 to 1, "
+    "and a short evidence phrase. Score hook, standalone, delivery and visual from 0 to 10. "
+    'Return ONLY JSON: {"hook":0,"standalone":0,"delivery":0,"visual":0,'
+    '"promotion_type":"none","promotion_confidence":0.0,"promotion_evidence":"",'
     '"reject":false}')
 
-
 def video_verify(cfg, video_id, cands):
-    """Stage 2 (optional): Gemini WATCHES the top candidates (public YouTube URL + time offsets)."""
+    """Stage 2: Gemini watches the strongest candidates and checks audiovisual quality."""
     llm = cfg["llm"]
     if not (llm.get("video_verify") and gemini_key()):
         return cands
@@ -842,12 +896,22 @@ def video_verify(cfg, video_id, cands):
             if None in (h, s, dl, v):
                 continue
             c["vid"] = (h * 0.35 + s * 0.25 + dl * 0.30 + v * 0.10) / 10
+            promotion_type = str(d.get("promotion_type") or c.get("promotion_type") or "none").lower()
+            if promotion_type in {"none", "sponsor_read", "affiliate", "product_pitch",
+                                  "self_promotion", "unclear"}:
+                c["promotion_type"] = promotion_type
+            try:
+                c["promotion_confidence"] = max(0.0, min(1.0, float(
+                    d.get("promotion_confidence", c.get("promotion_confidence", 0)) or 0)))
+            except (TypeError, ValueError):
+                pass
+            c["promotion_evidence"] = str(d.get("promotion_evidence") or
+                                           c.get("promotion_evidence") or "")[:240]
             if _truthy(d.get("reject")):
                 c["reject"] = True
         except Exception as ex:
             log.warning("video verify failed for %s: %s", hms(c["start"]), ex)
     return cands
-
 
 def retime(words, text):
     """Apply caption corrections only when token count is unchanged; keep exact timestamps."""
@@ -950,22 +1014,81 @@ def make_caption(cfg, ch, info, cand):
 # =============================================================================
 # 3. PRODUCE (discover -> analyse -> queue; no video is downloaded here)
 # =============================================================================
-def analyse_episode(cfg, ch, info, state=None):
-    """Transcript/context analysis -> heuristic shortlist -> Gemini/video judgement -> clip picks."""
+def understand_episode(cfg, info, words):
+    """Build a compact episode map once; failures fall back to deterministic transcript signals."""
+    if not cfg.get("intelligence", {}).get("episode_understanding", True):
+        return {"summary": "", "topics": [], "moments": []}
+    if not cfg.get("llm", {}).get("enabled") or not gemini_key():
+        return {"summary": "", "topics": [], "moments": []}
+    transcript = timed_transcript(
+        words, bucket_seconds=20,
+        max_chars=int(cfg.get("intelligence", {}).get("max_transcript_chars", 90000)))
+    if not transcript:
+        return {"summary": "", "topics": [], "moments": []}
+    try:
+        prompt = episode_understanding_prompt(info.get("title", ""), info.get("duration", 0), transcript)
+        result = parse_json(gemini_text(cfg, [{"text": prompt}], temperature=0.1, max_tokens=5000))
+        episode_map = validate_episode_map(result, float(info.get("duration") or 0))
+        log.info("episode understanding: %d topics, %d semantic moments",
+                 len(episode_map["topics"]), len(episode_map["moments"]))
+        return episode_map
+    except Exception as ex:
+        log.warning("episode understanding unavailable; using transcript candidate fallback: %s",
+                    str(ex)[:200])
+        return {"summary": "", "topics": [], "moments": []}
+
+
+def apply_editorial_policy(cfg, candidates):
+    policy = cfg.get("intelligence", {}).get("promotion_policy", "manual_review")
+    threshold = float(cfg.get("intelligence", {}).get("promotion_threshold", 0.72))
+    for candidate in candidates:
+        decision = editorial_gate(candidate, promotion_policy=policy, threshold=threshold)
+        candidate["editorial_eligible"] = decision["eligible"]
+        candidate["editorial_review_required"] = decision["review_required"]
+        candidate["editorial_gate_reason"] = decision["reason"]
+        if not decision["eligible"]:
+            candidate["reject"] = True
+    return candidates
+
+
+def analyse_episode(cfg, ch, info, state=None, decision_sink=None):
+    """Episode map -> semantic + transcript candidates -> editorial and video evaluation."""
     words = fetch_words(cfg, info)
-    heat = heat_per_second(info.get("heatmap") or [], info["duration"])
-    cands = score_candidates(cfg, heat, words, info["duration"])
-    if not cands:
+    if not words:
         log.warning("no candidate moments: usable timestamped transcript is missing or too short")
         return []
-
+    episode_map = understand_episode(cfg, info, words)
+    heat = heat_per_second(info.get("heatmap") or [], info["duration"])
+    cands = score_candidates(cfg, heat, words, info["duration"])
+    semantic = semantic_candidate_windows(
+        episode_map, words, cfg["clip"]["min_s"], cfg["clip"]["max_s"], info["duration"])
+    for candidate in semantic:
+        a, b = int(candidate["start"]), min(int(candidate["end"]), len(heat))
+        seg = heat[a:max(a + 1, b)]
+        heat_part = (0.55 * float(seg.mean()) + 0.20 * float(seg.max())
+                     + 0.25 * float(seg[:5].mean())) if len(seg) else 0.5
+        tokens = candidate["text"].split()
+        hook = hook_score(" ".join(tokens[:18]))
+        duration_s = max(candidate["end"] - candidate["start"], 1.0)
+        density = min(len(tokens) / duration_s / 2.8, 1.0)
+        candidate.update({"heat": heat_part, "hook": hook, "density": density,
+                          "pre": 0.42 * heat_part + 0.40 * hook + 0.18 * density})
+    # Retain the original heuristic windows and add semantically complete ideas/stories.
+    existing = {(round(c["start"]), round(c["end"])) for c in cands}
+    cands.extend(c for c in semantic
+                 if (round(c["start"]), round(c["end"])) not in existing)
+    if not cands:
+        log.warning("no candidate moments after transcript and semantic analysis")
+        return []
+    attach_semantic_context(cands, episode_map)
     enrich_candidates_with_context(cands, words)
     for candidate in cands:
-        editorial = (0.50 * candidate.get("standalone_heuristic", 0.5)
-                     + 0.40 * candidate.get("payoff_heuristic", 0.5)
-                     + 0.10 * (1.0 - candidate.get("context_dependency", 0.5)))
+        editorial = (0.45 * candidate.get("standalone_heuristic", 0.5)
+                     + 0.35 * candidate.get("payoff_heuristic", 0.5)
+                     + 0.10 * (1.0 - candidate.get("context_dependency", 0.5))
+                     + 0.10 * min(1.0, float(candidate.get("semantic_confidence", 0.0))))
         candidate["editorial_score"] = round(editorial, 4)
-        candidate["pre"] = 0.72 * candidate["pre"] + 0.28 * editorial
+        candidate["pre"] = 0.68 * candidate["pre"] + 0.32 * editorial
 
     if state:
         priors = format_priors(
@@ -977,17 +1100,22 @@ def analyse_episode(cfg, ch, info, state=None):
     cands.sort(key=lambda item: -item["pre"])
     cands = diversify(cands, cfg["llm"]["candidates"], cfg["clip"]["min_gap_s"],
                       variants=cfg["llm"].get("variants", 3) if gemini_key() else 1)
-    cands = llm_rerank(cfg, cands, info["title"])
+    cands = llm_rerank(cfg, cands, info["title"], episode_map)
     cands = video_verify(cfg, info["id"], cands)
+    apply_editorial_policy(cfg, cands)
     picks = select_top(cands, cfg["queue"]["clips_per_episode"], cfg["clip"]["min_gap_s"])
     wt = [w[0] for w in words]
     for p in picks:
         i0, i1 = bisect_left(wt, p["start"]), bisect_left(wt, p["end"] + 0.2)
         p["words"] = list(words[i0:i1])
     polish_captions(cfg, picks, info["title"])
+    if decision_sink is not None:
+        for candidate in cands:
+            candidate["learning_features"] = candidate_feature_record(candidate)
+        record_candidate_decisions(
+            {"candidate_decisions": decision_sink}, info.get("id"), ch.get("name"),
+            cands, [(p["start"], p["end"]) for p in picks])
     return picks
-
-
 
 def probe_download(cfg, vid, pick):
     """Plan -> verify: prove a 3 s section of this episode can really be downloaded BEFORE queueing it."""
