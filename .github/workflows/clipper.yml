@@ -13,7 +13,7 @@ on:
         description: "Default publishes one Reel now. Scheduled runs publish at 06:00 and 18:00 IST."
         type: choice
         default: publish-now
-        options: [check-live, check, produce, publish-now, tick, publish, metrics, status, approve, reject, confirm-post, retry-uncertain]
+        options: [check-live, check, produce, publish-now, tick, publish, metrics, status, approve, reject, feedback, confirm-post, retry-uncertain]
       dry_run:
         description: "produce: analyse only, queue nothing"
         type: boolean
@@ -29,6 +29,11 @@ on:
       media_id:
         description: "Instagram media ID when confirming an uncertain publish"
         type: string
+        required: false
+      feedback_label:
+        description: "Human editorial feedback label (feedback command only)"
+        type: choice
+        options: [good, weak, needs_context, bad_cut, promotional, visual_issue, caption_issue, other]
         required: false
 
 concurrency:
@@ -136,6 +141,7 @@ jobs:
           FORCE: ${{ inputs.force }}
           CLIP_ID: ${{ inputs.clip_id }}
           MEDIA_ID: ${{ inputs.media_id }}
+          FEEDBACK_LABEL: ${{ inputs.feedback_label }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           # A force flag cannot turn a diagnostic check into a production publish.
@@ -147,9 +153,13 @@ jobs:
           [ "$DRY" = "true" ] && ARGS="$ARGS --dry-run"
           [ "$FORCE" = "true" ] && ARGS="$ARGS --force"
           if [ "$CMD" = "check-live" ]; then CMD=check; ARGS="$ARGS --live"; fi
-          if [ "$CMD" = "approve" ] || [ "$CMD" = "reject" ] || [ "$CMD" = "retry-uncertain" ]; then
+          if [ "$CMD" = "approve" ] || [ "$CMD" = "reject" ] || [ "$CMD" = "retry-uncertain" ] || [ "$CMD" = "feedback" ]; then
             if [ -z "$CLIP_ID" ]; then echo "::error::clip_id is required for this command"; exit 2; fi
             ARGS="$ARGS --clip-id $CLIP_ID"
+          fi
+          if [ "$CMD" = "feedback" ]; then
+            if [ -z "$FEEDBACK_LABEL" ]; then echo "::error::feedback_label is required for feedback"; exit 2; fi
+            ARGS="$ARGS --label $FEEDBACK_LABEL"
           fi
           if [ "$CMD" = "confirm-post" ]; then
             if [ -z "$CLIP_ID" ] || [ -z "$MEDIA_ID" ]; then echo "::error::clip_id and media_id are required"; exit 2; fi
