@@ -33,6 +33,12 @@ discovery:
   caption_langs: ["en", "hi"]
   max_episode_attempts: 3             # unusable episode -> adapt and try the next one
 
+intelligence:
+  episode_understanding: true
+  max_transcript_chars: 90000       # compressed timestamped transcript supplied to episode-level analysis
+  promotion_policy: manual_review  # manual_review | exclude | allow
+  promotion_threshold: 0.72       # confidence required before a promotion is held for review
+
 qa:
   max_black_pct: 12                  # reject clips with substantial black-frame intervals
   max_silence_pct: 25                 # total detected silence budget
