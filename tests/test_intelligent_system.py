@@ -114,6 +114,41 @@ class IntelligentSystemTests(unittest.TestCase):
         self.assertEqual(clip["human_label"], "promotional")
         self.assertEqual(clip["human_feedback"][0]["reasons"], ["sales_pitch"])
 
+    def test_feedback_ranker_waits_for_both_classes_and_learns_direction(self):
+        state = {"clips": []}
+        self.assertIsNone(learning_engine.train_editorial_ranker(state))
+        for i in range(24):
+            good = i < 12
+            state["clips"].append({
+                "status": "posted",
+                "human_label": "good" if good else "weak",
+                "features": {
+                    "hook": 0.9 if good else 0.2,
+                    "editorial_score": 0.9 if good else 0.25,
+                    "standalone_heuristic": 0.9 if good else 0.2,
+                    "payoff_heuristic": 0.85 if good else 0.2,
+                    "context_dependency": 0.05 if good else 0.8,
+                    "duration_bucket": "20-29s",
+                    "hook_type": "question" if good else "strong_statement",
+                },
+            })
+        model = learning_engine.train_editorial_ranker(state, min_samples=20, min_per_class=6)
+        self.assertIsNotNone(model)
+        good_candidate = {
+            "hook": 0.9, "editorial_score": 0.9, "standalone_heuristic": 0.9,
+            "payoff_heuristic": 0.85, "context_dependency": 0.05,
+            "duration_bucket": "20-29s", "hook_type": "question",
+        }
+        weak_candidate = {
+            "hook": 0.2, "editorial_score": 0.25, "standalone_heuristic": 0.2,
+            "payoff_heuristic": 0.2, "context_dependency": 0.8,
+            "duration_bucket": "20-29s", "hook_type": "strong_statement",
+        }
+        self.assertGreater(
+            learning_engine.predict_editorial_score(good_candidate, model),
+            learning_engine.predict_editorial_score(weak_candidate, model),
+        )
+
     def test_metrics_are_snapshotted_once_at_maturity_bands(self):
         clip = {"posted_at": "2026-01-01T00:00:00+00:00"}
         metrics = {"reach": 1000, "shares": 10, "average_watch_time": 12.5}
