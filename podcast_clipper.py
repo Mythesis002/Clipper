@@ -134,6 +134,12 @@ def load_config(path=None):
                 raise ValueError
         except (TypeError, ValueError):
             raise ValueError(f"queue.{key} must be a positive integer") from None
+    try:
+        publish_candidate_limit = int(cfg["queue"].get("publish_candidate_limit", 10))
+        if publish_candidate_limit < 1 or publish_candidate_limit > 100:
+            raise ValueError
+    except (TypeError, ValueError):
+        raise ValueError("queue.publish_candidate_limit must be an integer between 1 and 100") from None
 
     discovery = cfg["discovery"]
     if int(discovery.get("scan_latest", 0)) < 1 or int(discovery.get("max_episode_attempts", 1)) < 1:
