@@ -39,6 +39,14 @@
    "views": 1997926,
    "processed_at": "2026-11-01T16:37:03+00:00",
    "clips": 2
+  },
+  "khp7AnOJn8g": {
+   "channel": "Raj Shamani",
+   "title": "How to Read People, Build Trust & Choose Better Friends | Adam Grant | FO576 Raj Shamani",
+   "url": "https://www.youtube.com/watch?v=khp7AnOJn8g",
+   "views": 1191582,
+   "processed_at": "2026-11-01T17:13:47+00:00",
+   "clips": 3
   }
  },
  "clips": [
@@ -2339,184 +2347,48 @@
     "context_dependency": 0.0,
     "vid": 0.695,
     "hook_type": "question",
-    "duration_bucket": "15-19s"
+    "duration_bucket": "15-19s",
+    "speaker_count": 2,
+    "speaker_turns": 9,
+    "speaker_switches": 2,
+    "dominant_speaker_ratio": 0.582,
+    "speaker_overlap_s": 1.59,
+    "speaker_score": 0.944,
+    "speaker_count_bucket": "2"
    },
    "title": "",
    "caption": "How A Nuclear War Ends The World In 72 Minutes | Annie Jacobsen | FO581 Raj Shamani\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=qa31tANX0tU\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
    "polished": false,
-   "words": [
-    [
-     314.25,
-     ">> What"
-    ],
-    [
-     314.41,
-     "is"
-    ],
-    [
-     314.49,
-     "a"
-    ],
-    [
-     314.53,
-     "nuclear"
-    ],
-    [
-     314.89,
-     "bomb?"
-    ],
-    [
-     315.41,
-     "Like"
-    ],
-    [
-     315.65,
-     "what"
-    ],
-    [
-     317.89,
-     "What"
-    ],
-    [
-     318.29,
-     "is"
-    ],
-    [
-     318.53,
-     "physically"
-    ],
-    [
-     319.25,
-     "happening"
-    ],
-    [
-     319.73,
-     "inside"
-    ],
-    [
-     320.29,
-     "a"
-    ],
-    [
-     320.41,
-     "small"
-    ],
-    [
-     321.45,
-     "like"
-    ],
-    [
-     321.69,
-     "a"
-    ],
-    [
-     321.77,
-     "large"
-    ],
-    [
-     322.29,
-     "bomb"
-    ],
-    [
-     323.05,
-     "which"
-    ],
-    [
-     323.29,
-     "is"
-    ],
-    [
-     323.45,
-     "making"
-    ],
-    [
-     323.89,
-     "it"
-    ],
-    [
-     324.49,
-     "so"
-    ],
-    [
-     324.97,
-     "deadly?"
-    ],
-    [
-     325.81,
-     ">> Maybe"
-    ],
-    [
-     326.13,
-     "it"
-    ],
-    [
-     326.21,
-     "would"
-    ],
-    [
-     326.33,
-     "make"
-    ],
-    [
-     326.53,
-     "sense"
-    ],
-    [
-     326.85,
-     "for"
-    ],
-    [
-     326.93,
-     "me"
-    ],
-    [
-     327.05,
-     "to"
-    ],
-    [
-     327.17,
-     "tell"
-    ],
-    [
-     327.49,
-     "you"
-    ],
-    [
-     328.01,
-     "what"
-    ],
-    [
-     328.29,
-     "happens"
-    ],
-    [
-     328.89,
-     "when"
-    ],
-    [
-     329.05,
-     "a"
-    ],
-    [
-     329.09,
-     "nuclear"
-    ],
-    [
-     329.57,
-     "bomb"
-    ],
-    [
-     330.33,
-     "explodes."
-    ],
-    [
-     331.21,
-     ">> Mhm."
-    ]
-   ],
-   "status": "queued",
+   "status": "posted",
    "attempts": 0,
-   "created_at": "2026-11-01T13:48:31+00:00"
+   "created_at": "2026-11-01T13:48:31+00:00",
+   "speaker_analysis": {
+    "speaker_count": 2,
+    "speaker_turns": 9,
+    "speaker_switches": 2,
+    "dominant_speaker_ratio": 0.582,
+    "speaker_overlap_s": 1.59,
+    "speaker_score": 0.944
+   },
+   "promotion_screen_version": "publish-promotion-screen-v2",
+   "promotion_screened_at": "2026-11-01T17:10:11+00:00",
+   "content_type": "explanation",
+   "promotion_type": "none",
+   "promotion_confidence": 1.0,
+   "classification_confidence": 1.0,
+   "promotion_evidence": "Maybe it would make sense for me to tell you what happens when a nuclear bomb explodes.",
+   "promotion_screen_attempts": 1,
+   "promotion_screen_error": null,
+   "qa": {
+    "verdict": "pass",
+    "score": 8.0,
+    "issues": [
+     "Captions at 0:00 and 0:01 incorrectly display \"WHAT IS A NUCLEAR\" instead of \"WHAT IS A NUCLEAR BOMB\" as spoken by the presenter."
+    ]
+   },
+   "error": null,
+   "media_id": "18080944196398635",
+   "posted_at": "2026-11-01T17:11:04+00:00"
   },
   {
    "id": 10,
@@ -3338,9 +3210,936 @@
    "status": "queued",
    "attempts": 0,
    "created_at": "2026-11-01T16:37:19+00:00"
+  },
+  {
+   "id": 12,
+   "video_id": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "start": 8.36,
+   "end": 27.53,
+   "score": 0.7961,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.58,
+    "density": 1.0,
+    "editorial_score": 0.71,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.934,
+    "vid": 0.9,
+    "hook_type": "question",
+    "duration_bucket": "15-19s"
+   },
+   "title": "Why We Choose the Wrong People",
+   "caption": "Are you terrible at choosing the right people? Adam Grant reveals the biggest mistake we make and how to fix it!\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=khp7AnOJn8g\n\nFollow for daily podcast clips\n\n#Relationships #ChoosingFriends #TeamBuilding #AdamGrant #Psychology",
+   "content_type": "question_answer",
+   "promotion_type": "none",
+   "promotion_confidence": 1.0,
+   "promotion_evidence": "",
+   "editorial_review_required": false,
+   "editorial_gate_reason": "",
+   "editorial_scores": {
+    "hook": 9.0,
+    "standalone": 10.0,
+    "payoff": 10.0,
+    "emotion": 7.0,
+    "specificity": 9.0,
+    "context_independence": 10.0,
+    "curiosity": 9.0,
+    "value": 10.0,
+    "story_structure": 10.0
+   },
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v1",
+    "format": "debate",
+    "caption_style": "dialogue",
+    "caption_group_words": 3,
+    "caption_font_size": 68,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "off",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Compact dialogue captions; camera cutting requires validated active-speaker tracks."
+   },
+   "polished": false,
+   "words": [
+    [
+     8.36,
+     ">> People"
+    ],
+    [
+     8.72,
+     "are"
+    ],
+    [
+     8.84,
+     "terrible"
+    ],
+    [
+     9.4,
+     "at"
+    ],
+    [
+     9.56,
+     "choosing"
+    ],
+    [
+     9.92,
+     "right"
+    ],
+    [
+     10.12,
+     "people."
+    ],
+    [
+     10.56,
+     ">> Why"
+    ],
+    [
+     10.64,
+     "do"
+    ],
+    [
+     10.76,
+     "you"
+    ],
+    [
+     10.84,
+     "say"
+    ],
+    [
+     11.0,
+     "so?"
+    ],
+    [
+     11.32,
+     ">> I think"
+    ],
+    [
+     11.8,
+     "one"
+    ],
+    [
+     11.96,
+     "of"
+    ],
+    [
+     12.04,
+     "the"
+    ],
+    [
+     12.08,
+     "mistakes"
+    ],
+    [
+     12.44,
+     "we"
+    ],
+    [
+     12.56,
+     "make,"
+    ],
+    [
+     12.88,
+     "whether"
+    ],
+    [
+     13.12,
+     "you're"
+    ],
+    [
+     13.36,
+     "looking"
+    ],
+    [
+     13.68,
+     "for"
+    ],
+    [
+     13.88,
+     "a"
+    ],
+    [
+     13.96,
+     "romantic"
+    ],
+    [
+     14.44,
+     "partner"
+    ],
+    [
+     15.04,
+     "or"
+    ],
+    [
+     15.64,
+     "teammate"
+    ],
+    [
+     16.08,
+     "to"
+    ],
+    [
+     16.2,
+     "collaborate"
+    ],
+    [
+     16.68,
+     "with,"
+    ],
+    [
+     16.96,
+     "is"
+    ],
+    [
+     17.28,
+     "we"
+    ],
+    [
+     17.4,
+     "pay"
+    ],
+    [
+     17.56,
+     "too"
+    ],
+    [
+     17.72,
+     "much"
+    ],
+    [
+     17.92,
+     "attention"
+    ],
+    [
+     18.32,
+     "to"
+    ],
+    [
+     18.4,
+     "how"
+    ],
+    [
+     18.6,
+     "people"
+    ],
+    [
+     19.0,
+     "treat"
+    ],
+    [
+     19.64,
+     "us."
+    ],
+    [
+     20.08,
+     "What"
+    ],
+    [
+     20.16,
+     "you"
+    ],
+    [
+     20.28,
+     "really"
+    ],
+    [
+     20.48,
+     "want"
+    ],
+    [
+     20.64,
+     "to"
+    ],
+    [
+     20.72,
+     "know"
+    ],
+    [
+     20.92,
+     "is"
+    ],
+    [
+     21.12,
+     "how"
+    ],
+    [
+     21.28,
+     "do"
+    ],
+    [
+     21.4,
+     "they"
+    ],
+    [
+     21.52,
+     "treat"
+    ],
+    [
+     22.2,
+     "the"
+    ],
+    [
+     22.32,
+     "person"
+    ],
+    [
+     22.96,
+     "who's"
+    ],
+    [
+     23.48,
+     "below"
+    ],
+    [
+     23.8,
+     "them?"
+    ],
+    [
+     24.16,
+     "How"
+    ],
+    [
+     24.32,
+     "do"
+    ],
+    [
+     24.44,
+     "they"
+    ],
+    [
+     24.56,
+     "treat"
+    ],
+    [
+     24.88,
+     "someone"
+    ],
+    [
+     25.52,
+     "who"
+    ],
+    [
+     25.72,
+     "can't"
+    ],
+    [
+     26.28,
+     "help"
+    ],
+    [
+     26.52,
+     "them"
+    ],
+    [
+     26.68,
+     "back?"
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-11-01T17:14:21+00:00"
+  },
+  {
+   "id": 13,
+   "video_id": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "start": 302.56,
+   "end": 322.45,
+   "score": 0.7302,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.52,
+    "density": 1.0,
+    "editorial_score": 0.71,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.883,
+    "vid": 0.68,
+    "hook_type": "question",
+    "duration_bucket": "15-19s"
+   },
+   "title": "The True Measure of Character",
+   "caption": "How do you truly know someone's character? It's not about how they treat you, but how they treat those who can't help them back.\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=khp7AnOJn8g\n\nFollow for daily podcast clips\n\n#Character #HumanBehavior #Psychology #AdamGrant #Relationships",
+   "content_type": "insight",
+   "promotion_type": "sponsor_read",
+   "promotion_confidence": 0.9,
+   "promotion_evidence": "urban platter logo visible on mugs and in top right corner of screen",
+   "editorial_review_required": true,
+   "editorial_gate_reason": "promotional_content",
+   "editorial_scores": {
+    "hook": 8.0,
+    "standalone": 10.0,
+    "payoff": 10.0,
+    "emotion": 6.0,
+    "specificity": 9.0,
+    "context_independence": 10.0,
+    "curiosity": 7.0,
+    "value": 10.0,
+    "story_structure": 9.0
+   },
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v1",
+    "format": "educational",
+    "caption_style": "emphasis",
+    "caption_group_words": 3,
+    "caption_font_size": 70,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "off",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Emphasise key phrases in an explanatory segment."
+   },
+   "polished": false,
+   "words": [
+    [
+     302.56,
+     "What"
+    ],
+    [
+     302.72,
+     "you"
+    ],
+    [
+     302.8,
+     "really"
+    ],
+    [
+     303.04,
+     "want"
+    ],
+    [
+     303.2,
+     "to"
+    ],
+    [
+     303.24,
+     "know"
+    ],
+    [
+     303.48,
+     "is"
+    ],
+    [
+     303.68,
+     "how"
+    ],
+    [
+     303.84,
+     "do"
+    ],
+    [
+     303.92,
+     "they"
+    ],
+    [
+     304.08,
+     "treat"
+    ],
+    [
+     304.76,
+     "the"
+    ],
+    [
+     304.88,
+     "person"
+    ],
+    [
+     305.52,
+     "who's"
+    ],
+    [
+     306.04,
+     "below"
+    ],
+    [
+     306.36,
+     "them,"
+    ],
+    [
+     307.0,
+     "or"
+    ],
+    [
+     307.4,
+     "the"
+    ],
+    [
+     307.52,
+     "person"
+    ],
+    [
+     307.88,
+     "who's"
+    ],
+    [
+     308.08,
+     "their"
+    ],
+    [
+     308.28,
+     "peer,"
+    ],
+    [
+     308.96,
+     "not"
+    ],
+    [
+     309.32,
+     "how"
+    ],
+    [
+     309.44,
+     "do"
+    ],
+    [
+     309.52,
+     "they"
+    ],
+    [
+     309.8,
+     "treat"
+    ],
+    [
+     310.04,
+     "the"
+    ],
+    [
+     310.12,
+     "person"
+    ],
+    [
+     310.48,
+     "up,"
+    ],
+    [
+     310.72,
+     "right?"
+    ],
+    [
+     310.84,
+     "We"
+    ],
+    [
+     310.96,
+     "can"
+    ],
+    [
+     311.84,
+     "we"
+    ],
+    [
+     311.92,
+     "can"
+    ],
+    [
+     312.04,
+     "get"
+    ],
+    [
+     312.2,
+     "fooled"
+    ],
+    [
+     312.52,
+     "a"
+    ],
+    [
+     312.56,
+     "lot"
+    ],
+    [
+     313.2,
+     "by"
+    ],
+    [
+     313.72,
+     "takers"
+    ],
+    [
+     314.04,
+     "who"
+    ],
+    [
+     314.12,
+     "are"
+    ],
+    [
+     314.2,
+     "great"
+    ],
+    [
+     314.44,
+     "fakers"
+    ],
+    [
+     314.92,
+     "who"
+    ],
+    [
+     315.04,
+     "kiss"
+    ],
+    [
+     315.32,
+     "up"
+    ],
+    [
+     315.52,
+     "and"
+    ],
+    [
+     315.64,
+     "kick"
+    ],
+    [
+     315.84,
+     "down."
+    ],
+    [
+     316.6,
+     "I"
+    ],
+    [
+     316.68,
+     "think"
+    ],
+    [
+     316.84,
+     "the"
+    ],
+    [
+     316.96,
+     "real"
+    ],
+    [
+     317.16,
+     "measure"
+    ],
+    [
+     317.52,
+     "of"
+    ],
+    [
+     317.8,
+     "of"
+    ],
+    [
+     317.92,
+     "somebody's"
+    ],
+    [
+     318.28,
+     "character"
+    ],
+    [
+     318.76,
+     "is"
+    ],
+    [
+     319.12,
+     "how"
+    ],
+    [
+     319.28,
+     "do"
+    ],
+    [
+     319.36,
+     "they"
+    ],
+    [
+     319.52,
+     "treat"
+    ],
+    [
+     319.8,
+     "someone"
+    ],
+    [
+     320.48,
+     "who"
+    ],
+    [
+     320.64,
+     "can't"
+    ],
+    [
+     321.16,
+     "help"
+    ],
+    [
+     321.44,
+     "them"
+    ],
+    [
+     321.6,
+     "back."
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-11-01T17:14:21+00:00"
+  },
+  {
+   "id": 14,
+   "video_id": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "start": 168.52,
+   "end": 185.94,
+   "score": 0.6482,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.48,
+    "density": 0.943,
+    "editorial_score": 0.852,
+    "standalone_heuristic": 0.972,
+    "payoff_heuristic": 0.9,
+    "context_dependency": 0.0,
+    "llm": 0.442,
+    "vid": 0.785,
+    "hook_type": "strong_statement",
+    "duration_bucket": "15-19s"
+   },
+   "title": "Urban Platter: Taste & Quality",
+   "caption": "Your food choices matter! Urban Platter offers products that fuel you without sacrificing taste.\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=khp7AnOJn8g\n\nFollow for daily podcast clips\n\n#UrbanPlatter #HealthyFood #FoodChoices #Sponsor #podcast",
+   "content_type": "promotion",
+   "promotion_type": "sponsor_read",
+   "promotion_confidence": 1.0,
+   "promotion_evidence": "And that's where Urban Platter comes in. They make better for you products that deliver on both taste and quality.",
+   "editorial_review_required": true,
+   "editorial_gate_reason": "promotional_content",
+   "editorial_scores": {
+    "hook": 6.0,
+    "standalone": 9.0,
+    "payoff": 2.0,
+    "emotion": 1.0,
+    "specificity": 4.0,
+    "context_independence": 10.0,
+    "curiosity": 2.0,
+    "value": 1.0,
+    "story_structure": 2.0
+   },
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v1",
+    "format": "general",
+    "caption_style": "minimal",
+    "caption_group_words": 4,
+    "caption_font_size": 68,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "off",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Use the safe default conversational treatment."
+   },
+   "polished": true,
+   "words": [
+    [
+     168.52,
+     "The"
+    ],
+    [
+     168.6,
+     "food"
+    ],
+    [
+     168.96,
+     "you"
+    ],
+    [
+     169.12,
+     "choose"
+    ],
+    [
+     169.72,
+     "either"
+    ],
+    [
+     170.0,
+     "fuels"
+    ],
+    [
+     170.48,
+     "you"
+    ],
+    [
+     170.96,
+     "or"
+    ],
+    [
+     171.08,
+     "slows"
+    ],
+    [
+     171.48,
+     "you"
+    ],
+    [
+     171.6,
+     "down."
+    ],
+    [
+     172.44,
+     "That's"
+    ],
+    [
+     172.68,
+     "why"
+    ],
+    [
+     172.8,
+     "your"
+    ],
+    [
+     172.96,
+     "food"
+    ],
+    [
+     173.28,
+     "choices"
+    ],
+    [
+     173.76,
+     "matter"
+    ],
+    [
+     174.08,
+     "so"
+    ],
+    [
+     174.36,
+     "much."
+    ],
+    [
+     175.12,
+     "And"
+    ],
+    [
+     175.4,
+     "that's"
+    ],
+    [
+     175.72,
+     "where"
+    ],
+    [
+     176.24,
+     "Urban"
+    ],
+    [
+     176.6,
+     "Platter"
+    ],
+    [
+     177.0,
+     "comes"
+    ],
+    [
+     177.28,
+     "in."
+    ],
+    [
+     177.96,
+     "They"
+    ],
+    [
+     178.12,
+     "make"
+    ],
+    [
+     178.6,
+     "better-for-you"
+    ],
+    [
+     179.4,
+     "products"
+    ],
+    [
+     180.0,
+     "that"
+    ],
+    [
+     180.28,
+     "deliver"
+    ],
+    [
+     180.96,
+     "on"
+    ],
+    [
+     181.28,
+     "both"
+    ],
+    [
+     181.6,
+     "taste"
+    ],
+    [
+     182.08,
+     "and"
+    ],
+    [
+     182.28,
+     "quality."
+    ],
+    [
+     183.16,
+     "So,"
+    ],
+    [
+     183.32,
+     "you"
+    ],
+    [
+     183.48,
+     "never"
+    ],
+    [
+     183.8,
+     "have"
+    ],
+    [
+     184.04,
+     "to"
+    ],
+    [
+     184.2,
+     "pick"
+    ],
+    [
+     184.6,
+     "between"
+    ],
+    [
+     185.04,
+     "the"
+    ],
+    [
+     185.16,
+     "two."
+    ],
+    [
+     186.08,
+     "Every"
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-11-01T17:14:21+00:00"
   }
  ],
- "next_id": 12,
+ "next_id": 15,
  "journal": [
   {
    "t": "2026-10-30T17:57:06+00:00",
@@ -3516,6 +4315,27 @@
    "video": "lgBLqo8TwgE",
    "channel": "Raj Shamani",
    "clips": 2
+  },
+  {
+   "t": "2026-11-01T17:10:31+00:00",
+   "event": "publish_started",
+   "clip": 9,
+   "channel": "Raj Shamani"
+  },
+  {
+   "t": "2026-11-01T17:11:04+00:00",
+   "event": "posted",
+   "clip": 9,
+   "media": "18080944196398635",
+   "channel": "Raj Shamani",
+   "qa": "pass"
+  },
+  {
+   "t": "2026-11-01T17:14:21+00:00",
+   "event": "episode_queued",
+   "video": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "clips": 3
   }
  ],
  "candidate_decisions": [
@@ -3751,6 +4571,357 @@
     "editorial_gate_reason": "promotional_content",
     "learned_score": null,
     "transcript_excerpt": "I have a small favor to ask you. I need you to subscribe to our channel. The more subscribers we have, the better and bigger guests we can bring and provide you more value through these conversations. And the full audio experience of this show is also available on Spotify where you can follow us and listen to the new episodes as well. You know that"
+   }
+  },
+  {
+   "episode_id": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "start": 8.36,
+   "end": 27.53,
+   "rank": 1,
+   "selected": true,
+   "recorded_at": "2026-11-01T17:13:47+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 8.36,
+    "end": 27.53,
+    "heat": 0.5,
+    "hook": 0.5800000000000001,
+    "density": 1.0,
+    "pre": 0.6500320000000002,
+    "final": 0.7960528000000001,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.9339999999999999,
+    "vid": 0.9,
+    "content_type": "question_answer",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 1.0,
+    "hook_type": "question",
+    "title": "Why We Choose the Wrong People",
+    "reject": false,
+    "editorial_review_required": false,
+    "editorial_gate_reason": "",
+    "learned_score": null,
+    "transcript_excerpt": ">> People are terrible at choosing right people. >> Why do you say so? >> I think one of the mistakes we make, whether you're looking for a romantic partner or teammate to collaborate with, is we pay too much attention to how people treat us. What you really want to know is how do they treat the person who's below them? How do they treat someone wh"
+   }
+  },
+  {
+   "episode_id": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "start": 302.56,
+   "end": 322.45,
+   "rank": 2,
+   "selected": true,
+   "recorded_at": "2026-11-01T17:13:47+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 302.56,
+    "end": 322.45000000000005,
+    "heat": 0.5,
+    "hook": 0.52,
+    "density": 1.0,
+    "pre": 0.633712,
+    "final": 0.7302247999999999,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.8829999999999998,
+    "vid": 0.6799999999999999,
+    "content_type": "insight",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "sponsor_read",
+    "promotion_confidence": 0.9,
+    "classification_confidence": 1.0,
+    "hook_type": "question",
+    "title": "The True Measure of Character",
+    "reject": false,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "promotional_content",
+    "learned_score": null,
+    "transcript_excerpt": "What you really want to know is how do they treat the person who's below them, or the person who's their peer, not how do they treat the person up, right? We can we can get fooled a lot by takers who are great fakers who kiss up and kick down. I think the real measure of of somebody's character is how do they treat someone who can't help them back."
+   }
+  },
+  {
+   "episode_id": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "start": 20.08,
+   "end": 40.8,
+   "rank": 3,
+   "selected": false,
+   "recorded_at": "2026-11-01T17:13:47+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 20.08,
+    "end": 40.800000000000004,
+    "heat": 0.5,
+    "hook": 0.52,
+    "density": 1.0,
+    "pre": 0.633712,
+    "final": 0.7291248,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.7759999999999999,
+    "vid": 0.835,
+    "content_type": "insight",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "self_promotion",
+    "promotion_confidence": 0.9,
+    "classification_confidence": 0.8,
+    "hook_type": "question",
+    "title": "Adam Grant on Judging Character",
+    "reject": false,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "promotional_content",
+    "learned_score": null,
+    "transcript_excerpt": "What you really want to know is how do they treat the person who's below them? How do they treat someone who can't help them back? >> Adam Grant, you have studied people for decades. You're trying to find out why they win, why do they lie, how are they being trusted. You've helped and advised like the US Army, Google, and bunch of other companies i"
+   }
+  },
+  {
+   "episode_id": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "start": 338.64,
+   "end": 355.33,
+   "rank": 4,
+   "selected": false,
+   "recorded_at": "2026-11-01T17:13:47+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 338.638,
+    "end": 355.33000000000004,
+    "heat": 0.5,
+    "hook": 0.62,
+    "density": 1.0,
+    "pre": 0.6609119999999999,
+    "final": 0.7286048,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.768,
+    "vid": 0.7899999999999999,
+    "content_type": "explanation",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 0.0,
+    "classification_confidence": 1.0,
+    "hook_type": "question",
+    "title": "Adam Grant: Making Work Not Suck",
+    "reject": false,
+    "editorial_review_required": false,
+    "editorial_gate_reason": "",
+    "learned_score": null,
+    "transcript_excerpt": ">> >> Who you are, [laughter] what do you do? Like they give them 1 minute pitch. Like I'm a big fan of Adam Grant. >> >> I want [laughter] to hear it from you. >> That's an honor. I'm an organizational psychologist. Uh that means I spend a lot of my career studying how to make work not suck."
+   }
+  },
+  {
+   "episode_id": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "start": 24.16,
+   "end": 40.8,
+   "rank": 5,
+   "selected": false,
+   "recorded_at": "2026-11-01T17:13:47+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 24.16,
+    "end": 40.800000000000004,
+    "heat": 0.5,
+    "hook": 0.52,
+    "density": 1.0,
+    "pre": 0.633712,
+    "final": 0.7051248000000001,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.6960000000000002,
+    "vid": 0.835,
+    "content_type": "insight",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "self_promotion",
+    "promotion_confidence": 0.9,
+    "classification_confidence": 0.8,
+    "hook_type": "question",
+    "title": "Adam Grant's Character Test",
+    "reject": false,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "promotional_content",
+    "learned_score": null,
+    "transcript_excerpt": "How do they treat someone who can't help them back? >> Adam Grant, you have studied people for decades. You're trying to find out why they win, why do they lie, how are they being trusted. You've helped and advised like the US Army, Google, and bunch of other companies in the world."
+   }
+  },
+  {
+   "episode_id": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "start": 316.6,
+   "end": 338.35,
+   "rank": 6,
+   "selected": false,
+   "recorded_at": "2026-11-01T17:13:47+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 316.6,
+    "end": 338.35,
+    "heat": 0.5,
+    "hook": 0.48,
+    "density": 1.0,
+    "pre": 0.622832,
+    "final": 0.7007728,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.7759999999999999,
+    "vid": 0.7150000000000001,
+    "content_type": "insight",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 0.9,
+    "classification_confidence": 0.9,
+    "hook_type": "strong_statement",
+    "title": "How to Truly Judge Character",
+    "reject": false,
+    "editorial_review_required": false,
+    "editorial_gate_reason": "",
+    "learned_score": null,
+    "transcript_excerpt": "I think the real measure of of somebody's character is how do they treat someone who can't help them back. >> Let's go deep into it. Let's find out so many ideas around this thing because what you said essentially makes a lot of sense, but still we fall into this trap of actually judging people wrong, right? Before we do that, if someone's watching"
+   }
+  },
+  {
+   "episode_id": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "start": 168.52,
+   "end": 185.94,
+   "rank": 7,
+   "selected": true,
+   "recorded_at": "2026-11-01T17:13:47+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 168.52,
+    "end": 185.94,
+    "heat": 0.5,
+    "hook": 0.48,
+    "density": 0.9430867639822872,
+    "pre": 0.6615618199114319,
+    "final": 0.6481847279645727,
+    "editorial_score": 0.8524,
+    "standalone_heuristic": 0.972,
+    "payoff_heuristic": 0.9,
+    "context_dependency": 0.0,
+    "llm": 0.4419999999999999,
+    "vid": 0.7849999999999999,
+    "content_type": "promotion",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "sponsor_read",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 1.0,
+    "hook_type": "strong_statement",
+    "title": "Urban Platter: Taste & Quality",
+    "reject": false,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "promotional_content",
+    "learned_score": null,
+    "transcript_excerpt": "The food you choose either fuels you or slows you down. That's why your food choices matter so much. And that's where Urban Platter comes in. They make better-for-you products that deliver on both taste and quality. So, you never have to pick between the two."
+   }
+  },
+  {
+   "episode_id": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "start": 159.24,
+   "end": 185.94,
+   "rank": 8,
+   "selected": false,
+   "recorded_at": "2026-11-01T17:13:47+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 159.24,
+    "end": 185.94,
+    "heat": 0.5,
+    "hook": 0.48,
+    "density": 1.0,
+    "pre": 0.668528,
+    "final": 0.6231712,
+    "editorial_score": 0.8524,
+    "standalone_heuristic": 0.972,
+    "payoff_heuristic": 0.9,
+    "context_dependency": 0.0,
+    "llm": 0.426,
+    "vid": 0.67,
+    "content_type": "promotion",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "sponsor_read",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 1.0,
+    "hook_type": "strong_statement",
+    "title": "Fuel Your Body with Urban Platter",
+    "reject": false,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "promotional_content",
+    "learned_score": null,
+    "transcript_excerpt": "To perform at your best, your body and mind need to be at their best. And a big part of that comes down to what you eat every single day. The food you choose either fuels you or slows you down. That's why your food choices matter so much. And that's where Urban Platter comes in. They make better-for-you products that deliver on both taste and quali"
+   }
+  },
+  {
+   "episode_id": "khp7AnOJn8g",
+   "channel": "Raj Shamani",
+   "start": 125.6,
+   "end": 151.35,
+   "rank": 9,
+   "selected": false,
+   "recorded_at": "2026-11-01T17:13:47+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 125.6,
+    "end": 151.35,
+    "heat": 0.5,
+    "hook": 0.62,
+    "density": 1.0,
+    "pre": 0.6609119999999999,
+    "final": 0.555006,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.34600000000000003,
+    "vid": null,
+    "content_type": "question_answer",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "self_promotion",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 0.5,
+    "hook_type": "question",
+    "title": "Interrupted Advice on First Dates",
+    "reject": true,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "promotional_content",
+    "learned_score": null,
+    "transcript_excerpt": "What should they do in the first 30 minutes to build a certain vibe? >> From reading the research on first dates, my biggest surprise from a paper that came out earlier this year, what they show is that >> I have a small favor to ask you. I need you to subscribe to our channel. The more subscribers we have, the better and bigger guests we can bring"
    }
   }
  ]
