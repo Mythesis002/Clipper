@@ -1149,7 +1149,12 @@ def produce(cfg, dry_run=False):
             return 0
         log.info("episode: %s | %s (%ds, %s views)", ch["name"], info["title"], info["duration"],
                  info.get("view_count"))
-        picks = analyse_episode(cfg, ch, info, state=state)
+        decision_sink = []
+        picks = analyse_episode(cfg, ch, info, state=state, decision_sink=decision_sink)
+        if not dry_run and decision_sink:
+            decisions = state.setdefault("candidate_decisions", [])
+            decisions.extend(decision_sink)
+            del decisions[:-600]
         for p in picks:
             log.info("pick %s-%s final=%.3f heat=%.2f hook=%.2f llm=%s vid=%s | %s", hms(p["start"]),
                      hms(p["end"]), p["final"], p["heat"], p["hook"], p.get("llm"), p.get("vid"),
@@ -1191,6 +1196,16 @@ def produce(cfg, dry_run=False):
                                 "30-39s" if p["end"] - p["start"] < 40 else "40s+"
                             )},
                 "title": p.get("title", ""), "caption": make_caption(cfg, ch, info, p),
+                "content_type": p.get("content_type") or p.get("semantic_kind") or "other",
+                "promotion_type": p.get("promotion_type", "none"),
+                "promotion_confidence": round(float(p.get("promotion_confidence", 0.0) or 0.0), 3),
+                "promotion_evidence": p.get("promotion_evidence", ""),
+                "editorial_review_required": bool(p.get("editorial_review_required")),
+                "editorial_gate_reason": p.get("editorial_gate_reason", ""),
+                "editorial_scores": p.get("editorial_scores", {}),
+                "semantic_topic": p.get("semantic_topic", ""),
+                "semantic_summary": p.get("semantic_summary", ""),
+                "edit_plan": build_edit_plan(p, cfg),
                 "polished": bool(p.get("polished")),
                 "words": [[round(t, 2), w] for t, w in p["words"]],
                 "status": "queued", "attempts": 0, "created_at": now_iso()})
