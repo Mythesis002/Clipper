@@ -730,20 +730,25 @@ def gemini_text(cfg, parts, temperature=0.2, max_tokens=8192, response_schema=No
 
 
 def parse_json(text):
-    """Tolerant JSON extraction: plain JSON, ```json fences, or JSON buried in prose."""
-    t = text.strip()
-    t = re.sub(r"^```(?:json)?\s*|\s*```$", "", t, flags=re.I)
+    """Parse plain, fenced, or prose-wrapped JSON without greedy regex extraction."""
+    if not isinstance(text, str) or not text.strip():
+        raise GeminiError("response was empty or not text")
+    decoder = json.JSONDecoder()
+    source = text.strip()
+    # Prefer a complete top-level JSON value, even when a model adds a short preamble.
     try:
-        return json.loads(t)
+        return json.loads(source)
     except ValueError:
         pass
-    for pat in (r"\[.*\]", r"\{.*\}"):
-        m = re.search(pat, t, re.S)
-        if m:
-            try:
-                return json.loads(m.group(0))
-            except ValueError:
-                continue
+    for index, char in enumerate(source):
+        if char not in "{[":
+            continue
+        try:
+            value, _ = decoder.raw_decode(source[index:])
+            if isinstance(value, (dict, list)):
+                return value
+        except ValueError:
+            continue
     raise GeminiError("response was not valid JSON")
 
 
