@@ -50,9 +50,13 @@ def build_edit_plan(clip, cfg=None):
 def validate_edit_plan(plan):
     if not isinstance(plan, dict):
         plan = {}
-    fmt = plan.get("format") if plan.get("format") in ALLOWED_FORMATS else "general"
-    caption = plan.get("caption_style") if plan.get("caption_style") in ALLOWED_CAPTION_STYLES else "minimal"
-    crop = plan.get("crop_strategy") if plan.get("crop_strategy") in ALLOWED_CROP else "face_track"
+    raw_format = plan.get("format")
+    raw_caption = plan.get("caption_style")
+    raw_crop = plan.get("crop_strategy")
+    fmt = raw_format if isinstance(raw_format, str) and raw_format in ALLOWED_FORMATS else "general"
+    caption = (raw_caption if isinstance(raw_caption, str)
+               and raw_caption in ALLOWED_CAPTION_STYLES else "minimal")
+    crop = raw_crop if isinstance(raw_crop, str) and raw_crop in ALLOWED_CROP else "face_track"
     try:
         words = min(max(int(plan.get("caption_group_words", 4)), 2), 6)
     except (TypeError, ValueError):
