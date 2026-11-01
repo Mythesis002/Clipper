@@ -1578,12 +1578,17 @@ def compose_clip(cfg, raw, clip, s, e, stem):
               "[a]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
               "boxblur=8:3,scale=1080:1920,eq=brightness=-0.08[bg];"
               f"[b]scale={fg_width}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2[v0]")
+    video_label = "v0"
+    if edit_plan["motion"] == "subtle":
+        # A restrained 4% punch-in is applied only to story/conversation plans.
+        fc += ";[v0]scale=1124:1998:flags=lanczos,crop=1080:1920:(in_w-out_w)/2:(in_h-out_h)/2[vzoom]"
+        video_label = "vzoom"
     if cfg["clip"]["captions"] and (clip.get("words") or clip.get("title")):
         build_ass(clip.get("words") or [], s, e, clip.get("title"),
                   WORK / f"{stem}.ass", edit_plan=edit_plan)
-        fc += f";[v0]subtitles={stem}.ass[v]"
+        fc += f";[{video_label}]subtitles={stem}.ass[v]"
     else:
-        fc += ";[v0]null[v]"
+        fc += f";[{video_label}]null[v]"
     out = WORK / f"{stem}.mp4"
     cmd = ["ffmpeg", "-y", "-i", Path(raw).name, "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0",
            "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:v", "libx264", "-preset", "veryfast",
