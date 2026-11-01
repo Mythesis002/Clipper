@@ -93,6 +93,18 @@ def load_config(path=None):
     for key in ("clip", "queue", "discovery", "llm", "instagram", "schedule", "learning"):
         if not isinstance(cfg[key], dict):
             raise ValueError(f"config.yaml section {key!r} must be a mapping")
+    cfg.setdefault("intelligence", {})
+    if not isinstance(cfg["intelligence"], dict):
+        raise ValueError("config.yaml section 'intelligence' must be a mapping")
+    intelligence = cfg["intelligence"]
+    if intelligence.get("promotion_policy", "manual_review") not in ("manual_review", "exclude", "allow"):
+        raise ValueError("intelligence.promotion_policy must be manual_review, exclude or allow")
+    threshold = float(intelligence.get("promotion_threshold", 0.72))
+    if not 0.0 <= threshold <= 1.0:
+        raise ValueError("intelligence.promotion_threshold must be between 0 and 1")
+    max_chars = int(intelligence.get("max_transcript_chars", 90000))
+    if max_chars < 1000 or max_chars > 250000:
+        raise ValueError("intelligence.max_transcript_chars must be between 1000 and 250000")
     configured_gemini_model = str(cfg["llm"].get("model", GEMINI_MODEL)).strip()
     if configured_gemini_model != GEMINI_MODEL:
         raise ValueError(
@@ -751,6 +763,8 @@ def build_rerank_prompt(ep_title, cands, episode_map=None):
             "topic": c.get("semantic_topic"),
             "summary": c.get("semantic_summary"),
             "confidence": c.get("semantic_confidence"),
+            "promotion_type": c.get("promotion_type"),
+            "promotion_evidence": c.get("promotion_evidence"),
         },
         "heuristics": {
             "opening_type": c.get("hook_type"),
@@ -835,11 +849,20 @@ def apply_rerank(cands, data):
                            "self_promotion", "unclear"}
         promotion_type = str(d.get("promotion_type") or c.get("promotion_type") or "none").lower()
         c["promotion_type"] = promotion_type if promotion_type in promotion_types else "unclear"
-        c["promotion_confidence"] = _score(d.get("promotion_confidence"), 0.0) / 10 if _score(
-            d.get("promotion_confidence")) is not None and float(d.get("promotion_confidence")) > 1 else (
-            max(0.0, min(1.0, float(d.get("promotion_confidence", 0) or 0))))
-        c["classification_confidence"] = max(0.0, min(1.0, float(
-            d.get("classification_confidence", 0.0) or 0.0)))
+        try:
+            promotion_confidence = float(d.get("promotion_confidence", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            promotion_confidence = 0.0
+        if promotion_confidence > 1.0:
+            promotion_confidence /= 10.0
+        c["promotion_confidence"] = max(0.0, min(1.0, promotion_confidence))
+        try:
+            classification_confidence = float(d.get("classification_confidence", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            classification_confidence = 0.0
+        if classification_confidence > 1.0:
+            classification_confidence /= 10.0
+        c["classification_confidence"] = max(0.0, min(1.0, classification_confidence))
         c["promotion_evidence"] = str(d.get("promotion_evidence") or "")[:240]
         c["title"] = str(d.get("title") or "").strip()[:80]
         c["caption_hook"] = str(d.get("caption_hook") or "").strip()[:140]
@@ -1648,12 +1671,15 @@ def qa_checks(cfg, path):
 
 QA_PROMPT = (
     "You are the final QA editor for an Instagram Reel cut from a podcast. Watch it WITH SOUND. Check: "
-    "(1) it starts and ends cleanly, not in the middle of a word or sentence; (2) a viewer with no prior context can understand the setup and payoff; (3) the first 1-3 seconds earn attention without misleading clickbait; (4) the burned-in captions "
-    "match what is said, are readable and in sync; (3) the yellow title on top fits the content; (4) the "
-    "audio is clear; (5) a stranger with no context would understand it and want to keep watching; "
-    "(6) nothing unsafe: hate, harassment, explicit content, dangerous misinformation, defamation of a "
-    'named person. Reply with ONLY JSON: {"approve":true,"score":0,"unsafe":false,"issues":[""]}. '
-    "approve=false only for serious problems. score is 0-10 overall quality.")
+    "(1) it starts and ends cleanly, not in the middle of a word or sentence; (2) a viewer with no prior "
+    "context can understand the setup and payoff; (3) the first 1-3 seconds earn attention without "
+    "misleading clickbait; (4) captions match the speech, are readable and synchronised; (5) the title "
+    "matches the actual spoken content; (6) framing, cuts and visual emphasis suit the type of conversation; "
+    "(7) audio is clear and balanced; (8) nothing unsafe: hate, harassment, explicit content, dangerous "
+    "misinformation or defamation. Note an obviously promotional segment in issues when the editorial "
+    "context suggests it, but do not infer an advertisement from a passing product mention alone. "
+    'Reply with ONLY JSON: {"approve":true,"score":0,"unsafe":false,"issues":[""]}. '
+    "approve=false only for serious quality or safety problems. score is 0-10 overall quality.")
 
 
 def gemini_qa(cfg, path, clip=None):
@@ -2036,7 +2062,9 @@ def update_metrics(cfg):
         m = fetch_metrics(cfg, c["media_id"])
         n += 1
         if m:
-            c["metrics"], c["metrics_at"], changed = m, now_iso(), True
+            sampled_at = now_iso()
+            c["metrics"], c["metrics_at"], changed = m, sampled_at, True
+            add_metric_snapshot(c, m, c.get("posted_at"), sampled_at=sampled_at)
             quality = performance_quality(m, c.get("end", 0) - c.get("start", 0))
             c["performance_detail"] = quality
             if quality.get("score") is not None:
@@ -2108,9 +2136,13 @@ def status_table(limit=15):
     jl = [f"- `{j['t'][5:16]}` **{j['event']}** " + ", ".join(f"{k}={v}" for k, v in j.items()
                                                            if k not in ("t", "event"))[:160]
           for j in state.get("journal", [])[-8:]]
+    learning = learning_counts(state)
     return (f"**Queue:** {q} waiting · **Manual review:** {review_count} · "
             f"**Publish outcome check:** {uncertain_count} · "
-            f"**Performance samples:** {quality_samples} · **Total views tracked:** {total}\n\n"
+            f"**Performance samples:** {quality_samples} · **Total views tracked:** {total}\n"
+            f"**Learning data:** {learning['candidate_decisions']} candidate decisions · "
+            f"{learning['human_feedback']} human feedback records · "
+            f"{learning['published']} published clips\n\n"
             + "\n".join(rows)
             + ("\n\n**Agent journal (latest)**\n" + "\n".join(jl) if jl else ""))
 
