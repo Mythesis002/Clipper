@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 
 VERSION = "learning-v1"
-MAX_CANDIDATE_DECISIONS = 2000
+MAX_CANDIDATE_DECISIONS = 600
 SNAPSHOT_THRESHOLDS = (("24h", 24), ("72h", 72), ("7d", 168))
 
 
