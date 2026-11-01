@@ -175,7 +175,7 @@ def editorial_gate(candidate, promotion_policy="manual_review", threshold=0.72):
     """Return a transparent gate decision; uncertain promotion signals are never auto-excluded."""
     kind = candidate.get("content_type") or candidate.get("semantic_kind") or "other"
     promo_type = candidate.get("promotion_type") or "none"
-    explicit = (promo_type not in ("none", "", "unclear")
+    explicit = (promo_type not in ("none", "")
                 or kind in ("promotion", "sponsored", "advertisement"))
     confidence = max(
         float(candidate.get("promotion_confidence") or 0.0),
