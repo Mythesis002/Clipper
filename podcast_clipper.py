@@ -2064,11 +2064,29 @@ def screen_queued_clip_for_promotion(cfg, clip):
     A failed or low-confidence screen is sent to human review, never silently approved.
     """
     if clip.get("promotion_screen_version") == PROMOTION_SCREEN_VERSION:
+        policy = cfg.get("intelligence", {}).get("promotion_policy", "manual_review")
+        threshold = float(cfg.get("intelligence", {}).get("promotion_threshold", 0.72))
+        promotion_type = str(clip.get("promotion_type") or "none").lower()
+        promotion_confidence = float(clip.get("promotion_confidence") or 0.0)
+        classification_confidence = float(clip.get("classification_confidence") or 0.0)
+        flagged = promotion_type not in ("none",) and (
+            promotion_confidence >= threshold or classification_confidence >= 0.60
+        )
+        uncertain = (promotion_type == "unclear" or classification_confidence < 0.60)
+        excluded = flagged and policy == "exclude"
+        review_required = (
+            bool(clip.get("editorial_review_required"))
+            or uncertain
+            or (flagged and policy == "manual_review")
+        )
+        if excluded:
+            return {"review_required": False, "excluded": True,
+                    "issues": ["Clip classified as promotional and excluded by editorial policy."],
+                    "already_screened": True}
         return {
-            "review_required": bool(clip.get("editorial_review_required")),
-            "excluded": False,
-            "issues": ([str(clip.get("editorial_gate_reason") or "editorial review")]
-                       if clip.get("editorial_review_required") else []),
+            "review_required": review_required, "excluded": False,
+            "issues": ([str(clip.get("editorial_gate_reason") or "promotion classification requires review")]
+                       if review_required else []),
             "already_screened": True,
         }
 
