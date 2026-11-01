@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import editing_engine
 import intelligence_engine
@@ -171,6 +172,50 @@ class IntelligentSystemTests(unittest.TestCase):
             learning_engine.predict_editorial_score(good_candidate, model),
             learning_engine.predict_editorial_score(weak_candidate, model),
         )
+
+    @patch("podcast_clipper.gemini_key", return_value="test-key")
+    @patch("podcast_clipper.gemini_text", return_value='{"content_type":"promotion","promotion_type":"sponsor_read","promotion_confidence":0.96,"classification_confidence":0.98,"evidence":"To know more about our title sponsor Porter"}')
+    def test_publication_screen_holds_queued_sponsor_segment(self, _gemini, _key):
+        clip = {
+            "id": 8,
+            "words": [[189.5, "That's"], [190.0, "why"], [191.0, "I"], [192.0, "use"],
+                      [193.0, "Porter."], [214.0, "our"], [215.0, "title"],
+                      [216.0, "sponsor"], [217.0, "Porter"]],
+        }
+        decision = clipper.screen_queued_clip_for_promotion(
+            {"llm": {"enabled": True}, "intelligence": {"promotion_policy": "manual_review",
+                                                       "promotion_threshold": 0.72}},
+            clip,
+        )
+        self.assertTrue(decision["review_required"])
+        self.assertFalse(decision["excluded"])
+        self.assertEqual(clip["promotion_type"], "sponsor_read")
+        self.assertEqual(clip["promotion_screen_version"], clipper.PROMOTION_SCREEN_VERSION)
+        self.assertIn("title sponsor Porter", clip["promotion_evidence"])
+
+    @patch("podcast_clipper.gemini_key", return_value="test-key")
+    @patch("podcast_clipper.gemini_text", return_value='{"content_type":"insight","promotion_type":"none","promotion_confidence":0.02,"classification_confidence":0.96,"evidence":"A passing mention only"}')
+    def test_publication_screen_allows_confident_non_promotional_discussion(self, _gemini, _key):
+        clip = {"id": 3, "words": [[1.0, "I"], [1.5, "use"], [2.0, "a"], [2.5, "phone"]]}
+        decision = clipper.screen_queued_clip_for_promotion(
+            {"llm": {"enabled": True}, "intelligence": {"promotion_policy": "manual_review",
+                                                       "promotion_threshold": 0.72}},
+            clip,
+        )
+        self.assertFalse(decision["review_required"])
+        self.assertEqual(clip["promotion_type"], "none")
+        self.assertEqual(clip["content_type"], "insight")
+
+    @patch("podcast_clipper.gemini_key", return_value="test-key")
+    @patch("podcast_clipper.gemini_text", side_effect=RuntimeError("temporary outage"))
+    def test_publication_screen_fails_closed_when_gemini_is_unavailable(self, _gemini, _key):
+        clip = {"id": 9, "words": [[1.0, "interesting"], [2.0, "sentence"]]}
+        decision = clipper.screen_queued_clip_for_promotion(
+            {"llm": {"enabled": True}, "intelligence": {"promotion_policy": "manual_review"}},
+            clip,
+        )
+        self.assertTrue(decision["review_required"])
+        self.assertIn("promotion_screen_error", clip)
 
     def test_metrics_are_snapshotted_once_at_maturity_bands(self):
         clip = {"posted_at": "2026-01-01T00:00:00+00:00"}
