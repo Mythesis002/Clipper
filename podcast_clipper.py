@@ -2052,6 +2052,138 @@ def _post_clip(cfg, state, clip, path):
 
 
 
+PROMOTION_SCREEN_VERSION = "publish-promotion-screen-v1"
+PROMOTION_TYPES = {"none", "sponsor_read", "affiliate", "product_pitch",
+                   "self_promotion", "unclear"}
+
+
+def screen_queued_clip_for_promotion(cfg, clip):
+    """Final fail-closed transcript screen for queued clips, including legacy state entries.
+
+    It is run on the rendered clip's stored transcript immediately before QA/publishing.
+    A failed or low-confidence screen is sent to human review, never silently approved.
+    """
+    if clip.get("promotion_screen_version") == PROMOTION_SCREEN_VERSION:
+        return {
+            "review_required": bool(clip.get("editorial_review_required")),
+            "excluded": False,
+            "issues": ([str(clip.get("editorial_gate_reason") or "editorial review")]
+                       if clip.get("editorial_review_required") else []),
+            "already_screened": True,
+        }
+
+    words = clip.get("words") or []
+    transcript = " ".join(str(item[1]) for item in words
+                          if isinstance(item, (list, tuple)) and len(item) >= 2).strip()
+    if not transcript:
+        clip["promotion_screen_error"] = "no stored transcript is available for publication screening"
+        return {
+            "review_required": True, "excluded": False,
+            "issues": ["Promotion screen cannot run because the clip transcript is missing."],
+        }
+    if not cfg.get("llm", {}).get("enabled") or not gemini_key():
+        clip["promotion_screen_error"] = "Gemini unavailable"
+        return {
+            "review_required": True, "excluded": False,
+            "issues": ["Promotion screen unavailable; manual review required."],
+        }
+
+    prompt = (
+        "You are a strict final editorial safety reviewer for a podcast clip that is about to be "
+        "published as an Instagram Reel. Classify ONLY the supplied clip transcript. Detect a "
+        "sponsor read, paid brand integration, affiliate pitch, creator self-promotion, or direct "
+        "product/service sales pitch. A casual product/brand mention, a factual example, or an "
+        "ordinary recommendation in a broader discussion is NOT automatically an advertisement. "
+        "Look for actual selling intent: sponsor disclosure, repeated product benefits, pricing, "
+        "discounts, calls to action, app/service instructions, or a direction to a link/description. "
+        "Do not infer sponsorship merely from a brand name. If evidence is ambiguous, return "
+        "promotion_type='unclear' and request human review.\n"
+        "Return ONLY one valid JSON object with: content_type (story, insight, explanation, opinion, "
+        "debate, question_answer, reaction, promotion, other), promotion_type "
+        "(none, sponsor_read, affiliate, product_pitch, self_promotion, unclear), "
+        "promotion_confidence (0 to 1), classification_confidence (0 to 1), evidence (short exact "
+        "phrase from the supplied transcript). Never invent words or context.\n"
+        "Clip title: " + str(clip.get("title") or "")[:160] +
+        "\nTranscript:\n" + transcript[:7000]
+    )
+    try:
+        response = parse_json(gemini_text(cfg, [{"text": prompt}],
+                                          temperature=0.1, max_tokens=800))
+        if isinstance(response, list) and response:
+            response = response[0]
+        if not isinstance(response, dict):
+            raise ValueError("screen returned no JSON object")
+        promotion_type = str(response.get("promotion_type") or "").strip().lower()
+        content_type = str(response.get("content_type") or "other").strip().lower()
+        if promotion_type not in PROMOTION_TYPES:
+            raise ValueError("screen returned an unsupported promotion_type")
+        if content_type not in {
+            "story", "insight", "explanation", "opinion", "debate",
+            "question_answer", "reaction", "promotion", "other",
+        }:
+            content_type = "other"
+        try:
+            promotion_confidence = float(response.get("promotion_confidence"))
+            classification_confidence = float(response.get("classification_confidence"))
+        except (TypeError, ValueError):
+            raise ValueError("screen omitted numeric confidence values") from None
+        if (not np.isfinite(promotion_confidence)
+                or not np.isfinite(classification_confidence)):
+            raise ValueError("screen returned non-finite confidence values")
+        promotion_confidence = min(max(promotion_confidence, 0.0), 1.0)
+        classification_confidence = min(max(classification_confidence, 0.0), 1.0)
+        evidence = str(response.get("evidence") or "")[:240]
+    except Exception as ex:
+        clip["promotion_screen_error"] = str(ex)[:240]
+        return {
+            "review_required": True, "excluded": False,
+            "issues": ["Promotion screen failed or returned an uncertain result; manual review required."],
+        }
+
+    policy = cfg.get("intelligence", {}).get("promotion_policy", "manual_review")
+    threshold = float(cfg.get("intelligence", {}).get("promotion_threshold", 0.72))
+    explicit_promotion = promotion_type not in ("none",)
+    uncertain = (promotion_type == "unclear"
+                 or classification_confidence < 0.60)
+    flagged = explicit_promotion and (
+        promotion_confidence >= threshold or classification_confidence >= 0.60
+    )
+    excluded = flagged and policy == "exclude"
+    review_required = uncertain or (flagged and policy == "manual_review")
+    if policy == "allow" and flagged:
+        review_required = False
+
+    clip.update({
+        "promotion_screen_version": PROMOTION_SCREEN_VERSION,
+        "promotion_screened_at": now_iso(),
+        "content_type": content_type,
+        "promotion_type": promotion_type,
+        "promotion_confidence": round(promotion_confidence, 3),
+        "classification_confidence": round(classification_confidence, 3),
+        "promotion_evidence": evidence,
+        "promotion_screen_error": None,
+    })
+    if flagged:
+        clip["editorial_review_required"] = review_required
+        clip["editorial_gate_reason"] = (
+            "promotional_content" if policy == "manual_review"
+            else "promotional_content_excluded" if policy == "exclude" else ""
+        )
+    elif uncertain:
+        clip["editorial_review_required"] = True
+        clip["editorial_gate_reason"] = "promotion_classification_uncertain"
+    issues = []
+    if excluded:
+        issues.append("Clip classified as promotional and excluded by editorial policy.")
+    elif review_required:
+        issues.append(
+            "Clip appears promotional or its promotion classification is uncertain. "
+            + (f"Evidence: {evidence}" if evidence else "Human decision required.")
+        )
+    return {"review_required": review_required, "excluded": excluded,
+            "issues": issues, "already_screened": False}
+
+
 def publish_next(cfg, wait=True, force=False):
     """Render, inspect, and publish one eligible clip; ambiguous outcomes are never auto-retried."""
     state = load_state()
@@ -2106,6 +2238,37 @@ def publish_next(cfg, wait=True, force=False):
                 review = {"verdict": "hard_fail", "score": 0,
                           "issues": [f"technical QA failed after manual approval: {str(ex)[:180]}"]}
         else:
+            # Mandatory final transcript screen also covers clips queued by older code
+            # before editorial classification existed in state.json.
+            promotion_screen = screen_queued_clip_for_promotion(cfg, clip)
+            if promotion_screen["excluded"]:
+                clip.update(status="rejected", error="Editorial policy: promotional content")
+                clip["qa"] = {"verdict": "hard_fail", "score": None,
+                              "issues": promotion_screen["issues"]}
+                jr(state, "clip_rejected", clip=clip["id"], issues=promotion_screen["issues"])
+                save_state(state)
+                gha("warning", f"Clip {clip['id']} excluded by promotional-content policy.")
+                continue
+            if (promotion_screen["review_required"]
+                    or clip.get("editorial_review_required")):
+                issues = promotion_screen["issues"] or [
+                    "Existing editorial classification requires a human decision."
+                ]
+                REVIEW_DIR.mkdir(parents=True, exist_ok=True)
+                review_path = REVIEW_DIR / f"clip_{clip['id']}.mp4"
+                shutil.copy2(path, review_path)
+                clip["editorial_review_required"] = True
+                clip.update(status="needs_review", review_artifact_file=review_path.name,
+                            error="Manual editorial review required: " + "; ".join(issues)[:300])
+                clip["qa"] = {"verdict": "soft_fail", "score": None, "issues": issues}
+                jr(state, "clip_needs_review", clip=clip["id"], artifact=review_path.name,
+                   issues=issues, review_stage="promotion_screen")
+                save_state(state)
+                gha("warning", f"Clip {clip['id']} needs editorial review; it will not be auto-published.")
+                needs_review = True
+                continue
+            # Persist the clean publication screen before proceeding to the normal quality gate.
+            save_state(state)
             review = qa_review(cfg, path, clip)
         if (clip.get("editorial_review_required")
                 and not clip.get("approved_manually_at")
