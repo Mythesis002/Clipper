@@ -55,7 +55,7 @@ from intelligence_engine import (
     episode_understanding_prompt, semantic_candidate_windows, timed_transcript,
     validate_episode_map,
 )
-from editing_engine import build_edit_plan
+from editing_engine import build_edit_plan, validate_edit_plan
 from learning_engine import (
     add_feedback, add_metric_snapshot, learning_counts, record_candidate_decisions,
 )
@@ -1250,16 +1250,20 @@ def clean_cap(w):
     return w.replace("{", "").replace("}", "").replace("\\", "").replace("\n", " ").upper()
 
 
-def build_ass(words, start, end, title, path):
-    """Title on top + word-by-word highlighted captions (the spoken word is yellow)."""
+def build_ass(words, start, end, title, path, edit_plan=None):
+    """Render word-synchronised captions using a validated content-specific caption plan."""
+    plan = validate_edit_plan(edit_plan or {})
     ws = [(t - start, w) for t, w in words if start - 0.05 <= t < end]
+    font_size = plan["caption_font_size"]
+    margin_v = plan["caption_margin_v"]
+    highlight = "&H0000D7FF&" if plan["caption_style"] == "emphasis" else "&H0000E5FF&"
     head = (
         "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n"
         "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
         "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, "
         "Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        "Style: Default,Noto Sans,68,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,1,0,0,0,100,100,"
-        "0,0,1,6,2,2,60,60,420,1\n"
+        f"Style: Default,Noto Sans,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H64000000,1,0,0,0,100,100,"
+        f"0,0,1,6,2,2,60,60,{margin_v},1\n"
         "Style: Title,Noto Sans,64,&H0000E5FF,&H000000FF,&H00000000,&H64000000,1,0,0,0,100,100,"
         "0,0,1,6,2,8,70,70,360,1\n\n"
         "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
@@ -1267,7 +1271,7 @@ def build_ass(words, start, end, title, path):
     if title:
         wrapped = "\\N".join(textwrap.wrap(clean_cap(title), 22)[:3])
         lines.append(f"Dialogue: 1,{ass_time(0)},{ass_time(end - start)},Title,,0,0,0,,{wrapped}")
-    groups = group_words(ws)
+    groups = group_words(ws, max_words=plan["caption_group_words"])
     for gi, g in enumerate(groups):
         next_start = groups[gi + 1][0][0] if gi + 1 < len(groups) else None
         for i, (t, w) in enumerate(g):
@@ -1279,7 +1283,7 @@ def build_ass(words, start, end, title, path):
                     en = min(en, next_start)
             en = max(en, t + 0.08)
             text = " ".join(
-                f"{{\\c&H00E5FF&}}{clean_cap(x)}{{\\c&HFFFFFF&}}" if j == i else clean_cap(x)
+                f"{{\\c{highlight}}}{clean_cap(x)}{{\\c&H00FFFFFF&}}" if j == i else clean_cap(x)
                 for j, (_, x) in enumerate(g))
             lines.append(f"Dialogue: 0,{ass_time(t)},{ass_time(en)},Default,,0,0,0,,{text}")
     Path(path).write_text(head + "\n".join(lines) + "\n", encoding="utf-8")
@@ -1539,7 +1543,9 @@ def compose_clip(cfg, raw, clip, s, e, stem):
     fg_scale = float(cfg.get("render", {}).get("foreground_scale", 1.16))
     fg_scale = min(max(fg_scale, 1.0), 1.35)
     fg_width = int(1080 * fg_scale)
-    face_track = detect_face_crop_points(cfg, raw, clip.get("speaker_analysis"))
+    edit_plan = validate_edit_plan(clip.get("edit_plan") or {})
+    face_track = (detect_face_crop_points(cfg, raw, clip.get("speaker_analysis"))
+                  if edit_plan["crop_strategy"] == "face_track" else None)
     crop_expr = face_crop_expression(face_track)
     if crop_expr:
         fc = (f"[0:v]scale=-2:1920,crop=1080:1920:'{crop_expr}':0,"
@@ -1550,7 +1556,8 @@ def compose_clip(cfg, raw, clip, s, e, stem):
               "boxblur=8:3,scale=1080:1920,eq=brightness=-0.08[bg];"
               f"[b]scale={fg_width}:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2[v0]")
     if cfg["clip"]["captions"] and (clip.get("words") or clip.get("title")):
-        build_ass(clip.get("words") or [], s, e, clip.get("title"), WORK / f"{stem}.ass")
+        build_ass(clip.get("words") or [], s, e, clip.get("title"),
+                  WORK / f"{stem}.ass", edit_plan=edit_plan)
         fc += f";[v0]subtitles={stem}.ass[v]"
     else:
         fc += ";[v0]null[v]"
@@ -1649,8 +1656,8 @@ QA_PROMPT = (
     "approve=false only for serious problems. score is 0-10 overall quality.")
 
 
-def gemini_qa(cfg, path):
-    """Gemini watches a small preview of the FINAL rendered clip. Returns None if unavailable."""
+def gemini_qa(cfg, path, clip=None):
+    """Gemini watches the final render with its editorial intent and edit plan as context."""
     if not (cfg["llm"].get("final_qa") and gemini_key()):
         return None
     prev = Path(path).with_name(Path(path).stem + "_preview.mp4")
@@ -1661,8 +1668,18 @@ def gemini_qa(cfg, path):
         if prev.stat().st_size > 14 * 1024 * 1024:
             return None
         data = base64.b64encode(prev.read_bytes()).decode()
-        d = parse_json(gemini_text(cfg, [{"inlineData": {"mimeType": "video/mp4", "data": data}},
-                                         {"text": QA_PROMPT}]))
+        clip = clip or {}
+        context = {
+            "content_type": clip.get("content_type"),
+            "promotion_type": clip.get("promotion_type"),
+            "promotion_confidence": clip.get("promotion_confidence"),
+            "edit_plan": clip.get("edit_plan"),
+        }
+        d = parse_json(gemini_text(cfg, [
+            {"inlineData": {"mimeType": "video/mp4", "data": data}},
+            {"text": QA_PROMPT + "\\nEditorial context (verify against the video): "
+                    + json.dumps(context, ensure_ascii=False)}
+        ]))
         if isinstance(d, list) and d:
             d = d[0]
         if not isinstance(d, dict):
@@ -1683,9 +1700,9 @@ def gemini_qa(cfg, path):
         prev.unlink(missing_ok=True)
 
 
-def qa_review(cfg, path):
+def qa_review(cfg, path, clip=None):
     """-> {'verdict': pass | soft_fail | hard_fail, 'score', 'issues'}.
-    hard_fail = never post (technical problem or unsafe). soft_fail = Gemini disapproves."""
+    hard_fail = never post (technical problem or unsafe). soft_fail = review is required."""
     try:
         chk = qa_checks(cfg, path)
     except Exception as ex:
@@ -1696,7 +1713,7 @@ def qa_review(cfg, path):
                 "issues": [f"technical QA could not complete: {str(ex)[:180]}"]}
     if chk["issues"]:
         return {"verdict": "hard_fail", "score": 0, "issues": chk["issues"]}
-    g = gemini_qa(cfg, path)
+    g = gemini_qa(cfg, path, clip)
     if g is None:
         policy = cfg.get("qa", {}).get("ai_unavailable", "manual_review")
         if policy == "technical_only":
@@ -1920,7 +1937,16 @@ def publish_next(cfg, wait=True, force=False):
                 review = {"verdict": "hard_fail", "score": 0,
                           "issues": [f"technical QA failed after manual approval: {str(ex)[:180]}"]}
         else:
-            review = qa_review(cfg, path)
+            review = qa_review(cfg, path, clip)
+        if (clip.get("editorial_review_required")
+                and not clip.get("approved_manually_at")
+                and review["verdict"] == "pass"):
+            review = {
+                "verdict": "soft_fail", "score": review.get("score"),
+                "issues": ["Editorial classification needs a human decision: "
+                           + str(clip.get("editorial_gate_reason") or "editorial review"),
+                           "Candidate has a high-confidence promotional or uncertain content classification"],
+            }
         clip["qa"] = {"verdict": review["verdict"], "score": review["score"], "issues": review["issues"]}
         if review["verdict"] == "hard_fail":
             clip.update(status="rejected", error="QA: " + "; ".join(review["issues"])[:300])
