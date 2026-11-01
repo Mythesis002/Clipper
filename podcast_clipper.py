@@ -743,7 +743,8 @@ def parse_json(text):
 
 def _score(x, default=None):
     try:
-        return min(max(float(x), 0.0), 10.0)
+        value = float(x)
+        return min(max(value, 0.0), 10.0) if np.isfinite(value) else default
     except (TypeError, ValueError):
         return default
 
@@ -848,15 +849,26 @@ def apply_rerank(cands, data):
         c["content_type"] = content_type if content_type in allowed_types else "other"
         promotion_types = {"none", "sponsor_read", "affiliate", "product_pitch",
                            "self_promotion", "unclear"}
-        promotion_type = str(d.get("promotion_type") or c.get("promotion_type") or "none").lower()
-        c["promotion_type"] = promotion_type if promotion_type in promotion_types else "unclear"
+        proposed_promotion_type = str(d.get("promotion_type") or "").lower()
+        if proposed_promotion_type not in promotion_types:
+            proposed_promotion_type = "unclear"
         try:
-            promotion_confidence = float(d.get("promotion_confidence", 0.0) or 0.0)
+            proposed_promotion_confidence = float(d.get("promotion_confidence", 0.0) or 0.0)
         except (TypeError, ValueError):
-            promotion_confidence = 0.0
-        if promotion_confidence > 1.0:
-            promotion_confidence /= 10.0
-        c["promotion_confidence"] = max(0.0, min(1.0, promotion_confidence))
+            proposed_promotion_confidence = 0.0
+        if proposed_promotion_confidence > 1.0:
+            proposed_promotion_confidence /= 10.0
+        proposed_promotion_confidence = max(0.0, min(1.0, proposed_promotion_confidence))
+        existing_promotion_type = str(c.get("promotion_type") or "none").lower()
+        existing_promotion_confidence = float(c.get("promotion_confidence") or 0.0)
+        # Conflicting text/video judgements preserve the stronger risk signal for review.
+        if (proposed_promotion_type not in ("none", "")
+                and proposed_promotion_confidence >= existing_promotion_confidence):
+            c["promotion_type"] = proposed_promotion_type
+        else:
+            c["promotion_type"] = existing_promotion_type
+        c["promotion_confidence"] = max(
+            existing_promotion_confidence, proposed_promotion_confidence)
         try:
             classification_confidence = float(d.get("classification_confidence", 0.0) or 0.0)
         except (TypeError, ValueError):
