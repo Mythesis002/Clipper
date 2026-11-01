@@ -473,6 +473,59 @@ class PipelineQualityTests(unittest.TestCase):
                     clipper.upload_reel_container(cfg, video, "smoke")
         post_mock.assert_not_called()
 
+    def test_instagram_processing_failed_uses_fresh_container_and_compat_encode(self):
+        import tempfile
+        from pathlib import Path
+        cfg = {"instagram": {"graph_version": "v25.0"}}
+        create_first = Mock(ok=True, status_code=200,
+                            json=lambda: {"id": "container-original", "uri": "https://upload.example/original"})
+        rejected = Mock(
+            ok=False, status_code=400, text='{"debug_info":{"type":"ProcessingFailedError"}}',
+            json=lambda: {"debug_info": {"type": "ProcessingFailedError"}},
+        )
+        create_second = Mock(ok=True, status_code=200,
+                             json=lambda: {"id": "container-compatible", "uri": "https://upload.example/compatible"})
+        accepted = Mock(ok=True, status_code=200)
+        finished = Mock(ok=True, json=lambda: {"status_code": "FINISHED", "status": "ready"})
+        with tempfile.TemporaryDirectory() as folder:
+            original = Path(folder) / "original.mp4"
+            fallback = Path(folder) / "original_instagram_compat.mp4"
+            original.write_bytes(b"original-video")
+            def make_fallback(_path):
+                fallback.write_bytes(b"compat-video")
+                return fallback
+            with patch.dict("os.environ", {"IG_USER_ID": "ig-123", "IG_ACCESS_TOKEN": "token-123"}), \
+                 patch.object(clipper, "normalize_reel_for_instagram", side_effect=make_fallback) as normalise, \
+                 patch.object(clipper.requests, "post",
+                              side_effect=[create_first, rejected, create_second, accepted]) as post_mock, \
+                 patch.object(clipper.requests, "get", return_value=finished):
+                container_id = clipper.upload_reel_container(cfg, original, "caption")
+            self.assertEqual(container_id, "container-compatible")
+            normalise.assert_called_once_with(original)
+            self.assertEqual(post_mock.call_count, 4)
+            self.assertEqual(post_mock.call_args_list[1].kwargs["data"], b"original-video")
+            self.assertEqual(post_mock.call_args_list[3].kwargs["data"], b"compat-video")
+            self.assertEqual(post_mock.call_args_list[3].kwargs["headers"]["file_size"], "12")
+            self.assertFalse(fallback.exists())
+
+    def test_instagram_upload_does_not_reencode_non_processing_errors(self):
+        import tempfile
+        from pathlib import Path
+        cfg = {"instagram": {"graph_version": "v25.0"}}
+        create = Mock(ok=True, status_code=200,
+                      json=lambda: {"id": "container-123", "uri": "https://upload.example/container"})
+        rejected = Mock(ok=False, status_code=400, text="invalid token",
+                        json=lambda: {"error": {"type": "OAuthException"}})
+        with tempfile.TemporaryDirectory() as folder:
+            video = Path(folder) / "clip.mp4"
+            video.write_bytes(b"video")
+            with patch.dict("os.environ", {"IG_USER_ID": "ig-123", "IG_ACCESS_TOKEN": "token-123"}), \
+                 patch.object(clipper, "normalize_reel_for_instagram") as normalise, \
+                 patch.object(clipper.requests, "post", side_effect=[create, rejected]):
+                with self.assertRaisesRegex(RuntimeError, "resumable upload failed"):
+                    clipper.upload_reel_container(cfg, video, "caption")
+        normalise.assert_not_called()
+
     def test_instagram_upload_smoke_rejects_unexpected_status(self):
         import tempfile
         from pathlib import Path
