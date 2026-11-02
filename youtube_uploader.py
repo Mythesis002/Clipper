@@ -54,12 +54,12 @@ def _credentials_from_environment():
 
 
 def _youtube_service():
+    credentials = _credentials_from_environment()
     try:
         from googleapiclient.discovery import build
     except ImportError as exc:
         raise RuntimeError("YouTube upload dependencies are missing; install requirements.txt.") from exc
-    return build("youtube", "v3", credentials=_credentials_from_environment(),
-                 cache_discovery=False)
+    return build("youtube", "v3", credentials=credentials, cache_discovery=False)
 
 
 def check_youtube_account():
