@@ -200,7 +200,7 @@
     "ig_reels_video_view_total_time": 58056,
     "reels_skip_rate": 66.7
    },
-   "metrics_at": "2026-11-01T13:48:36+00:00",
+   "metrics_at": "2026-11-02T11:40:08+00:00",
    "performance_detail": {
     "score": 0.4438,
     "avg_watch_s": 19.352,
@@ -211,7 +211,25 @@
     "skip_rate": 0.667,
     "evidence_count": 5
    },
-   "performance_score": 0.4438
+   "performance_score": 0.4438,
+   "metric_snapshots": [
+    {
+     "band": "24h",
+     "age_hours": 53.9,
+     "sampled_at": "2026-11-02T11:40:08+00:00",
+     "metrics": {
+      "views": 7,
+      "reach": 2,
+      "likes": 0,
+      "comments": 0,
+      "shares": 0,
+      "saved": 0,
+      "ig_reels_avg_watch_time": 19352,
+      "ig_reels_video_view_total_time": 58056,
+      "reels_skip_rate": 66.7
+     }
+    }
+   ]
   },
   {
    "id": 3,
@@ -2426,14 +2444,21 @@
     "llm": 0.94,
     "vid": 0.9,
     "hook_type": "question",
-    "duration_bucket": "30-39s"
+    "duration_bucket": "30-39s",
+    "speaker_count": 2,
+    "speaker_turns": 5,
+    "speaker_switches": 2,
+    "dominant_speaker_ratio": 0.993,
+    "speaker_overlap_s": 0.19,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "2"
    },
    "title": "The Dead Body That Moved and Got Shot",
    "caption": "Can dead bodies move or make sounds? A death investigator shares a chilling story of a rookie cop's terrifying encounter.\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=lgBLqo8TwgE\n\nFollow for daily podcast clips\n\n#DeathInvestigator #TrueCrime #CreepyStories #PodcastClip #BarbaraButcher",
    "content_type": "story",
    "promotion_type": "none",
    "promotion_confidence": 1.0,
-   "promotion_evidence": "The content is a discussion, not an active promotion, despite a sponsor logo being present.",
+   "promotion_evidence": "Now, there's a story that there was a rookie cop and they said to him, um, you know, you're going to sit and guard this body.",
    "editorial_review_required": false,
    "editorial_gate_reason": "",
    "editorial_scores": {
@@ -2463,363 +2488,43 @@
     "rationale": "Natural pacing for a story."
    },
    "polished": false,
-   "words": [
-    [
-     32.76,
-     ">> Can"
-    ],
-    [
-     32.96,
-     "a"
-    ],
-    [
-     33.04,
-     "dead"
-    ],
-    [
-     33.52,
-     "body"
-    ],
-    [
-     34.32,
-     "move"
-    ],
-    [
-     34.8,
-     "or"
-    ],
-    [
-     34.88,
-     "like"
-    ],
-    [
-     35.16,
-     "make"
-    ],
-    [
-     35.4,
-     "sound?"
-    ],
-    [
-     35.96,
-     ">> It's"
-    ],
-    [
-     36.04,
-     "happened"
-    ],
-    [
-     36.36,
-     "to"
-    ],
-    [
-     36.48,
-     "me."
-    ],
-    [
-     36.76,
-     ">>"
-    ],
-    [
-     37.36,
-     ">> Yeah."
-    ],
-    [
-     37.8,
-     "Because"
-    ],
-    [
-     38.3,
-     "Really?"
-    ],
-    [
-     38.64,
-     "even"
-    ],
-    [
-     38.92,
-     "after"
-    ],
-    [
-     39.16,
-     "they're"
-    ],
-    [
-     39.4,
-     "dead,"
-    ],
-    [
-     39.84,
-     "they"
-    ],
-    [
-     39.92,
-     "still"
-    ],
-    [
-     40.36,
-     "hold"
-    ],
-    [
-     40.52,
-     "those"
-    ],
-    [
-     40.8,
-     "gases"
-    ],
-    [
-     41.36,
-     "inside"
-    ],
-    [
-     41.92,
-     "them."
-    ],
-    [
-     42.16,
-     "Now,"
-    ],
-    [
-     42.36,
-     "there's"
-    ],
-    [
-     42.6,
-     "a"
-    ],
-    [
-     42.68,
-     "story"
-    ],
-    [
-     43.24,
-     "that"
-    ],
-    [
-     43.48,
-     "there"
-    ],
-    [
-     43.6,
-     "was"
-    ],
-    [
-     43.8,
-     "a"
-    ],
-    [
-     43.88,
-     "rookie"
-    ],
-    [
-     44.24,
-     "cop"
-    ],
-    [
-     44.76,
-     "and"
-    ],
-    [
-     44.88,
-     "they"
-    ],
-    [
-     45.0,
-     "said"
-    ],
-    [
-     45.28,
-     "to"
-    ],
-    [
-     45.4,
-     "him,"
-    ],
-    [
-     45.84,
-     "um,"
-    ],
-    [
-     46.08,
-     "you"
-    ],
-    [
-     46.16,
-     "know,"
-    ],
-    [
-     46.28,
-     "you're"
-    ],
-    [
-     46.44,
-     "going"
-    ],
-    [
-     46.6,
-     "to"
-    ],
-    [
-     46.68,
-     "sit"
-    ],
-    [
-     46.92,
-     "and"
-    ],
-    [
-     47.04,
-     "guard"
-    ],
-    [
-     47.28,
-     "this"
-    ],
-    [
-     47.52,
-     "body."
-    ],
-    [
-     48.16,
-     "And"
-    ],
-    [
-     48.28,
-     "he's"
-    ],
-    [
-     48.48,
-     "sitting"
-    ],
-    [
-     48.88,
-     "there"
-    ],
-    [
-     49.16,
-     "and"
-    ],
-    [
-     49.28,
-     "he's"
-    ],
-    [
-     49.48,
-     "very"
-    ],
-    [
-     49.76,
-     "afraid."
-    ],
-    [
-     50.48,
-     "And"
-    ],
-    [
-     50.64,
-     "then,"
-    ],
-    [
-     51.2,
-     "as"
-    ],
-    [
-     51.48,
-     "the"
-    ],
-    [
-     51.6,
-     "body"
-    ],
-    [
-     52.2,
-     "jerked"
-    ],
-    [
-     52.6,
-     "a"
-    ],
-    [
-     52.68,
-     "little,"
-    ],
-    [
-     54.76,
-     "it"
-    ],
-    [
-     55.08,
-     "moved"
-    ],
-    [
-     55.64,
-     "and"
-    ],
-    [
-     55.76,
-     "then"
-    ],
-    [
-     55.88,
-     "it"
-    ],
-    [
-     56.0,
-     "made"
-    ],
-    [
-     56.2,
-     "a"
-    ],
-    [
-     56.24,
-     "sound"
-    ],
-    [
-     56.92,
-     "like"
-    ],
-    [
-     60.2,
-     "He"
-    ],
-    [
-     60.36,
-     "got"
-    ],
-    [
-     60.64,
-     "so"
-    ],
-    [
-     60.88,
-     "frightened"
-    ],
-    [
-     61.36,
-     "that"
-    ],
-    [
-     61.48,
-     "he"
-    ],
-    [
-     61.64,
-     "shot"
-    ],
-    [
-     62.0,
-     "it"
-    ],
-    [
-     63.2,
-     "twice."
-    ]
-   ],
-   "status": "queued",
+   "status": "posted",
    "attempts": 0,
-   "created_at": "2026-11-01T16:37:19+00:00"
+   "created_at": "2026-11-01T16:37:19+00:00",
+   "speaker_analysis": {
+    "speaker_count": 2,
+    "speaker_turns": 5,
+    "speaker_switches": 2,
+    "dominant_speaker_ratio": 0.993,
+    "speaker_overlap_s": 0.19,
+    "speaker_score": 1.0
+   },
+   "promotion_screen_version": "publish-promotion-screen-v2",
+   "promotion_screened_at": "2026-11-02T11:39:12+00:00",
+   "classification_confidence": 0.9,
+   "promotion_screen_attempts": 1,
+   "promotion_screen_error": null,
+   "qa": {
+    "verdict": "pass",
+    "score": 9.0,
+    "issues": []
+   },
+   "error": null,
+   "media_id": "18232241125338274",
+   "posted_at": "2026-11-02T11:40:03+00:00",
+   "platforms": {
+    "instagram": {
+     "status": "posted",
+     "media_id": "18232241125338274",
+     "url": "https://www.instagram.com/reel/18232241125338274/",
+     "posted_at": "2026-11-02T11:40:03+00:00"
+    },
+    "youtube": {
+     "status": "failed",
+     "error": "YouTube upload dependencies are missing; install requirements.txt.",
+     "failed_at": "2026-11-02T11:40:03+00:00"
+    }
+   }
   },
   {
    "id": 11,
@@ -4354,6 +4059,26 @@
    "video": "khp7AnOJn8g",
    "channel": "Raj Shamani",
    "clips": 3
+  },
+  {
+   "t": "2026-11-02T11:39:23+00:00",
+   "event": "publish_started",
+   "clip": 10,
+   "channel": "Raj Shamani"
+  },
+  {
+   "t": "2026-11-02T11:40:03+00:00",
+   "event": "posted",
+   "clip": 10,
+   "media": "18232241125338274",
+   "channel": "Raj Shamani",
+   "qa": "pass"
+  },
+  {
+   "t": "2026-11-02T11:40:03+00:00",
+   "event": "youtube_upload_failed",
+   "clip": 10,
+   "error": "YouTube upload dependencies are missing; install requirements.txt."
   }
  ],
  "candidate_decisions": [
