@@ -141,6 +141,7 @@ jobs:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           YT_PROXY: ${{ secrets.YT_PROXY }}
+          YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
           CMD: ${{ inputs.command || 'tick' }}      # scheduled runs have no input -> tick
           DRY: ${{ inputs.dry_run }}
           FORCE: ${{ inputs.force }}
