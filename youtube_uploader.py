@@ -62,6 +62,20 @@ def _youtube_service():
                  cache_discovery=False)
 
 
+def check_youtube_account():
+    """Validate OAuth and return the authenticated channel's basic identity."""
+    service = _youtube_service()
+    response = service.channels().list(part="id,snippet", mine=True).execute()
+    channels = response.get("items") or []
+    if not channels:
+        raise RuntimeError("YouTube OAuth is valid, but no channel was returned for this account.")
+    channel = channels[0]
+    return {
+        "channel_id": channel.get("id", ""),
+        "channel_title": (channel.get("snippet") or {}).get("title", "YouTube channel"),
+    }
+
+
 def upload_to_youtube(video, title, description="", category="22",
                       keywords=None, privacy_status="public", notify_subscribers=False):
     """Upload a local MP4 and return {video_id, url}. Does not download remote URLs."""
