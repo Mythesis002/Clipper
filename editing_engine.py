@@ -3,10 +3,10 @@
 The planner selects from supported renderer behaviours. It never emits executable FFmpeg
 commands or untrusted filter strings.
 """
-VERSION = "edit-plan-v1"
+VERSION = "edit-plan-v2"
 
 ALLOWED_FORMATS = {"story", "educational", "debate", "humour", "conversation", "general"}
-ALLOWED_CAPTION_STYLES = {"minimal", "emphasis", "dialogue"}
+ALLOWED_CAPTION_STYLES = {"minimal", "emphasis", "dialogue", "kinetic"}
 ALLOWED_CROP = {"face_track", "safe_center"}
 
 
@@ -16,7 +16,7 @@ def build_edit_plan(clip, cfg=None):
     if kind in ("personal_story", "story"):
         fmt, captions, words, crop = "story", "minimal", 4, "face_track"
     elif kind in ("insight", "explanation", "educational"):
-        fmt, captions, words, crop = "educational", "emphasis", 3, "face_track"
+        fmt, captions, words, crop = "educational", "kinetic", 3, "face_track"
     elif kind in ("debate", "question_answer"):
         fmt, captions, words, crop = "debate", "dialogue", 3, "face_track"
     elif kind in ("reaction", "humour"):
@@ -31,6 +31,9 @@ def build_edit_plan(clip, cfg=None):
         "caption_group_words": words,
         "caption_font_size": 68 if fmt != "educational" else 70,
         "caption_margin_v": 420,
+        "caption_emphasis": "meaningful",
+        "title_duration_s": 2.8,
+        "caption_animation": "pop",
         "crop_strategy": crop,
         "motion": "subtle" if fmt in ("story", "conversation") else "off",
         "broll": False,
@@ -45,6 +48,16 @@ def build_edit_plan(clip, cfg=None):
         ),
     }
     return validate_edit_plan(plan)
+
+
+def _bounded_float(value, default, low, high):
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        number = default
+    if not __import__("math").isfinite(number):
+        number = default
+    return min(max(number, low), high)
 
 
 def validate_edit_plan(plan):
@@ -74,6 +87,9 @@ def validate_edit_plan(plan):
         "version": VERSION, "format": fmt, "caption_style": caption,
         "caption_group_words": words, "caption_font_size": font,
         "caption_margin_v": margin, "crop_strategy": crop,
-        "motion": motion, "broll": False, "camera_cutting": False,
+        "motion": motion, "caption_emphasis": str(plan.get("caption_emphasis") or "meaningful")[:24],
+        "title_duration_s": _bounded_float(plan.get("title_duration_s", 2.8), 2.8, 1.0, 5.0),
+        "caption_animation": plan.get("caption_animation") if plan.get("caption_animation") in ("none", "pop", "fade") else "pop",
+        "broll": False, "camera_cutting": False,
         "rationale": str(plan.get("rationale") or "")[:240],
     }

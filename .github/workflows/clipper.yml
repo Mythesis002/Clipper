@@ -2,15 +2,20 @@ name: podcast-clipper
 
 on:
   schedule:
-    # Exactly two production schedules per day. GitHub cron uses UTC.
-    # Start 10 minutes early so setup completes before the 06:00 / 18:00 IST posting slots.
-    # tick waits for the exact local slot and catches up if the runner starts slightly late.
-    - cron: "20 6 * * *"     # 05:50 IST start -> 06:00 IST post
-    - cron: "20 18 * * *"    # 17:50 IST start -> 18:00 IST post
+    # Start 10 minutes before each configured posting slot so setup can finish.
+    # Explicit timezone avoids UTC/IST conversion mistakes; tick waits for the slot.
+    - cron: "50 18 * * 1-4"  # Mon-Thu: start 18:50 -> post 19:00 IST
+      timezone: "Asia/Kolkata"
+    - cron: "50 19 * * 5"     # Friday: start 19:50 -> post 20:00 IST
+      timezone: "Asia/Kolkata"
+    - cron: "50 11 * * 6"     # Saturday: start 11:50 -> post 12:00 IST
+      timezone: "Asia/Kolkata"
+    - cron: "50 18 * * 0"     # Sunday: start 18:50 -> post 19:00 IST
+      timezone: "Asia/Kolkata"
   workflow_dispatch:
     inputs:
       command:
-        description: "Default publishes one Reel now. Scheduled runs publish at 06:00 and 18:00 IST."
+        description: "Default publishes one Reel now. Scheduled runs use the weekday-specific slots in config.yaml."
         type: choice
         default: publish-now
         options: [check-live, check, produce, publish-now, tick, publish, metrics, status, approve, reject, feedback, confirm-post, retry-uncertain]

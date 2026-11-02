@@ -3,6 +3,8 @@
 import json
 import tempfile
 import unittest
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from unittest.mock import patch
 
@@ -70,6 +72,32 @@ class PromotionScreenTests(unittest.TestCase):
         self.assertTrue(result["review_required"])
         self.assertFalse(result["excluded"])
         self.assertEqual(self.clip["promotion_type"], "sponsor_read")
+
+
+class PostingSlotDiagnosticTests(unittest.TestCase):
+    def test_diagnostic_reports_local_time_slots_and_posted_slot_accounting(self):
+        cfg = {
+            "timezone": "Asia/Kolkata",
+            "post_times": ["06:00", "18:00"],
+            "schedule": {"max_wait_min": 25, "catchup_hours": 6},
+        }
+        now = datetime(2026, 11, 2, 3, 40, tzinfo=ZoneInfo("Asia/Kolkata"))
+        state = {
+            "clips": [{
+                "id": 9,
+                "status": "posted",
+                "posted_at": "2026-11-01T18:02:00+05:30",
+            }]
+        }
+
+        diagnostic = clipper.posting_slot_diagnostic(cfg, state, now=now)
+
+        self.assertIn("local_now=2026-11-02 03:40:00 IST", diagnostic)
+        self.assertIn("timezone=Asia/Kolkata", diagnostic)
+        self.assertIn("configured_slots=06:00,18:00 IST", diagnostic)
+        self.assertIn("eligible_window=-6h/+25m", diagnostic)
+        self.assertIn("already_accounted=", diagnostic)
+        self.assertIn("clip 9 (posted)", diagnostic)
 
 
 class PublishQueueTests(unittest.TestCase):

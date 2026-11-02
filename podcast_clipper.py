@@ -524,27 +524,39 @@ def hook_score(opening_text):
     toks = re.findall(r"[\w'%]+", text.lower())[:18]
     if not toks:
         return 0.0
-    score = 0.42
-    # Penalise openings that clearly depend on the previous sentence.
+    score = 0.38
+    # Cold-open independence: penalize pronouns, conjunctions and setup fragments.
+    dependent = {"this", "that", "it", "they", "he", "she", "because", "which",
+                 "and", "but", "so", "then", "there", "here"}
     if toks[0] in FILLER_START:
-        score -= 0.20
-    if toks[0] in {"this", "that", "it", "they", "he", "she", "because", "which", "and"}:
-        score -= 0.08
-    # Questions can create curiosity, but are not automatically good hooks.
-    if toks[0] in QUESTION_WORDS or "?" in text[:140]:
-        score += 0.10
-    # Specificity is useful; avoid giving large bonuses to clickbait vocabulary.
-    if any(re.search(r"\d", t) for t in toks):
-        score += 0.10
-    if any(t in HOOK_WORDS for t in toks):
-        score += 0.06
-    # A tiny fragment is often an unusable cut; an overly long setup is also weak.
-    if len(toks) < 4:
-        score -= 0.14
-    elif 6 <= len(toks) <= 15:
-        score += 0.08
-    if len(text) > 150 and not any(mark in text for mark in ".?!।"):
+        score -= 0.18
+    if toks[0] in dependent:
+        score -= 0.13
+    if len(toks) >= 2 and toks[1] in {"because", "and", "but", "so"}:
         score -= 0.06
+    # Curiosity/tension signals are modest bonuses, not clickbait shortcuts.
+    if toks[0] in QUESTION_WORDS or "?" in text[:120]:
+        score += 0.09
+    curiosity_terms = {"secret", "mistake", "truth", "reason", "actually", "wrong",
+                       "risk", "fear", "failed", "failure", "changed", "never", "why",
+                       "problem", "surprising", "impossible", "hidden"}
+    if any(t in curiosity_terms for t in toks):
+        score += 0.07
+    # Concrete detail and complete-thought signals.
+    if any(re.search(r"\d", t) for t in toks):
+        score += 0.08
+    if any(t in HOOK_WORDS for t in toks):
+        score += 0.04
+    if len(toks) < 5:
+        score -= 0.12
+    elif 7 <= len(toks) <= 18:
+        score += 0.08
+    if len(text) > 160 and not any(mark in text for mark in ".?!।"):
+        score -= 0.07
+    if text and text[0].islower():
+        score -= 0.04
+    if len(toks) <= 7 and any(t in {"shocking", "insane", "crazy", "viral"} for t in toks):
+        score -= 0.08
     return float(min(max(score, 0.0), 1.0))
 
 
@@ -798,10 +810,12 @@ def build_rerank_prompt(ep_title, cands, episode_map=None):
         f"Episode context: {summary[:1200]}\n"
         "The clip field is the ONLY content that will appear in the Reel. Context fields are provided "
         "only to detect dangling references; they are NOT part of the clip.\n"
-        "Evaluate actual spoken content, not sensationalism. Score each from 0-10: hook, standalone "
-        "clarity, payoff, emotion, specificity, context independence, curiosity, practical or emotional "
-        "value, and story structure. Prefer a complete idea, useful insight or story with a satisfying "
-        "payoff. Do not reward clickbait, outrage or unverified allegations.\n"
+        "Treat the first 1-3 seconds as a separate scroll-stop test: is the first spoken line "
+        "specific, immediately understandable without prior context, curiosity-provoking, and paid off "
+        "later in the clip? Score opening hook separately from overall quality. Score 0-10: hook, standalone "
+        "clarity, payoff, emotion, specificity, context independence, curiosity, practical/emotional value, "
+        "and story structure. Prefer complete ideas with satisfying payoff. Do not reward clickbait, outrage, "
+        "misleading edits or unverified allegations.\n"
         "Classify content_type as one of story, insight, explanation, opinion, debate, question_answer, "
         "reaction, promotion, or other. Identify promotional intent separately: none, sponsor_read, "
         "affiliate, product_pitch, self_promotion or unclear. A brief natural mention of a product is "
@@ -1327,7 +1341,9 @@ def build_ass(words, start, end, title, path, edit_plan=None):
     ws = [(t - start, w) for t, w in words if start - 0.05 <= t < end]
     font_size = plan["caption_font_size"]
     margin_v = plan["caption_margin_v"]
-    highlight = "&H0000D7FF&" if plan["caption_style"] == "emphasis" else "&H0000E5FF&"
+    highlight = "&H0000D7FF&" if plan["caption_style"] in ("emphasis", "kinetic") else "&H0000E5FF&"
+    title_duration = min(float(plan.get("title_duration_s", 2.8)), max(end - start, 0.8))
+    caption_animation = plan.get("caption_animation", "pop")
     head = (
         "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n"
         "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
@@ -1341,7 +1357,12 @@ def build_ass(words, start, end, title, path, edit_plan=None):
     lines = []
     if title:
         wrapped = "\\N".join(textwrap.wrap(clean_cap(title), 22)[:3])
-        lines.append(f"Dialogue: 1,{ass_time(0)},{ass_time(end - start)},Title,,0,0,0,,{wrapped}")
+        title_text = wrapped
+        if caption_animation == "fade":
+            title_text = "{\\fad(180,220)}" + title_text
+        elif caption_animation == "pop":
+            title_text = "{\\fscx92\\fscy92\\t(0,180,\\fscx100\\fscy100)}" + title_text
+        lines.append(f"Dialogue: 1,{ass_time(0)},{ass_time(title_duration)},Title,,0,0,0,,{title_text}")
     groups = group_words(ws, max_words=plan["caption_group_words"])
     for gi, g in enumerate(groups):
         next_start = groups[gi + 1][0][0] if gi + 1 < len(groups) else None
@@ -1354,7 +1375,10 @@ def build_ass(words, start, end, title, path, edit_plan=None):
                     en = min(en, next_start)
             en = max(en, t + 0.08)
             text = " ".join(
-                f"{{\\c{highlight}}}{clean_cap(x)}{{\\c&H00FFFFFF&}}" if j == i else clean_cap(x)
+                (f"{{\\c{highlight}}}{{\\fscx112\\fscy112\\t(0,120,\\fscx100\\fscy100)}}"
+                 if caption_animation == "pop" and j == i else
+                 f"{{\\c{highlight}}}" if j == i else "")
+                + clean_cap(x) + ("{\\c&H00FFFFFF&}" if j == i else "")
                 for j, (_, x) in enumerate(g))
             lines.append(f"Dialogue: 0,{ass_time(t)},{ass_time(en)},Default,,0,0,0,,{text}")
     Path(path).write_text(head + "\n".join(lines) + "\n", encoding="utf-8")
@@ -2012,10 +2036,15 @@ def due_slot(cfg, state, now=None):
         if c.get("status") in ("posted", "publishing", "publish_uncertain") and stamp:
             posted.append(datetime.fromisoformat(stamp))
     due = []
-    for hhmm in cfg["post_times"]:
-        h, m = map(int, hhmm.split(":"))
-        for day in (-1, 0, 1):
-            slot = (now + timedelta(days=day)).replace(hour=h, minute=m, second=0, microsecond=0)
+    weekly = cfg.get("weekly_post_times") or {}
+    for day in (-1, 0, 1):
+        date = (now + timedelta(days=day)).date()
+        weekday_name = date.strftime("%A")
+        slots = weekly.get(weekday_name, cfg.get("post_times", []))
+        for hhmm in slots:
+            h, m = map(int, hhmm.split(":"))
+            slot = datetime.combine(date, datetime.min.time(), tzinfo=tz).replace(
+                hour=h, minute=m, second=0, microsecond=0)
             ahead = (slot - now).total_seconds()
             if not -catch_s <= ahead <= wait_s:
                 continue
@@ -2291,6 +2320,65 @@ def screen_queued_clip_for_promotion(cfg, clip):
             "issues": issues, "already_screened": False}
 
 
+def posting_slot_diagnostic(cfg, state, now=None):
+    """Explain why no posting slot is currently eligible, using the same slot windows as due_slot."""
+    tz = ZoneInfo(cfg["timezone"])
+    now = now or datetime.now(tz)
+    sch = cfg["schedule"]
+    wait_s = sch["max_wait_min"] * 60
+    catch_s = sch["catchup_hours"] * 3600
+
+    posted = []
+    for clip in state.get("clips", []):
+        stamp = clip.get("posted_at") or clip.get("publish_started_at")
+        if clip.get("status") in ("posted", "publishing", "publish_uncertain") and stamp:
+            try:
+                posted.append((clip, datetime.fromisoformat(stamp)))
+            except (TypeError, ValueError):
+                continue
+
+    candidates = []
+    accounted = []
+    weekly = cfg.get("weekly_post_times") or {}
+    for day_offset in (-1, 0, 1):
+        date = (now + timedelta(days=day_offset)).date()
+        slots = weekly.get(date.strftime("%A"), cfg.get("post_times", []))
+        for hhmm in slots:
+            hour, minute = map(int, hhmm.split(":"))
+            slot = datetime.combine(date, datetime.min.time(), tzinfo=tz).replace(
+                hour=hour, minute=minute, second=0, microsecond=0)
+            delta = (slot - now).total_seconds()
+            candidates.append((abs(delta), slot, delta))
+            lo = slot - timedelta(seconds=wait_s + 300)
+            hi = slot + timedelta(seconds=catch_s)
+            matches = [
+                f"clip {clip.get('id')} ({clip.get('status')})"
+                for clip, stamp in posted if lo <= stamp <= hi
+            ]
+            if matches:
+                accounted.append(f"{slot.strftime('%Y-%m-%d %H:%M')} {date.strftime('%A')} IST: {', '.join(matches)}")
+
+    nearest = min(candidates, key=lambda item: item[0]) if candidates else None
+    nearest_text = "none"
+    if nearest:
+        _, slot, delta = nearest
+        direction = "in" if delta >= 0 else "ago"
+        minutes = abs(delta) / 60
+        nearest_text = f"{slot.strftime('%Y-%m-%d %H:%M')} IST ({minutes:.0f} min {direction})"
+
+    accounted_text = "; ".join(accounted) if accounted else "none in the eligible slot windows"
+    if weekly:
+        slot_summary = f"weekly_slots={weekly}"
+    else:
+        slot_summary = f"configured_slots={','.join(cfg.get('post_times', []))} IST"
+    return (
+        f"posting-slot diagnostic: local_now={now.strftime('%Y-%m-%d %H:%M:%S %Z')} "
+        f"timezone={cfg['timezone']} {slot_summary}; "
+        f"eligible_window=-{sch['catchup_hours']}h/+{sch['max_wait_min']}m; "
+        f"nearest_slot={nearest_text}; already_accounted={accounted_text}"
+    )
+
+
 def publish_next(cfg, wait=True, force=False):
     """Render, inspect, and publish one eligible clip; ambiguous outcomes are never auto-retried."""
     state = load_state()
@@ -2304,7 +2392,9 @@ def publish_next(cfg, wait=True, force=False):
     if not force:
         slot = due_slot(cfg, state)
         if slot is None:
+            state = load_state()
             log.info("no posting slot is due right now")
+            log.info("%s", posting_slot_diagnostic(cfg, state))
             return True
     all_queued = queued(state)
     q = [clip for clip in all_queued if clip.get("channel") in allowed_names]
