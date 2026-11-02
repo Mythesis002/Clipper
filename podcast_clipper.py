@@ -2747,6 +2747,19 @@ def check(cfg, live=False):
     n = len(authorized_channels(cfg))
     line(n > 0, f"{n} channel(s) with permission: true")
 
+    youtube_cfg = cfg.get("youtube", {}) or {}
+    if youtube_cfg.get("enabled", True):
+        if not os.getenv("YT_TOKEN_JSON", "").strip():
+            line(False, "YT_TOKEN_JSON (YouTube upload will be skipped until configured)", required=False)
+        else:
+            try:
+                from youtube_uploader import check_youtube_account
+                yt_account = check_youtube_account()
+                line(True, f"YouTube OAuth channel: {yt_account['channel_title']} ({yt_account['channel_id']})",
+                     required=False)
+            except Exception as ex:
+                line(False, f"YouTube OAuth/API check: {str(ex)[:220]}", required=False)
+
     if ig_id and ig_token:
         try:
             response = requests.get(
