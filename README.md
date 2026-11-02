@@ -65,7 +65,7 @@ The intelligence layers improve the decision process; they cannot guarantee a pe
 The scheduled workflow is configured for:
 
 <p align="center">
-  <strong>06:00 AM IST</strong> &nbsp; · &nbsp; <strong>06:00 PM IST</strong>
+  <strong>Mon–Thu: 7:00 PM IST</strong> &nbsp; · &nbsp; <strong>Fri: 8:00 PM IST</strong> &nbsp; · &nbsp; <strong>Sat: 12:00 PM IST</strong> &nbsp; · &nbsp; <strong>Sun: 7:00 PM IST</strong>
 </p>
 
 GitHub Actions starts the scheduled runs shortly before each slot. Each run uses the normal pipeline, fills the queue when needed, applies quality and manual-review safeguards, and attempts at most one Reel per slot.
@@ -82,7 +82,7 @@ GitHub Actions starts the scheduled runs shortly before each slot. Each run uses
    - **YT_TOKEN_JSON** — Google OAuth authorized-user token JSON for uploading Shorts (see below).
    - **HF_TOKEN** — optional; used for speaker diarization after accepting the pyannote model conditions.
 3. In **Settings → Actions → General**, enable read and write workflow permissions so the workflow can persist its state.
-4. In **config.yaml**, enable only podcast sources you own, license or have explicit permission to republish.
+4. In **config.yaml**, enable only podcast sources you own, license or have explicit permission to republish. The repository's configured source list is Raj Shamani, Ranveer Allahbadia, Jay Shetty and Prakhar Gupta (Prakhar Ke Pravachan); source permissions are the operator's responsibility and must be verified before enabling each channel.
 5. Run **check-live** first. It checks integrations and rendering, but is diagnostic only — it does not publish a Reel.
 6. When setup is ready, use **publish-now** for a manual publishing attempt. Scheduled runs use the normal **tick** pipeline.
 
