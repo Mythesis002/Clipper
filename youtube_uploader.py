@@ -53,8 +53,8 @@ def _credentials_from_environment():
     return credentials
 
 
-def _youtube_service():
-    credentials = _credentials_from_environment()
+def _youtube_service(credentials=None):
+    credentials = credentials or _credentials_from_environment()
     try:
         from googleapiclient.discovery import build
     except ImportError as exc:
@@ -87,6 +87,7 @@ def upload_to_youtube(video, title, description="", category="22",
     if privacy_status not in {"public", "unlisted", "private"}:
         raise ValueError("privacy_status must be public, unlisted, or private")
 
+    credentials = _credentials_from_environment()
     tags = keywords or DEFAULT_TAGS
     if isinstance(tags, str):
         tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
@@ -109,7 +110,7 @@ def upload_to_youtube(video, title, description="", category="22",
         from googleapiclient.http import MediaFileUpload
     except ImportError as exc:
         raise RuntimeError("YouTube upload dependencies are missing; install requirements.txt.") from exc
-    youtube = _youtube_service()
+    youtube = _youtube_service(credentials)
     request = youtube.videos().insert(
         part="snippet,status",
         body=body,
