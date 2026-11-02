@@ -2086,14 +2086,63 @@ def _post_clip(cfg, state, clip, path):
         clip["status"] = "queued"
         _fail(state, clip, ex, "instagram")
         return None
-    clip.update(status="posted", media_id=media_id, posted_at=now_iso(), error=None)
+    instagram_posted_at = now_iso()
+    clip.update(status="posted", media_id=media_id, posted_at=instagram_posted_at, error=None)
     clip.pop("publish_started_at", None)
+    clip.setdefault("platforms", {})["instagram"] = {
+        "status": "posted", "media_id": media_id, "url": f"https://www.instagram.com/reel/{media_id}/",
+        "posted_at": instagram_posted_at,
+    }
     clip.pop("words", None)
     jr(state, "posted", clip=clip["id"], media=media_id, channel=clip["channel"],
        qa=(clip.get("qa") or {}).get("verdict"))
     save_state(state)
+
+    # YouTube is a secondary destination. A failure must never roll back a successful
+    # Instagram post or cause Instagram to be published again on the next run.
+    yt_cfg = cfg.get("youtube", {}) or {}
+    yt_platform = clip.setdefault("platforms", {}).setdefault("youtube", {"status": "pending"})
+    if yt_cfg.get("enabled", True):
+        if not os.getenv("YT_TOKEN_JSON", "").strip():
+            yt_platform.update(status="not_configured", error="YT_TOKEN_JSON secret is missing")
+            log.warning("Instagram posted successfully, but YouTube upload skipped: YT_TOKEN_JSON is not configured.")
+            jr(state, "youtube_skipped", clip=clip["id"], reason="missing YT_TOKEN_JSON")
+        else:
+            try:
+                from youtube_uploader import upload_to_youtube
+                original_url = f"https://www.youtube.com/watch?v={clip.get('video_id')}" if clip.get("video_id") else ""
+                source_line = f"Original podcast: {original_url}" if original_url else f"Source: {clip.get('channel', 'podcast')}"
+                description = "\n\n".join(part for part in [
+                    str(clip.get("caption") or "").strip(),
+                    "#Shorts",
+                    source_line,
+                ] if part)
+                yt_result = upload_to_youtube(
+                    video=path,
+                    title=clip.get("title") or "Podcast Short",
+                    description=description,
+                    category=str(yt_cfg.get("category", "22")),
+                    keywords=yt_cfg.get("tags", ["podcast", "shorts", "clips", "india"]),
+                    privacy_status=str(yt_cfg.get("privacy_status", "public")),
+                    notify_subscribers=bool(yt_cfg.get("notify_subscribers", False)),
+                )
+                yt_platform.update(
+                    status="uploaded", video_id=yt_result["video_id"], url=yt_result["url"],
+                    uploaded_at=now_iso(), error=None,
+                )
+                jr(state, "youtube_uploaded", clip=clip["id"], video=yt_result["video_id"])
+                log.info("YouTube Shorts uploaded for clip %s -> %s", clip["id"], yt_result["url"])
+            except Exception as ex:
+                yt_platform.update(status="failed", error=str(ex)[:500], failed_at=now_iso())
+                jr(state, "youtube_upload_failed", clip=clip["id"], error=str(ex)[:180])
+                log.exception("YouTube upload failed for clip %s; Instagram remains posted.", clip["id"])
+    else:
+        yt_platform.update(status="disabled")
+        log.info("YouTube publishing disabled in config.yaml.")
+
+    save_state(state)
     shutil.rmtree(WORK, ignore_errors=True)
-    log.info("posted clip %s -> media id %s", clip["id"], media_id)
+    log.info("Instagram posted clip %s -> media id %s", clip["id"], media_id)
     return True
 
 
