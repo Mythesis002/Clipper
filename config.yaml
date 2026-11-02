@@ -94,14 +94,14 @@ channels:
   - name: Ranveer Allahbadia
     handle: "@BeerBiceps"
     ig_handle: "@beerbiceps"
-    permission: false
+    permission: true
   - name: Lex Fridman
     handle: "@lexfridman"
     ig_handle: "@lexfridman"
-    permission: false
+    permission: true
   - name: The Diary of a CEO
     handle: "@TheDiaryOfACEO"
     ig_handle: "@diaryofaceo"
-    permission: false
+    permission: true
 
 check_video_id: aqz-KE-bpKQ         # open-licensed video used by the `check-live` self-test
