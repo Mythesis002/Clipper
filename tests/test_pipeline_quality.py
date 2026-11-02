@@ -593,7 +593,7 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertTrue(cfg["diarization"]["enabled"])
         self.assertEqual(
             [channel["name"] for channel in clipper.authorized_channels(cfg)],
-            ["Raj Shamani", "Ranveer Allahbadia", "Lex Fridman", "The Diary of a CEO"],
+            ["Raj Shamani", "Ranveer Allahbadia", "Jay Shetty", "Prakhar Gupta"],
         )
         self.assertGreaterEqual(cfg["learning"]["min_channel_samples"], 1)
         self.assertGreaterEqual(cfg["learning"]["min_format_samples"], 1)
@@ -607,7 +607,7 @@ class PipelineQualityTests(unittest.TestCase):
         authorized = clipper.authorized_channels(cfg)
         self.assertEqual(
             [channel["name"] for channel in authorized],
-            ["Raj Shamani", "Ranveer Allahbadia", "Lex Fridman", "The Diary of a CEO"],
+            ["Raj Shamani", "Ranveer Allahbadia", "Jay Shetty", "Prakhar Gupta"],
         )
         self.assertTrue(all(channel.get("permission") is True for channel in authorized))
         self.assertEqual(len(authorized), len(cfg["channels"]))
