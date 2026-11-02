@@ -96,7 +96,7 @@ channels:
     ig_handle: "@beerbiceps"
     permission: true
   - name: Jay Shetty
-    handle: "@JayShettyPodcast."
+    handle: "@JayShettyPodcast"
     ig_handle: "@jayshetty"
     permission: true
   - name: Prakhar Gupta
