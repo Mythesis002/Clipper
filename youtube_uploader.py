@@ -10,13 +10,6 @@ import re
 import time
 from pathlib import Path
 
-from google.auth.exceptions import RefreshError
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaFileUpload
-
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 RETRIABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 MAX_RETRIES = 8
@@ -42,6 +35,12 @@ def _credentials_from_environment():
         info = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise RuntimeError("YT_TOKEN_JSON must contain valid authorized-user OAuth JSON.") from exc
+    try:
+        from google.auth.exceptions import RefreshError
+        from google.auth.transport.requests import Request
+        from google.oauth2.credentials import Credentials
+    except ImportError as exc:
+        raise RuntimeError("YouTube upload dependencies are missing; install requirements.txt.") from exc
     credentials = Credentials.from_authorized_user_info(info, scopes=SCOPES)
     if not credentials.valid:
         if credentials.expired and credentials.refresh_token:
@@ -55,6 +54,10 @@ def _credentials_from_environment():
 
 
 def _youtube_service():
+    try:
+        from googleapiclient.discovery import build
+    except ImportError as exc:
+        raise RuntimeError("YouTube upload dependencies are missing; install requirements.txt.") from exc
     return build("youtube", "v3", credentials=_credentials_from_environment(),
                  cache_discovery=False)
 
@@ -87,6 +90,11 @@ def upload_to_youtube(video, title, description="", category="22",
             "selfDeclaredMadeForKids": False,
         },
     }
+    try:
+        from googleapiclient.errors import HttpError
+        from googleapiclient.http import MediaFileUpload
+    except ImportError as exc:
+        raise RuntimeError("YouTube upload dependencies are missing; install requirements.txt.") from exc
     youtube = _youtube_service()
     request = youtube.videos().insert(
         part="snippet,status",
