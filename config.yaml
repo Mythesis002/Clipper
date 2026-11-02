@@ -71,6 +71,13 @@ llm:                                  # Gemini (set the GEMINI_API_KEY secret)
   polish_captions: true               # Gemini fixes misheard words / names / punctuation in captions
   final_qa: true                      # Gemini watches the FINAL rendered clip before it is posted
 
+youtube:
+  enabled: true                    # upload the same approved clip to YouTube Shorts after Instagram succeeds
+  privacy_status: public           # public | unlisted | private
+  category: "22"                   # People & Blogs
+  tags: ["podcast", "shorts", "clips", "india"]
+  notify_subscribers: false        # avoid notifying subscribers for every automated Short
+
 instagram:
   graph_version: v25.0                # bump when Meta retires the version
   max_hashtags: 5
