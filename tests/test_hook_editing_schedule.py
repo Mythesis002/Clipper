@@ -68,7 +68,7 @@ class CaptionRenderTests(unittest.TestCase):
             clipper.build_ass(words, 0, 20, "A useful insight", path, plan)
             rendered = path.read_text(encoding="utf-8")
         self.assertIn("Dialogue: 1,0:00:00.00,0:00:02.80", rendered)
-        self.assertIn("\\fscx112\\fscy112\\t(0,120", rendered)
+        self.assertIn(r"\\fscx112\\fscy112\\t(0,120", rendered)
 
 
 if __name__ == "__main__":
