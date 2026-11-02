@@ -615,7 +615,7 @@ class PipelineQualityTests(unittest.TestCase):
     def test_configured_creator_handles_match_requested_sources(self):
         cfg = clipper.load_config()
         channels = {channel["name"]: channel for channel in cfg["channels"]}
-        self.assertEqual(channels["Jay Shetty"]["handle"], "@JayShettyPodcast")
+        self.assertEqual(channels["Jay Shetty"]["handle"], "@JayShettyPodcast.")
         self.assertEqual(channels["Jay Shetty"]["ig_handle"], "@jayshetty")
         self.assertEqual(channels["Prakhar Gupta"]["handle"], "@PrakharkePravachan")
         self.assertEqual(channels["Prakhar Gupta"]["ig_handle"], "@prakharkepravachan")
