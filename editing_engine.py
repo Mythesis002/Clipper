@@ -30,7 +30,10 @@ def build_edit_plan(clip, cfg=None):
         "caption_style": captions,
         "caption_group_words": words,
         "caption_font_size": 68 if fmt != "educational" else 70,
-        "caption_margin_v": 420,\n        "caption_emphasis": "meaningful",\n        "title_duration_s": 2.8,\n        "caption_animation": "pop",
+        "caption_margin_v": 420,
+        "caption_emphasis": "meaningful",
+        "title_duration_s": 2.8,
+        "caption_animation": "pop",
         "crop_strategy": crop,
         "motion": "subtle" if fmt in ("story", "conversation") else "off",
         "broll": False,
@@ -45,6 +48,16 @@ def build_edit_plan(clip, cfg=None):
         ),
     }
     return validate_edit_plan(plan)
+
+
+def _bounded_float(value, default, low, high):
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        number = default
+    if not __import__("math").isfinite(number):
+        number = default
+    return min(max(number, low), high)
 
 
 def validate_edit_plan(plan):
@@ -74,6 +87,8 @@ def validate_edit_plan(plan):
         "version": VERSION, "format": fmt, "caption_style": caption,
         "caption_group_words": words, "caption_font_size": font,
         "caption_margin_v": margin, "crop_strategy": crop,
-        "motion": motion, "caption_emphasis": str(plan.get("caption_emphasis") or "meaningful")[:24],\n        "title_duration_s": min(max(float(plan.get("title_duration_s", 2.8)), 1.0), 5.0),\n        "caption_animation": plan.get("caption_animation") if plan.get("caption_animation") in ("none", "pop", "fade") else "pop",\n        "broll": False, "camera_cutting": False,
+        "motion": motion, "caption_emphasis": str(plan.get("caption_emphasis") or "meaningful")[:24],
+        "title_duration_s": _bounded_float(plan.get("title_duration_s", 2.8), 2.8, 1.0, 5.0),
+        "caption_animation": plan.get("caption_animation") if plan.get("caption_animation") in ("none", "pop", "fade") else "pop",\n        "broll": False, "camera_cutting": False,
         "rationale": str(plan.get("rationale") or "")[:240],
     }
