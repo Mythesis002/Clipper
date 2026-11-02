@@ -18,9 +18,10 @@ class YouTubeUploaderTests(unittest.TestCase):
         self.assertTrue(title)
 
     def test_missing_oauth_secret_fails_with_actionable_error(self):
-        with patch.dict(os.environ, {"YT_TOKEN_JSON": ""}):
-            with self.assertRaisesRegex(RuntimeError, "YT_TOKEN_JSON"):
-                upload_to_youtube("not-a-real-file.mp4", "Test")
+        with tempfile.NamedTemporaryFile(suffix=".mp4") as video:
+            with patch.dict(os.environ, {"YT_TOKEN_JSON": ""}):
+                with self.assertRaisesRegex(RuntimeError, "YT_TOKEN_JSON"):
+                    upload_to_youtube(video.name, "Test")
 
     def test_missing_video_file_fails_before_auth(self):
         with patch.dict(os.environ, {"YT_TOKEN_JSON": "not-used"}):
