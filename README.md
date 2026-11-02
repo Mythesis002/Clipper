@@ -79,11 +79,23 @@ GitHub Actions starts the scheduled runs shortly before each slot. Each run uses
    - **IG_USER_ID** and **IG_ACCESS_TOKEN** — your Instagram Business or Creator publishing credentials.
    - **GEMINI_API_KEY** — for AI-based candidate ranking and final clip review.
    - **YT_COOKIES** and **YT_PROXY** — only if YouTube blocks downloads from your runner.
+   - **YT_TOKEN_JSON** — Google OAuth authorized-user token JSON for uploading Shorts (see below).
    - **HF_TOKEN** — optional; used for speaker diarization after accepting the pyannote model conditions.
 3. In **Settings → Actions → General**, enable read and write workflow permissions so the workflow can persist its state.
 4. In **config.yaml**, enable only podcast sources you own, license or have explicit permission to republish.
 5. Run **check-live** first. It checks integrations and rendering, but is diagnostic only — it does not publish a Reel.
 6. When setup is ready, use **publish-now** for a manual publishing attempt. Scheduled runs use the normal **tick** pipeline.
+
+## YouTube Shorts publishing
+
+Clipper can upload the same final, QA-approved MP4 to YouTube Shorts after Instagram publishing succeeds. The platforms are tracked separately in `state/state.json`: a YouTube failure does not undo an Instagram post or trigger an Instagram repost.
+
+1. In Google Cloud Console, enable **YouTube Data API v3** and complete OAuth consent setup for your Google account.
+2. Run the uploader's OAuth authorization on a trusted machine with a browser, then export the authorized-user credentials as JSON. If you currently have Google's `token.pickle`, convert it locally using Google Auth's `Credentials.to_json()` (do not upload the pickle or client-secret file to GitHub or commit them).
+3. Add the resulting authorized-user JSON as the GitHub Actions secret **YT_TOKEN_JSON**. Keep it private; it contains a refresh token.
+4. Leave `youtube.enabled: true` in `config.yaml`. Set `privacy_status: unlisted` for a private validation run, or `public` for normal Shorts publishing.
+
+The YouTube upload uses the rendered local MP4, the clip title, the caption/description, and source attribution. YouTube may classify vertical videos under three minutes as Shorts; upload success does not guarantee recommendation or views. Instagram and YouTube publishing outcomes are stored independently.
 
 ## What powers it
 
