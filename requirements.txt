@@ -5,3 +5,6 @@ numpy
 requests
 pyyaml
 opencv-python-headless>=4.10,<5
+# Required by youtube_uploader.py for OAuth refresh and YouTube Data API uploads
+google-auth>=2.40,<3
+google-api-python-client>=2.170,<3
