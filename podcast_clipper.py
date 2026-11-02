@@ -316,22 +316,37 @@ def authorized_channels(cfg):
 
 
 def order_channels(cfg, state, rng=random):
-    """Learn source priority from watch-time and reach-normalised engagement, with exploration."""
+    """Balance source coverage first, then use learned quality to break ties.
+
+    Episode counts include successfully queued and skipped/failed attempts, so a
+    source that repeatedly yields unusable episodes cannot monopolize discovery.
+    """
     chans = authorized_channels(cfg)
     stats = channel_stats(state)
     last = {}
-    for ep in state["episodes"].values():
-        last[ep["channel"]] = max(last.get(ep["channel"], ""), ep["processed_at"])
-    if rng.random() < cfg["learning"]["explore_rate"]:
-        return sorted(chans, key=lambda c: last.get(c["name"], ""))
-    # Require a modest sample of mature Reels before exploiting a source. Rank by
-    # retention/engagement quality, never raw views alone.
-    min_samples = int(cfg["learning"].get("min_channel_samples", 3))
-    return sorted(chans, key=lambda c: (
-        stats.get(c["name"], {}).get("quality_n", 0) >= min_samples,
-        -stats.get(c["name"], {}).get("avg_quality", 0.5),
-        last.get(c["name"], ""),
-    ))
+    episode_counts = {}
+    for ep in state.get("episodes", {}).values():
+        name = ep.get("channel")
+        if not name:
+            continue
+        episode_counts[name] = episode_counts.get(name, 0) + 1
+        last[name] = max(last.get(name, ""), ep.get("processed_at", ""))
+
+    min_samples = int(cfg.get("learning", {}).get("min_channel_samples", 3))
+    explore = rng.random() < cfg.get("learning", {}).get("explore_rate", 0.0)
+
+    def priority(channel):
+        name = channel["name"]
+        # Fairness is the primary criterion. Among equally served channels,
+        # process the least recently used source before applying quality ranking.
+        coverage = (episode_counts.get(name, 0), last.get(name, ""))
+        if explore:
+            return coverage
+        quality = stats.get(name, {})
+        mature = quality.get("quality_n", 0) >= min_samples
+        return (*coverage, mature, -quality.get("avg_quality", 0.5))
+
+    return sorted(chans, key=priority)
 
 
 def done_ids(state):
