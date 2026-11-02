@@ -617,7 +617,7 @@ class PipelineQualityTests(unittest.TestCase):
         channels = {channel["name"]: channel for channel in cfg["channels"]}
         self.assertEqual(channels["Jay Shetty"]["handle"], "@JayShettyPodcast.")
         self.assertEqual(channels["Jay Shetty"]["ig_handle"], "@jayshetty")
-        self.assertEqual(channels["Prakhar Gupta"]["handle"], "@PrakharkePravachan")
+        self.assertEqual(channels["Prakhar Gupta"]["handle"], "@prakharkepravachan")
         self.assertEqual(channels["Prakhar Gupta"]["ig_handle"], "@prakharkepravachan")
         self.assertNotIn("Lex Fridman", channels)
         self.assertNotIn("The Diary of a CEO", channels)
