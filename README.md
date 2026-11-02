@@ -91,7 +91,12 @@ GitHub Actions starts the scheduled runs shortly before each slot. Each run uses
 Clipper can upload the same final, QA-approved MP4 to YouTube Shorts after Instagram publishing succeeds. The platforms are tracked separately in `state/state.json`: a YouTube failure does not undo an Instagram post or trigger an Instagram repost.
 
 1. In Google Cloud Console, enable **YouTube Data API v3** and complete OAuth consent setup for your Google account.
-2. Run the uploader's OAuth authorization on a trusted machine with a browser, then export the authorized-user credentials as JSON. If you currently have Google's `token.pickle`, convert it locally using Google Auth's `Credentials.to_json()` (do not upload the pickle or client-secret file to GitHub or commit them).
+2. On the trusted machine where your existing `token.pickle` is located, install the Google auth packages and convert it locally:
+   ```bash
+   pip install google-auth google-auth-oauthlib google-api-python-client
+   python -c 'import pickle; from pathlib import Path; c=pickle.load(open("token.pickle", "rb")); Path("youtube-token.json").write_text(c.to_json(), encoding="utf-8")'
+   ```
+   This conversion assumes the pickle came from your own OAuth login. Never unpickle files from untrusted sources. Do not upload the pickle or client-secret file to GitHub or commit them.
 3. Add the resulting authorized-user JSON as the GitHub Actions secret **YT_TOKEN_JSON**. Keep it private; it contains a refresh token.
 4. Leave `youtube.enabled: true` in `config.yaml`. Set `privacy_status: unlisted` for a private validation run, or `public` for normal Shorts publishing.
 
