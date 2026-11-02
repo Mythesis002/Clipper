@@ -1319,7 +1319,18 @@ def produce(cfg, dry_run=False):
 
 
 def queued(state):
-    return [c for c in state["clips"] if c["status"] == "queued"]
+    """All queued clips, including ones held because source permission was revoked."""
+    return [c for c in state.get("clips", []) if c.get("status") == "queued"]
+
+
+def queued_for_authorized_channels(state, cfg):
+    """Queued clips eligible for current publishing permissions.
+
+    Keep revoked-source clips in state for auditability, but do not let them block
+    refill of the active queue after a creator is removed from config.yaml.
+    """
+    allowed_names = {c["name"] for c in authorized_channels(cfg)}
+    return [clip for clip in queued(state) if clip.get("channel") in allowed_names]
 
 
 # =============================================================================
@@ -2675,14 +2686,14 @@ def tick(cfg, force=False):
         return True
 
     ok = True
-    if not queued(load_state()):
+    if not queued_for_authorized_channels(load_state(), cfg):
         try:
-            produce(cfg)                          # nothing to post yet: analyse first
+            produce(cfg)                          # no eligible clips: analyse first
         except Exception:
             log.exception("initial produce failed")
     if not publish_next(cfg, wait=True, force=force):
         ok = False
-    if len(queued(load_state())) < cfg["queue"]["refill_when_below"]:
+    if len(queued_for_authorized_channels(load_state(), cfg)) < cfg["queue"]["refill_when_below"]:
         log.info("queue is low -> finding the next episode")
         try:
             produce(cfg)

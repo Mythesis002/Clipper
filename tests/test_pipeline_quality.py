@@ -612,6 +612,16 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertTrue(all(channel.get("permission") is True for channel in authorized))
         self.assertEqual(len(authorized), len(cfg["channels"]))
 
+    def test_configured_creator_handles_match_requested_sources(self):
+        cfg = clipper.load_config()
+        channels = {channel["name"]: channel for channel in cfg["channels"]}
+        self.assertEqual(channels["Jay Shetty"]["handle"], "@JayShettyPodcast.")
+        self.assertEqual(channels["Jay Shetty"]["ig_handle"], "@jayshetty")
+        self.assertEqual(channels["Prakhar Gupta"]["handle"], "@prakharkepravachan")
+        self.assertEqual(channels["Prakhar Gupta"]["ig_handle"], "@prakharkepravachan")
+        self.assertNotIn("Lex Fridman", channels)
+        self.assertNotIn("The Diary of a CEO", channels)
+
     def test_publish_now_command_runs_forced_tick(self):
         with patch.object(clipper.sys, "argv", ["podcast_clipper.py", "publish-now"]), \
              patch.object(clipper, "load_config", return_value={}), \

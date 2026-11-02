@@ -101,6 +101,24 @@ class PostingSlotDiagnosticTests(unittest.TestCase):
 
 
 class PublishQueueTests(unittest.TestCase):
+    def test_disabled_creator_queue_does_not_block_active_queue_refill(self):
+        state = {
+            "clips": [
+                {"id": 1, "status": "queued", "channel": "Removed creator"},
+                {"id": 2, "status": "queued", "channel": "Allowed creator"},
+                {"id": 3, "status": "posted", "channel": "Removed creator"},
+            ],
+        }
+        cfg = {"channels": [
+            {"name": "Allowed creator", "permission": True},
+            {"name": "Removed creator", "permission": False},
+        ]}
+        self.assertEqual([c["id"] for c in clipper.queued(state)], [1, 2])
+        self.assertEqual(
+            [c["id"] for c in clipper.queued_for_authorized_channels(state, cfg)],
+            [2],
+        )
+
     def _state(self, count=4):
         return {
             "episodes": {},
