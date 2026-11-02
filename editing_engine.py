@@ -3,10 +3,10 @@
 The planner selects from supported renderer behaviours. It never emits executable FFmpeg
 commands or untrusted filter strings.
 """
-VERSION = "edit-plan-v1"
+VERSION = "edit-plan-v2"
 
 ALLOWED_FORMATS = {"story", "educational", "debate", "humour", "conversation", "general"}
-ALLOWED_CAPTION_STYLES = {"minimal", "emphasis", "dialogue"}
+ALLOWED_CAPTION_STYLES = {"minimal", "emphasis", "dialogue", "kinetic"}
 ALLOWED_CROP = {"face_track", "safe_center"}
 
 
@@ -16,7 +16,7 @@ def build_edit_plan(clip, cfg=None):
     if kind in ("personal_story", "story"):
         fmt, captions, words, crop = "story", "minimal", 4, "face_track"
     elif kind in ("insight", "explanation", "educational"):
-        fmt, captions, words, crop = "educational", "emphasis", 3, "face_track"
+        fmt, captions, words, crop = "educational", "kinetic", 3, "face_track"
     elif kind in ("debate", "question_answer"):
         fmt, captions, words, crop = "debate", "dialogue", 3, "face_track"
     elif kind in ("reaction", "humour"):
@@ -30,7 +30,7 @@ def build_edit_plan(clip, cfg=None):
         "caption_style": captions,
         "caption_group_words": words,
         "caption_font_size": 68 if fmt != "educational" else 70,
-        "caption_margin_v": 420,
+        "caption_margin_v": 420,\n        "caption_emphasis": "meaningful",\n        "title_duration_s": 2.8,\n        "caption_animation": "pop",
         "crop_strategy": crop,
         "motion": "subtle" if fmt in ("story", "conversation") else "off",
         "broll": False,
@@ -74,6 +74,6 @@ def validate_edit_plan(plan):
         "version": VERSION, "format": fmt, "caption_style": caption,
         "caption_group_words": words, "caption_font_size": font,
         "caption_margin_v": margin, "crop_strategy": crop,
-        "motion": motion, "broll": False, "camera_cutting": False,
+        "motion": motion, "caption_emphasis": str(plan.get("caption_emphasis") or "meaningful")[:24],\n        "title_duration_s": min(max(float(plan.get("title_duration_s", 2.8)), 1.0), 5.0),\n        "caption_animation": plan.get("caption_animation") if plan.get("caption_animation") in ("none", "pop", "fade") else "pop",\n        "broll": False, "camera_cutting": False,
         "rationale": str(plan.get("rationale") or "")[:240],
     }
