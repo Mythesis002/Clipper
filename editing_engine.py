@@ -89,6 +89,7 @@ def validate_edit_plan(plan):
         "caption_margin_v": margin, "crop_strategy": crop,
         "motion": motion, "caption_emphasis": str(plan.get("caption_emphasis") or "meaningful")[:24],
         "title_duration_s": _bounded_float(plan.get("title_duration_s", 2.8), 2.8, 1.0, 5.0),
-        "caption_animation": plan.get("caption_animation") if plan.get("caption_animation") in ("none", "pop", "fade") else "pop",\n        "broll": False, "camera_cutting": False,
+        "caption_animation": plan.get("caption_animation") if plan.get("caption_animation") in ("none", "pop", "fade") else "pop",
+        "broll": False, "camera_cutting": False,
         "rationale": str(plan.get("rationale") or "")[:240],
     }
