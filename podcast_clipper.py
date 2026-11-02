@@ -2012,10 +2012,15 @@ def due_slot(cfg, state, now=None):
         if c.get("status") in ("posted", "publishing", "publish_uncertain") and stamp:
             posted.append(datetime.fromisoformat(stamp))
     due = []
-    for hhmm in cfg["post_times"]:
-        h, m = map(int, hhmm.split(":"))
-        for day in (-1, 0, 1):
-            slot = (now + timedelta(days=day)).replace(hour=h, minute=m, second=0, microsecond=0)
+    weekly = cfg.get("weekly_post_times") or {}
+    for day in (-1, 0, 1):
+        date = (now + timedelta(days=day)).date()
+        weekday_name = date.strftime("%A")
+        slots = weekly.get(weekday_name, cfg.get("post_times", []))
+        for hhmm in slots:
+            h, m = map(int, hhmm.split(":"))
+            slot = datetime.combine(date, datetime.min.time(), tzinfo=tz).replace(
+                hour=h, minute=m, second=0, microsecond=0)
             ahead = (slot - now).total_seconds()
             if not -catch_s <= ahead <= wait_s:
                 continue
@@ -2310,12 +2315,14 @@ def posting_slot_diagnostic(cfg, state, now=None):
 
     candidates = []
     accounted = []
-    for hhmm in cfg["post_times"]:
-        hour, minute = map(int, hhmm.split(":"))
-        for day_offset in (-1, 0, 1):
-            slot = (now + timedelta(days=day_offset)).replace(
-                hour=hour, minute=minute, second=0, microsecond=0
-            )
+    weekly = cfg.get("weekly_post_times") or {}
+    for day_offset in (-1, 0, 1):
+        date = (now + timedelta(days=day_offset)).date()
+        slots = weekly.get(date.strftime("%A"), cfg.get("post_times", []))
+        for hhmm in slots:
+            hour, minute = map(int, hhmm.split(":"))
+            slot = datetime.combine(date, datetime.min.time(), tzinfo=tz).replace(
+                hour=hour, minute=minute, second=0, microsecond=0)
             delta = (slot - now).total_seconds()
             candidates.append((abs(delta), slot, delta))
             lo = slot - timedelta(seconds=wait_s + 300)
@@ -2325,7 +2332,7 @@ def posting_slot_diagnostic(cfg, state, now=None):
                 for clip, stamp in posted if lo <= stamp <= hi
             ]
             if matches:
-                accounted.append(f"{slot.strftime('%Y-%m-%d %H:%M')} IST: {', '.join(matches)}")
+                accounted.append(f"{slot.strftime('%Y-%m-%d %H:%M')} {date.strftime('%A')} IST: {', '.join(matches)}")
 
     nearest = min(candidates, key=lambda item: item[0]) if candidates else None
     nearest_text = "none"
@@ -2338,7 +2345,7 @@ def posting_slot_diagnostic(cfg, state, now=None):
     accounted_text = "; ".join(accounted) if accounted else "none in the eligible slot windows"
     return (
         f"posting-slot diagnostic: local_now={now.strftime('%Y-%m-%d %H:%M:%S %Z')} "
-        f"timezone={cfg['timezone']} configured_slots={','.join(cfg['post_times'])} IST; "
+        f"timezone={cfg['timezone']} weekly_slots={weekly or {'daily': cfg['post_times']}} IST; "
         f"eligible_window=-{sch['catchup_hours']}h/+{sch['max_wait_min']}m; "
         f"nearest_slot={nearest_text}; already_accounted={accounted_text}"
     )
