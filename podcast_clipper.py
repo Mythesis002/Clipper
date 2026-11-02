@@ -524,27 +524,39 @@ def hook_score(opening_text):
     toks = re.findall(r"[\w'%]+", text.lower())[:18]
     if not toks:
         return 0.0
-    score = 0.42
-    # Penalise openings that clearly depend on the previous sentence.
+    score = 0.38
+    # Cold-open independence: penalize pronouns, conjunctions and setup fragments.
+    dependent = {"this", "that", "it", "they", "he", "she", "because", "which",
+                 "and", "but", "so", "then", "there", "here"}
     if toks[0] in FILLER_START:
-        score -= 0.20
-    if toks[0] in {"this", "that", "it", "they", "he", "she", "because", "which", "and"}:
-        score -= 0.08
-    # Questions can create curiosity, but are not automatically good hooks.
-    if toks[0] in QUESTION_WORDS or "?" in text[:140]:
-        score += 0.10
-    # Specificity is useful; avoid giving large bonuses to clickbait vocabulary.
-    if any(re.search(r"\d", t) for t in toks):
-        score += 0.10
-    if any(t in HOOK_WORDS for t in toks):
-        score += 0.06
-    # A tiny fragment is often an unusable cut; an overly long setup is also weak.
-    if len(toks) < 4:
-        score -= 0.14
-    elif 6 <= len(toks) <= 15:
-        score += 0.08
-    if len(text) > 150 and not any(mark in text for mark in ".?!।"):
+        score -= 0.18
+    if toks[0] in dependent:
+        score -= 0.13
+    if len(toks) >= 2 and toks[1] in {"because", "and", "but", "so"}:
         score -= 0.06
+    # Curiosity/tension signals are modest bonuses, not clickbait shortcuts.
+    if toks[0] in QUESTION_WORDS or "?" in text[:120]:
+        score += 0.09
+    curiosity_terms = {"secret", "mistake", "truth", "reason", "actually", "wrong",
+                       "risk", "fear", "failed", "failure", "changed", "never", "why",
+                       "problem", "surprising", "impossible", "hidden"}
+    if any(t in curiosity_terms for t in toks):
+        score += 0.07
+    # Concrete detail and complete-thought signals.
+    if any(re.search(r"\d", t) for t in toks):
+        score += 0.08
+    if any(t in HOOK_WORDS for t in toks):
+        score += 0.04
+    if len(toks) < 5:
+        score -= 0.12
+    elif 7 <= len(toks) <= 18:
+        score += 0.08
+    if len(text) > 160 and not any(mark in text for mark in ".?!।"):
+        score -= 0.07
+    if text and text[0].islower():
+        score -= 0.04
+    if len(toks) <= 7 and any(t in {"shocking", "insane", "crazy", "viral"} for t in toks):
+        score -= 0.08
     return float(min(max(score, 0.0), 1.0))
 
 
