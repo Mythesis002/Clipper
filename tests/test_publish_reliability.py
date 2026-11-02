@@ -1,6 +1,7 @@
 """Regression tests for Gemini editorial screening and publish queue resilience."""
 
 import json
+import os
 import tempfile
 import unittest
 from datetime import datetime
@@ -180,6 +181,26 @@ class PublishQueueTests(unittest.TestCase):
         self.assertEqual(screen.call_count, 4)
         self.assertTrue(all(c["status"] == "needs_review" for c in state["clips"]))
         post.assert_not_called()
+
+class YouTubeUploaderDependencyTests(unittest.TestCase):
+    def test_google_oauth_and_youtube_client_dependencies_are_installed(self):
+        # The uploader imports these lazily. Test them explicitly so CI catches
+        # a missing dependency before a real Reel is published.
+        from google.auth.exceptions import RefreshError
+        from google.auth.transport.requests import Request
+        from google.oauth2.credentials import Credentials
+        from googleapiclient.discovery import build
+        from googleapiclient.errors import HttpError
+        from googleapiclient.http import MediaFileUpload
+
+        self.assertTrue(all((RefreshError, Request, Credentials, build, HttpError, MediaFileUpload)))
+
+    def test_missing_youtube_oauth_secret_has_actionable_error(self):
+        import youtube_uploader
+
+        with patch.dict(os.environ, {"YT_TOKEN_JSON": ""}):
+            with self.assertRaisesRegex(RuntimeError, "YT_TOKEN_JSON is not configured"):
+                youtube_uploader._credentials_from_environment()
 
 
 if __name__ == "__main__":
