@@ -2161,6 +2161,9 @@ def _post_clip(cfg, state, clip, path):
             except Exception as ex:
                 yt_platform.update(status="failed", error=str(ex)[:500], failed_at=now_iso())
                 jr(state, "youtube_upload_failed", clip=clip["id"], error=str(ex)[:180])
+                # Make the secondary-platform failure visible in the Actions UI.
+                # Instagram is already live, so do not roll back or retry it.
+                gha("warning", f"Clip {clip['id']} posted to Instagram, but YouTube upload failed: {str(ex)[:220]}")
                 log.exception("YouTube upload failed for clip %s; Instagram remains posted.", clip["id"])
     else:
         yt_platform.update(status="disabled")
