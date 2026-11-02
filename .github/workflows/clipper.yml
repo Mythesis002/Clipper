@@ -2,11 +2,12 @@ name: podcast-clipper
 
 on:
   schedule:
-    # Exactly two production schedules per day. GitHub cron uses UTC.
-    # Start 10 minutes early so setup completes before the 06:00 / 18:00 IST posting slots.
-    # tick waits for the exact local slot and catches up if the runner starts slightly late.
-    - cron: "20 6 * * *"     # 05:50 IST start -> 06:00 IST post
-    - cron: "20 18 * * *"    # 17:50 IST start -> 18:00 IST post
+    # Start 10 minutes before each configured posting slot so setup can finish.
+    # Explicit timezone avoids UTC/IST conversion mistakes; tick waits for the slot.
+    - cron: "50 5 * * *"     # 05:50 IST start -> 06:00 IST post
+      timezone: "Asia/Kolkata"
+    - cron: "50 17 * * *"    # 17:50 IST start -> 18:00 IST post
+      timezone: "Asia/Kolkata"
   workflow_dispatch:
     inputs:
       command:
