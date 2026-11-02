@@ -2367,9 +2367,13 @@ def posting_slot_diagnostic(cfg, state, now=None):
         nearest_text = f"{slot.strftime('%Y-%m-%d %H:%M')} IST ({minutes:.0f} min {direction})"
 
     accounted_text = "; ".join(accounted) if accounted else "none in the eligible slot windows"
+    if weekly:
+        slot_summary = f"weekly_slots={weekly}"
+    else:
+        slot_summary = f"configured_slots={','.join(cfg.get('post_times', []))} IST"
     return (
         f"posting-slot diagnostic: local_now={now.strftime('%Y-%m-%d %H:%M:%S %Z')} "
-        f"timezone={cfg['timezone']} weekly_slots={weekly or {'daily': cfg['post_times']}} IST; "
+        f"timezone={cfg['timezone']} {slot_summary}; "
         f"eligible_window=-{sch['catchup_hours']}h/+{sch['max_wait_min']}m; "
         f"nearest_slot={nearest_text}; already_accounted={accounted_text}"
     )
