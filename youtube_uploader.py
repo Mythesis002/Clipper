@@ -26,8 +26,8 @@ DEFAULT_TAGS = ["podcast", "shorts", "clips", "india"]
 
 def sanitize_youtube_title(text, max_length=100):
     """Return a clean YouTube title (API limit is 100 characters)."""
-    text = re.sub(r"[\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF]", "", str(text or ""))
-    text = re.sub(r"[\\u0000-\\u001f\\u007f]", " ", text)
+    text = re.sub(r"[\U0001F300-\U0001FAFF\u2600-\u27BF]", "", str(text or ""))
+    text = re.sub(r"[\u0000-\u001f\u007f]", " ", text)
     text = " ".join(text.replace('"', "").replace("'", "").split()).strip()
     if len(text) > max_length:
         text = text[:max_length].rsplit(" ", 1)[0].strip()
