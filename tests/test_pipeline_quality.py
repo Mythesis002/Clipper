@@ -161,6 +161,31 @@ class PipelineQualityTests(unittest.TestCase):
 
 
 
+    def test_creator_discovery_balances_episode_counts_before_quality(self):
+        cfg = {
+            "channels": [
+                {"name": "Raj", "permission": True},
+                {"name": "Ranveer", "permission": True},
+                {"name": "Lex", "permission": True},
+            ],
+            "learning": {"explore_rate": 0.0, "min_channel_samples": 1},
+        }
+        state = {
+            "episodes": {
+                "raj-1": {"channel": "Raj", "processed_at": "2026-11-01T10:00:00Z"},
+                "raj-2": {"channel": "Raj", "processed_at": "2026-11-01T11:00:00Z"},
+                "ranveer-1": {"channel": "Ranveer", "processed_at": "2026-11-01T09:00:00Z"},
+            },
+            "clips": [
+                {"status": "posted", "channel": "Raj", "performance_score": 0.99, "metrics": {"views": 1000}},
+                {"status": "posted", "channel": "Ranveer", "performance_score": 0.10, "metrics": {"views": 1000}},
+            ],
+        }
+        ordered = clipper.order_channels(cfg, state, rng=type(
+            "NoExplore", (), {"random": staticmethod(lambda: 0.9)}
+        )())
+        self.assertEqual([c["name"] for c in ordered], ["Lex", "Ranveer", "Raj"])
+
     def test_channel_learning_uses_retention_quality_not_raw_views(self):
         import podcast_clipper as clipper
         clips = []
@@ -562,13 +587,13 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertFalse(result)
         self.assertIn("FAIL env HF_TOKEN", output.getvalue())
 
-    def test_repository_config_enables_diarization_and_only_raj_shamani_source(self):
+    def test_repository_config_enables_diarization_and_all_authorized_sources(self):
         import podcast_clipper as clipper
         cfg = clipper.load_config()
         self.assertTrue(cfg["diarization"]["enabled"])
         self.assertEqual(
             [channel["name"] for channel in clipper.authorized_channels(cfg)],
-            ["Raj Shamani"],
+            ["Raj Shamani", "Ranveer Allahbadia", "Lex Fridman", "The Diary of a CEO"],
         )
         self.assertGreaterEqual(cfg["learning"]["min_channel_samples"], 1)
         self.assertGreaterEqual(cfg["learning"]["min_format_samples"], 1)
@@ -580,14 +605,12 @@ class PipelineQualityTests(unittest.TestCase):
     def test_only_sources_with_explicit_permission_are_authorized(self):
         cfg = clipper.load_config()
         authorized = clipper.authorized_channels(cfg)
-        self.assertEqual([channel["name"] for channel in authorized],
-                         ["Raj Shamani"])
-        self.assertTrue(authorized[0]["permission"])
-        self.assertTrue(all(
-            channel["permission"] is False
-            for channel in cfg["channels"]
-            if channel["name"] != "Raj Shamani"
-        ))
+        self.assertEqual(
+            [channel["name"] for channel in authorized],
+            ["Raj Shamani", "Ranveer Allahbadia", "Lex Fridman", "The Diary of a CEO"],
+        )
+        self.assertTrue(all(channel.get("permission") is True for channel in authorized))
+        self.assertEqual(len(authorized), len(cfg["channels"]))
 
     def test_publish_now_command_runs_forced_tick(self):
         with patch.object(clipper.sys, "argv", ["podcast_clipper.py", "publish-now"]), \
