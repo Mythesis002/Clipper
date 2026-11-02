@@ -562,13 +562,13 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertFalse(result)
         self.assertIn("FAIL env HF_TOKEN", output.getvalue())
 
-    def test_repository_config_enables_diarization_and_only_raj_shamani_source(self):
+    def test_repository_config_enables_diarization_and_all_authorized_sources(self):
         import podcast_clipper as clipper
         cfg = clipper.load_config()
         self.assertTrue(cfg["diarization"]["enabled"])
         self.assertEqual(
             [channel["name"] for channel in clipper.authorized_channels(cfg)],
-            ["Raj Shamani"],
+            ["Raj Shamani", "Ranveer Allahbadia", "Lex Fridman", "The Diary of a CEO"],
         )
         self.assertGreaterEqual(cfg["learning"]["min_channel_samples"], 1)
         self.assertGreaterEqual(cfg["learning"]["min_format_samples"], 1)
@@ -580,14 +580,12 @@ class PipelineQualityTests(unittest.TestCase):
     def test_only_sources_with_explicit_permission_are_authorized(self):
         cfg = clipper.load_config()
         authorized = clipper.authorized_channels(cfg)
-        self.assertEqual([channel["name"] for channel in authorized],
-                         ["Raj Shamani"])
-        self.assertTrue(authorized[0]["permission"])
-        self.assertTrue(all(
-            channel["permission"] is False
-            for channel in cfg["channels"]
-            if channel["name"] != "Raj Shamani"
-        ))
+        self.assertEqual(
+            [channel["name"] for channel in authorized],
+            ["Raj Shamani", "Ranveer Allahbadia", "Lex Fridman", "The Diary of a CEO"],
+        )
+        self.assertTrue(all(channel["permission"] is True for channel in authorized))
+        self.assertEqual(len(authorized), len(cfg["channels"]))
 
     def test_publish_now_command_runs_forced_tick(self):
         with patch.object(clipper.sys, "argv", ["podcast_clipper.py", "publish-now"]), \
