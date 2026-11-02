@@ -1327,7 +1327,9 @@ def build_ass(words, start, end, title, path, edit_plan=None):
     ws = [(t - start, w) for t, w in words if start - 0.05 <= t < end]
     font_size = plan["caption_font_size"]
     margin_v = plan["caption_margin_v"]
-    highlight = "&H0000D7FF&" if plan["caption_style"] == "emphasis" else "&H0000E5FF&"
+    highlight = "&H0000D7FF&" if plan["caption_style"] in ("emphasis", "kinetic") else "&H0000E5FF&"
+    title_duration = min(float(plan.get("title_duration_s", 2.8)), max(end - start, 0.8))
+    caption_animation = plan.get("caption_animation", "pop")
     head = (
         "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n"
         "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
@@ -1341,7 +1343,12 @@ def build_ass(words, start, end, title, path, edit_plan=None):
     lines = []
     if title:
         wrapped = "\\N".join(textwrap.wrap(clean_cap(title), 22)[:3])
-        lines.append(f"Dialogue: 1,{ass_time(0)},{ass_time(end - start)},Title,,0,0,0,,{wrapped}")
+        title_text = wrapped
+        if caption_animation == "fade":
+            title_text = "{\\fad(180,220)}" + title_text
+        elif caption_animation == "pop":
+            title_text = "{\\fscx92\\fscy92\\t(0,180,\\fscx100\\fscy100)}" + title_text
+        lines.append(f"Dialogue: 1,{ass_time(0)},{ass_time(title_duration)},Title,,0,0,0,,{title_text}")
     groups = group_words(ws, max_words=plan["caption_group_words"])
     for gi, g in enumerate(groups):
         next_start = groups[gi + 1][0][0] if gi + 1 < len(groups) else None
@@ -1354,7 +1361,10 @@ def build_ass(words, start, end, title, path, edit_plan=None):
                     en = min(en, next_start)
             en = max(en, t + 0.08)
             text = " ".join(
-                f"{{\\c{highlight}}}{clean_cap(x)}{{\\c&H00FFFFFF&}}" if j == i else clean_cap(x)
+                (f"{{\\c{highlight}}}{{\\fscx112\\fscy112\\t(0,120,\\fscx100\\fscy100)}}"
+                 if caption_animation == "pop" and j == i else
+                 f"{{\\c{highlight}}}" if j == i else "")
+                + clean_cap(x) + ("{\\c&H00FFFFFF&}" if j == i else "")
                 for j, (_, x) in enumerate(g))
             lines.append(f"Dialogue: 0,{ass_time(t)},{ass_time(en)},Default,,0,0,0,,{text}")
     Path(path).write_text(head + "\n".join(lines) + "\n", encoding="utf-8")
