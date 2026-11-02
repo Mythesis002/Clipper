@@ -2291,6 +2291,59 @@ def screen_queued_clip_for_promotion(cfg, clip):
             "issues": issues, "already_screened": False}
 
 
+def posting_slot_diagnostic(cfg, state, now=None):
+    """Explain why no posting slot is currently eligible, using the same slot windows as due_slot."""
+    tz = ZoneInfo(cfg["timezone"])
+    now = now or datetime.now(tz)
+    sch = cfg["schedule"]
+    wait_s = sch["max_wait_min"] * 60
+    catch_s = sch["catchup_hours"] * 3600
+
+    posted = []
+    for clip in state.get("clips", []):
+        stamp = clip.get("posted_at") or clip.get("publish_started_at")
+        if clip.get("status") in ("posted", "publishing", "publish_uncertain") and stamp:
+            try:
+                posted.append((clip, datetime.fromisoformat(stamp)))
+            except (TypeError, ValueError):
+                continue
+
+    candidates = []
+    accounted = []
+    for hhmm in cfg["post_times"]:
+        hour, minute = map(int, hhmm.split(":"))
+        for day_offset in (-1, 0, 1):
+            slot = (now + timedelta(days=day_offset)).replace(
+                hour=hour, minute=minute, second=0, microsecond=0
+            )
+            delta = (slot - now).total_seconds()
+            candidates.append((abs(delta), slot, delta))
+            lo = slot - timedelta(seconds=wait_s + 300)
+            hi = slot + timedelta(seconds=catch_s)
+            matches = [
+                f"clip {clip.get('id')} ({clip.get('status')})"
+                for clip, stamp in posted if lo <= stamp <= hi
+            ]
+            if matches:
+                accounted.append(f"{slot.strftime('%Y-%m-%d %H:%M')} IST: {', '.join(matches)}")
+
+    nearest = min(candidates, key=lambda item: item[0]) if candidates else None
+    nearest_text = "none"
+    if nearest:
+        _, slot, delta = nearest
+        direction = "in" if delta >= 0 else "ago"
+        minutes = abs(delta) / 60
+        nearest_text = f"{slot.strftime('%Y-%m-%d %H:%M')} IST ({minutes:.0f} min {direction})"
+
+    accounted_text = "; ".join(accounted) if accounted else "none in the eligible slot windows"
+    return (
+        f"posting-slot diagnostic: local_now={now.strftime('%Y-%m-%d %H:%M:%S %Z')} "
+        f"timezone={cfg['timezone']} configured_slots={','.join(cfg['post_times'])} IST; "
+        f"eligible_window=-{sch['catchup_hours']}h/+{sch['max_wait_min']}m; "
+        f"nearest_slot={nearest_text}; already_accounted={accounted_text}"
+    )
+
+
 def publish_next(cfg, wait=True, force=False):
     """Render, inspect, and publish one eligible clip; ambiguous outcomes are never auto-retried."""
     state = load_state()
@@ -2304,7 +2357,9 @@ def publish_next(cfg, wait=True, force=False):
     if not force:
         slot = due_slot(cfg, state)
         if slot is None:
+            state = load_state()
             log.info("no posting slot is due right now")
+            log.info("%s", posting_slot_diagnostic(cfg, state))
             return True
     all_queued = queued(state)
     q = [clip for clip in all_queued if clip.get("channel") in allowed_names]
