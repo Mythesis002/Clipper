@@ -2,13 +2,12 @@ name: podcast-clipper
 
 on:
   schedule:
-    # GitHub Actions schedule cron is UTC. Start 10 minutes before each
-    # Asia/Kolkata posting slot so setup can finish and tick can wait briefly.
-    # 19:00 IST = 13:30 UTC; 20:00 IST = 14:30 UTC; 12:00 IST = 06:30 UTC.
-    - cron: "20 13 * * 1-4"  # Mon-Thu: start 18:50 IST -> post 19:00 IST
-    - cron: "20 14 * * 5"    # Friday: start 19:50 IST -> post 20:00 IST
-    - cron: "20 6 * * 6"     # Saturday: start 11:50 IST -> post 12:00 IST
-    - cron: "20 13 * * 0"    # Sunday: start 18:50 IST -> post 19:00 IST
+    # GitHub now supports IANA timezones for schedule entries.
+    # Run twice daily in India: 06:17 and 18:17 IST (staggered away from :00 load peaks).
+    - cron: "17 6 * * *"
+      timezone: "Asia/Kolkata"
+    - cron: "17 18 * * *"
+      timezone: "Asia/Kolkata"
   workflow_dispatch:
     inputs:
       command:
