@@ -2,16 +2,13 @@ name: podcast-clipper
 
 on:
   schedule:
-    # Start 10 minutes before each configured posting slot so setup can finish.
-    # Explicit timezone avoids UTC/IST conversion mistakes; tick waits for the slot.
-    - cron: "50 18 * * 1-4"  # Mon-Thu: start 18:50 -> post 19:00 IST
-      timezone: "Asia/Kolkata"
-    - cron: "50 19 * * 5"     # Friday: start 19:50 -> post 20:00 IST
-      timezone: "Asia/Kolkata"
-    - cron: "50 11 * * 6"     # Saturday: start 11:50 -> post 12:00 IST
-      timezone: "Asia/Kolkata"
-    - cron: "50 18 * * 0"     # Sunday: start 18:50 -> post 19:00 IST
-      timezone: "Asia/Kolkata"
+    # GitHub Actions schedule cron is UTC. Start 10 minutes before each
+    # Asia/Kolkata posting slot so setup can finish and tick can wait briefly.
+    # 19:00 IST = 13:30 UTC; 20:00 IST = 14:30 UTC; 12:00 IST = 06:30 UTC.
+    - cron: "20 13 * * 1-4"  # Mon-Thu: start 18:50 IST -> post 19:00 IST
+    - cron: "20 14 * * 5"    # Friday: start 19:50 IST -> post 20:00 IST
+    - cron: "20 6 * * 6"     # Saturday: start 11:50 IST -> post 12:00 IST
+    - cron: "20 13 * * 0"    # Sunday: start 18:50 IST -> post 19:00 IST
   workflow_dispatch:
     inputs:
       command:
