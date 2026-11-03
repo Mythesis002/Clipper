@@ -47,6 +47,14 @@
    "views": 1191582,
    "processed_at": "2026-11-01T17:13:47+00:00",
    "clips": 3
+  },
+  "Ct031ZNAy6A": {
+   "channel": "Jay Shetty",
+   "title": "How to Train Your Brain to Do Hard Things | Dr. Andrew Huberman",
+   "url": "https://www.youtube.com/watch?v=Ct031ZNAy6A",
+   "views": 125757,
+   "processed_at": "2026-11-03T17:12:39+00:00",
+   "clips": 3
   }
  },
  "clips": [
@@ -206,28 +214,28 @@
    "media_id": "18472962673139714",
    "posted_at": "2026-10-31T05:48:19+00:00",
    "metrics": {
-    "views": 7,
+    "views": 9,
     "reach": 2,
     "likes": 0,
     "comments": 0,
     "shares": 0,
     "saved": 0,
-    "ig_reels_avg_watch_time": 19352,
-    "ig_reels_video_view_total_time": 58056,
-    "reels_skip_rate": 66.7
+    "ig_reels_avg_watch_time": 16344,
+    "ig_reels_video_view_total_time": 65377,
+    "reels_skip_rate": 50
    },
-   "metrics_at": "2026-11-02T11:40:08+00:00",
+   "metrics_at": "2026-11-03T17:12:58+00:00",
    "performance_detail": {
-    "score": 0.4438,
-    "avg_watch_s": 19.352,
-    "retention_pct": 68.24,
+    "score": 0.3947,
+    "avg_watch_s": 16.344,
+    "retention_pct": 57.63,
     "share_rate": 0.0,
     "save_rate": 0.0,
     "like_rate": 0.0,
-    "skip_rate": 0.667,
+    "skip_rate": 0.5,
     "evidence_count": 5
    },
-   "performance_score": 0.4438,
+   "performance_score": 0.3947,
    "metric_snapshots": [
     {
      "band": "24h",
@@ -243,6 +251,22 @@
       "ig_reels_avg_watch_time": 19352,
       "ig_reels_video_view_total_time": 58056,
       "reels_skip_rate": 66.7
+     }
+    },
+    {
+     "band": "72h",
+     "age_hours": 83.4,
+     "sampled_at": "2026-11-03T17:12:58+00:00",
+     "metrics": {
+      "views": 9,
+      "reach": 2,
+      "likes": 0,
+      "comments": 0,
+      "shares": 0,
+      "saved": 0,
+      "ig_reels_avg_watch_time": 16344,
+      "ig_reels_video_view_total_time": 65377,
+      "reels_skip_rate": 50
      }
     }
    ]
@@ -2581,7 +2605,48 @@
      "error": "YouTube upload dependencies are missing; install requirements.txt.",
      "failed_at": "2026-11-02T11:40:03+00:00"
     }
-   }
+   },
+   "metrics": {
+    "views": 150,
+    "reach": 116,
+    "likes": 1,
+    "comments": 0,
+    "shares": 0,
+    "saved": 0,
+    "ig_reels_avg_watch_time": 15521,
+    "ig_reels_video_view_total_time": 1815993,
+    "reels_skip_rate": 41.9
+   },
+   "metrics_at": "2026-11-03T17:13:01+00:00",
+   "metric_snapshots": [
+    {
+     "band": "24h",
+     "age_hours": 29.5,
+     "sampled_at": "2026-11-03T17:13:01+00:00",
+     "metrics": {
+      "views": 150,
+      "reach": 116,
+      "likes": 1,
+      "comments": 0,
+      "shares": 0,
+      "saved": 0,
+      "ig_reels_avg_watch_time": 15521,
+      "ig_reels_video_view_total_time": 1815993,
+      "reels_skip_rate": 41.9
+     }
+    }
+   ],
+   "performance_detail": {
+    "score": 0.3626,
+    "avg_watch_s": 15.521,
+    "retention_pct": 49.49,
+    "share_rate": 0.0,
+    "save_rate": 0.0,
+    "like_rate": 0.00862,
+    "skip_rate": 0.419,
+    "evidence_count": 5
+   },
+   "performance_score": 0.3626
   },
   {
    "id": 11,
@@ -2600,7 +2665,14 @@
     "context_dependency": 0.0,
     "llm": 0.656,
     "hook_type": "number_or_stat",
-    "duration_bucket": "20-29s"
+    "duration_bucket": "20-29s",
+    "speaker_count": 1,
+    "speaker_turns": 2,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "1"
    },
    "title": "Porter: Your Reliable Transport Partner",
    "caption": "Need to send something small? Discover Porter's affordable and stress-free transport solutions!\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=lgBLqo8TwgE\n\nFollow for daily podcast clips\n\n#Porter #SponsorRead #Logistics #Transport #podcast",
@@ -2987,9 +3059,31 @@
      "below."
     ]
    ],
-   "status": "queued",
+   "status": "needs_review",
    "attempts": 0,
-   "created_at": "2026-11-01T16:37:19+00:00"
+   "created_at": "2026-11-01T16:37:19+00:00",
+   "speaker_analysis": {
+    "speaker_count": 1,
+    "speaker_turns": 2,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0
+   },
+   "promotion_screen_version": "publish-promotion-screen-v2",
+   "promotion_screened_at": "2026-11-03T17:07:50+00:00",
+   "classification_confidence": 1.0,
+   "promotion_screen_attempts": 1,
+   "promotion_screen_error": null,
+   "review_artifact_file": "clip_11.mp4",
+   "error": "Manual editorial review required: Clip appears promotional or its promotion classification is uncertain. Evidence: To know more about our title sponsor, Porter, and their services, check out the link in the description below.",
+   "qa": {
+    "verdict": "soft_fail",
+    "score": null,
+    "issues": [
+     "Clip appears promotional or its promotion classification is uncertain. Evidence: To know more about our title sponsor, Porter, and their services, check out the link in the description below."
+    ]
+   }
   },
   {
    "id": 12,
@@ -3009,14 +3103,21 @@
     "llm": 0.934,
     "vid": 0.9,
     "hook_type": "question",
-    "duration_bucket": "15-19s"
+    "duration_bucket": "15-19s",
+    "speaker_count": 1,
+    "speaker_turns": 2,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "1"
    },
    "title": "Why We Choose the Wrong People",
    "caption": "Are you terrible at choosing the right people? Adam Grant reveals the biggest mistake we make and how to fix it!\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=khp7AnOJn8g\n\nFollow for daily podcast clips\n\n#Relationships #ChoosingFriends #TeamBuilding #AdamGrant #Psychology",
-   "content_type": "question_answer",
+   "content_type": "insight",
    "promotion_type": "none",
    "promotion_confidence": 1.0,
-   "promotion_evidence": "",
+   "promotion_evidence": "What you really want to know is how do they treat the person who's below them?",
    "editorial_review_required": false,
    "editorial_gate_reason": "",
    "editorial_scores": {
@@ -3046,283 +3147,48 @@
     "rationale": "Compact dialogue captions; camera cutting requires validated active-speaker tracks."
    },
    "polished": false,
-   "words": [
-    [
-     8.36,
-     ">> People"
-    ],
-    [
-     8.72,
-     "are"
-    ],
-    [
-     8.84,
-     "terrible"
-    ],
-    [
-     9.4,
-     "at"
-    ],
-    [
-     9.56,
-     "choosing"
-    ],
-    [
-     9.92,
-     "right"
-    ],
-    [
-     10.12,
-     "people."
-    ],
-    [
-     10.56,
-     ">> Why"
-    ],
-    [
-     10.64,
-     "do"
-    ],
-    [
-     10.76,
-     "you"
-    ],
-    [
-     10.84,
-     "say"
-    ],
-    [
-     11.0,
-     "so?"
-    ],
-    [
-     11.32,
-     ">> I think"
-    ],
-    [
-     11.8,
-     "one"
-    ],
-    [
-     11.96,
-     "of"
-    ],
-    [
-     12.04,
-     "the"
-    ],
-    [
-     12.08,
-     "mistakes"
-    ],
-    [
-     12.44,
-     "we"
-    ],
-    [
-     12.56,
-     "make,"
-    ],
-    [
-     12.88,
-     "whether"
-    ],
-    [
-     13.12,
-     "you're"
-    ],
-    [
-     13.36,
-     "looking"
-    ],
-    [
-     13.68,
-     "for"
-    ],
-    [
-     13.88,
-     "a"
-    ],
-    [
-     13.96,
-     "romantic"
-    ],
-    [
-     14.44,
-     "partner"
-    ],
-    [
-     15.04,
-     "or"
-    ],
-    [
-     15.64,
-     "teammate"
-    ],
-    [
-     16.08,
-     "to"
-    ],
-    [
-     16.2,
-     "collaborate"
-    ],
-    [
-     16.68,
-     "with,"
-    ],
-    [
-     16.96,
-     "is"
-    ],
-    [
-     17.28,
-     "we"
-    ],
-    [
-     17.4,
-     "pay"
-    ],
-    [
-     17.56,
-     "too"
-    ],
-    [
-     17.72,
-     "much"
-    ],
-    [
-     17.92,
-     "attention"
-    ],
-    [
-     18.32,
-     "to"
-    ],
-    [
-     18.4,
-     "how"
-    ],
-    [
-     18.6,
-     "people"
-    ],
-    [
-     19.0,
-     "treat"
-    ],
-    [
-     19.64,
-     "us."
-    ],
-    [
-     20.08,
-     "What"
-    ],
-    [
-     20.16,
-     "you"
-    ],
-    [
-     20.28,
-     "really"
-    ],
-    [
-     20.48,
-     "want"
-    ],
-    [
-     20.64,
-     "to"
-    ],
-    [
-     20.72,
-     "know"
-    ],
-    [
-     20.92,
-     "is"
-    ],
-    [
-     21.12,
-     "how"
-    ],
-    [
-     21.28,
-     "do"
-    ],
-    [
-     21.4,
-     "they"
-    ],
-    [
-     21.52,
-     "treat"
-    ],
-    [
-     22.2,
-     "the"
-    ],
-    [
-     22.32,
-     "person"
-    ],
-    [
-     22.96,
-     "who's"
-    ],
-    [
-     23.48,
-     "below"
-    ],
-    [
-     23.8,
-     "them?"
-    ],
-    [
-     24.16,
-     "How"
-    ],
-    [
-     24.32,
-     "do"
-    ],
-    [
-     24.44,
-     "they"
-    ],
-    [
-     24.56,
-     "treat"
-    ],
-    [
-     24.88,
-     "someone"
-    ],
-    [
-     25.52,
-     "who"
-    ],
-    [
-     25.72,
-     "can't"
-    ],
-    [
-     26.28,
-     "help"
-    ],
-    [
-     26.52,
-     "them"
-    ],
-    [
-     26.68,
-     "back?"
-    ]
-   ],
-   "status": "queued",
+   "status": "posted",
    "attempts": 0,
-   "created_at": "2026-11-01T17:14:21+00:00"
+   "created_at": "2026-11-01T17:14:21+00:00",
+   "speaker_analysis": {
+    "speaker_count": 1,
+    "speaker_turns": 2,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0
+   },
+   "promotion_screen_version": "publish-promotion-screen-v2",
+   "promotion_screened_at": "2026-11-03T17:08:52+00:00",
+   "classification_confidence": 1.0,
+   "promotion_screen_attempts": 1,
+   "promotion_screen_error": null,
+   "qa": {
+    "verdict": "pass",
+    "score": 9.0,
+    "issues": [
+     "The video uses B-roll footage, despite the edit plan specifying \"broll: false\".",
+     "The video uses camera cutting between speakers, despite the edit plan specifying \"camera_cutting: false\"."
+    ]
+   },
+   "error": null,
+   "media_id": "18021464945739128",
+   "posted_at": "2026-11-03T17:09:38+00:00",
+   "platforms": {
+    "instagram": {
+     "status": "posted",
+     "media_id": "18021464945739128",
+     "url": "https://www.instagram.com/reel/18021464945739128/",
+     "posted_at": "2026-11-03T17:09:38+00:00"
+    },
+    "youtube": {
+     "status": "uploaded",
+     "video_id": "Hufo0_Om5B4",
+     "url": "https://www.youtube.com/watch?v=Hufo0_Om5B4",
+     "uploaded_at": "2026-11-03T17:09:40+00:00",
+     "error": null
+    }
+   }
   },
   {
    "id": 13,
@@ -3917,9 +3783,1147 @@
    "status": "queued",
    "attempts": 0,
    "created_at": "2026-11-01T17:14:21+00:00"
+  },
+  {
+   "id": 15,
+   "video_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 0.0,
+   "end": 32.55,
+   "score": 0.7011,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.46,
+    "density": 1.0,
+    "editorial_score": 0.71,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "vid": 0.84,
+    "hook_type": "strong_statement",
+    "duration_bucket": "30-39s"
+   },
+   "title": "",
+   "caption": "How to Train Your Brain to Do Hard Things | Dr. Andrew Huberman\n\n🎙️ Jay Shetty (@jayshetty)\nFull episode on YouTube: https://www.youtube.com/watch?v=Ct031ZNAy6A\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
+   "content_type": "other",
+   "promotion_type": "none",
+   "promotion_confidence": 1.0,
+   "promotion_evidence": "No explicit product or service promotion in the dialogue.",
+   "editorial_review_required": true,
+   "editorial_gate_reason": "low_classification_confidence",
+   "editorial_scores": {},
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v2",
+    "format": "general",
+    "caption_style": "minimal",
+    "caption_group_words": 4,
+    "caption_font_size": 68,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "off",
+    "caption_emphasis": "meaningful",
+    "title_duration_s": 2.8,
+    "caption_animation": "pop",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Use the safe default conversational treatment."
+   },
+   "polished": true,
+   "words": [
+    [
+     0.0,
+     "What's"
+    ],
+    [
+     0.48,
+     "happening"
+    ],
+    [
+     1.28,
+     "from"
+    ],
+    [
+     1.48,
+     "a"
+    ],
+    [
+     1.52,
+     "neuroscience"
+    ],
+    [
+     2.04,
+     "perspective"
+    ],
+    [
+     3.04,
+     "as"
+    ],
+    [
+     3.2,
+     "our"
+    ],
+    [
+     3.36,
+     "friendships"
+    ],
+    [
+     3.88,
+     "are"
+    ],
+    [
+     3.96,
+     "getting"
+    ],
+    [
+     4.24,
+     "weaker,"
+    ],
+    [
+     5.08,
+     "even"
+    ],
+    [
+     5.36,
+     "though"
+    ],
+    [
+     5.56,
+     "our"
+    ],
+    [
+     5.76,
+     "followerships"
+    ],
+    [
+     6.56,
+     "and"
+    ],
+    [
+     7.2,
+     "online"
+    ],
+    [
+     7.68,
+     "friendships"
+    ],
+    [
+     8.08,
+     "are"
+    ],
+    [
+     8.12,
+     "getting"
+    ],
+    [
+     8.4,
+     "bigger?"
+    ],
+    [
+     9.08,
+     "So,"
+    ],
+    [
+     9.64,
+     "at"
+    ],
+    [
+     9.76,
+     "the"
+    ],
+    [
+     10.08,
+     "neuroscience"
+    ],
+    [
+     10.68,
+     "level,"
+    ],
+    [
+     10.92,
+     "we"
+    ],
+    [
+     11.0,
+     "have"
+    ],
+    [
+     11.16,
+     "to"
+    ],
+    [
+     11.24,
+     "remember"
+    ],
+    [
+     12.32,
+     "that"
+    ],
+    [
+     12.64,
+     "the"
+    ],
+    [
+     12.92,
+     "brain"
+    ],
+    [
+     13.28,
+     "circuitry,"
+    ],
+    [
+     14.16,
+     "which,"
+    ],
+    [
+     14.36,
+     "of"
+    ],
+    [
+     14.44,
+     "course,"
+    ],
+    [
+     14.64,
+     "is"
+    ],
+    [
+     14.76,
+     "always"
+    ],
+    [
+     15.0,
+     "linked"
+    ],
+    [
+     15.2,
+     "to"
+    ],
+    [
+     15.28,
+     "the"
+    ],
+    [
+     15.36,
+     "body."
+    ],
+    [
+     15.88,
+     "We"
+    ],
+    [
+     16.0,
+     "want"
+    ],
+    [
+     16.12,
+     "to"
+    ],
+    [
+     16.2,
+     "remember"
+    ],
+    [
+     16.48,
+     "brain"
+    ],
+    [
+     16.76,
+     "body"
+    ],
+    [
+     17.12,
+     "are"
+    ],
+    [
+     17.8,
+     "fortunately"
+    ],
+    [
+     18.32,
+     "now"
+    ],
+    [
+     18.76,
+     "understood"
+    ],
+    [
+     19.28,
+     "to"
+    ],
+    [
+     19.32,
+     "be"
+    ],
+    [
+     19.44,
+     "interconnected."
+    ],
+    [
+     20.6,
+     "Five"
+    ],
+    [
+     20.88,
+     "years"
+    ],
+    [
+     21.08,
+     "ago,"
+    ],
+    [
+     21.24,
+     "10"
+    ],
+    [
+     21.48,
+     "years"
+    ],
+    [
+     21.68,
+     "ago,"
+    ],
+    [
+     22.0,
+     "that"
+    ],
+    [
+     22.6,
+     "wasn't"
+    ],
+    [
+     22.96,
+     "so"
+    ],
+    [
+     23.08,
+     "much"
+    ],
+    [
+     23.32,
+     "an"
+    ],
+    [
+     23.4,
+     "accepted"
+    ],
+    [
+     23.84,
+     "idea,"
+    ],
+    [
+     24.2,
+     "but"
+    ],
+    [
+     24.44,
+     "the"
+    ],
+    [
+     24.52,
+     "nervous"
+    ],
+    [
+     24.84,
+     "system,"
+    ],
+    [
+     25.08,
+     "the"
+    ],
+    [
+     25.16,
+     "brain,"
+    ],
+    [
+     25.4,
+     "the"
+    ],
+    [
+     25.48,
+     "spinal"
+    ],
+    [
+     25.84,
+     "cord,"
+    ],
+    [
+     26.08,
+     "and"
+    ],
+    [
+     26.2,
+     "all"
+    ],
+    [
+     26.28,
+     "the"
+    ],
+    [
+     26.36,
+     "connections"
+    ],
+    [
+     26.96,
+     "to"
+    ],
+    [
+     27.04,
+     "the"
+    ],
+    [
+     27.12,
+     "body"
+    ],
+    [
+     27.48,
+     "and"
+    ],
+    [
+     27.76,
+     "back"
+    ],
+    [
+     28.16,
+     "to"
+    ],
+    [
+     28.28,
+     "the"
+    ],
+    [
+     28.4,
+     "brain"
+    ],
+    [
+     28.64,
+     "and"
+    ],
+    [
+     28.72,
+     "spinal"
+    ],
+    [
+     29.04,
+     "cord"
+    ],
+    [
+     29.88,
+     "are"
+    ],
+    [
+     30.12,
+     "bidirectional"
+    ],
+    [
+     30.92,
+     "and"
+    ],
+    [
+     31.32,
+     "highly"
+    ],
+    [
+     31.6,
+     "interconnected."
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-11-03T17:12:52+00:00"
+  },
+  {
+   "id": 16,
+   "video_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 229.81,
+   "end": 258.44,
+   "score": 0.6549,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.53,
+    "density": 1.0,
+    "editorial_score": 0.71,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "vid": 0.64,
+    "hook_type": "strong_statement",
+    "duration_bucket": "20-29s"
+   },
+   "title": "",
+   "caption": "How to Train Your Brain to Do Hard Things | Dr. Andrew Huberman\n\n🎙️ Jay Shetty (@jayshetty)\nFull episode on YouTube: https://www.youtube.com/watch?v=Ct031ZNAy6A\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
+   "content_type": "other",
+   "promotion_type": "none",
+   "promotion_confidence": 1.0,
+   "promotion_evidence": "The speaker discusses general health protocols and their physiological effects without promoting any specific product or service.",
+   "editorial_review_required": true,
+   "editorial_gate_reason": "low_classification_confidence",
+   "editorial_scores": {},
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v2",
+    "format": "general",
+    "caption_style": "minimal",
+    "caption_group_words": 4,
+    "caption_font_size": 68,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "off",
+    "caption_emphasis": "meaningful",
+    "title_duration_s": 2.8,
+    "caption_animation": "pop",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Use the safe default conversational treatment."
+   },
+   "polished": true,
+   "words": [
+    [
+     229.81,
+     "Tools,"
+    ],
+    [
+     230.29,
+     "we"
+    ],
+    [
+     230.37,
+     "call"
+    ],
+    [
+     230.53,
+     "them"
+    ],
+    [
+     230.69,
+     "protocols,"
+    ],
+    [
+     232.01,
+     "to"
+    ],
+    [
+     233.25,
+     "anchor"
+    ],
+    [
+     233.65,
+     "one's"
+    ],
+    [
+     234.05,
+     "physiology"
+    ],
+    [
+     235.05,
+     "in"
+    ],
+    [
+     235.25,
+     "some"
+    ],
+    [
+     235.53,
+     "predictable"
+    ],
+    [
+     236.09,
+     "states."
+    ],
+    [
+     237.49,
+     "I've"
+    ],
+    [
+     237.61,
+     "never"
+    ],
+    [
+     238.09,
+     "actually"
+    ],
+    [
+     238.49,
+     "articulated"
+    ],
+    [
+     239.17,
+     "that,"
+    ],
+    [
+     240.65,
+     "but"
+    ],
+    [
+     240.93,
+     "that's"
+    ],
+    [
+     241.17,
+     "really"
+    ],
+    [
+     241.41,
+     "what"
+    ],
+    [
+     241.57,
+     "it's"
+    ],
+    [
+     241.73,
+     "about."
+    ],
+    [
+     242.77,
+     "So,"
+    ],
+    [
+     243.57,
+     "why"
+    ],
+    [
+     244.05,
+     "get"
+    ],
+    [
+     244.25,
+     "sunlight"
+    ],
+    [
+     244.57,
+     "in"
+    ],
+    [
+     244.65,
+     "your"
+    ],
+    [
+     244.85,
+     "eyes"
+    ],
+    [
+     245.01,
+     "in"
+    ],
+    [
+     245.09,
+     "the"
+    ],
+    [
+     245.17,
+     "morning?"
+    ],
+    [
+     246.13,
+     "Because"
+    ],
+    [
+     246.41,
+     "it"
+    ],
+    [
+     246.49,
+     "wakes"
+    ],
+    [
+     246.73,
+     "you"
+    ],
+    [
+     246.89,
+     "up."
+    ],
+    [
+     247.65,
+     "I"
+    ],
+    [
+     247.73,
+     "could"
+    ],
+    [
+     247.97,
+     "tell"
+    ],
+    [
+     248.17,
+     "you"
+    ],
+    [
+     248.33,
+     "it"
+    ],
+    [
+     248.65,
+     "increases"
+    ],
+    [
+     249.05,
+     "cortisol"
+    ],
+    [
+     249.69,
+     "in"
+    ],
+    [
+     249.81,
+     "a"
+    ],
+    [
+     249.85,
+     "good"
+    ],
+    [
+     250.09,
+     "way"
+    ],
+    [
+     250.33,
+     "early"
+    ],
+    [
+     250.61,
+     "in"
+    ],
+    [
+     250.69,
+     "the"
+    ],
+    [
+     250.77,
+     "day,"
+    ],
+    [
+     251.21,
+     "that"
+    ],
+    [
+     251.41,
+     "it"
+    ],
+    [
+     251.81,
+     "sets"
+    ],
+    [
+     252.05,
+     "a"
+    ],
+    [
+     252.13,
+     "timer"
+    ],
+    [
+     252.45,
+     "on"
+    ],
+    [
+     252.53,
+     "your"
+    ],
+    [
+     252.65,
+     "melatonin"
+    ],
+    [
+     253.21,
+     "secretion"
+    ],
+    [
+     253.65,
+     "for"
+    ],
+    [
+     253.77,
+     "later"
+    ],
+    [
+     254.01,
+     "at"
+    ],
+    [
+     254.05,
+     "night,"
+    ],
+    [
+     254.29,
+     "it"
+    ],
+    [
+     254.37,
+     "helps"
+    ],
+    [
+     254.57,
+     "you"
+    ],
+    [
+     254.69,
+     "sleep"
+    ],
+    [
+     254.89,
+     "at"
+    ],
+    [
+     254.97,
+     "night,"
+    ],
+    [
+     255.21,
+     "and"
+    ],
+    [
+     255.33,
+     "that's"
+    ],
+    [
+     255.49,
+     "all"
+    ],
+    [
+     255.61,
+     "true."
+    ],
+    [
+     256.45,
+     "But"
+    ],
+    [
+     256.57,
+     "it"
+    ],
+    [
+     256.69,
+     "creates"
+    ],
+    [
+     257.05,
+     "a"
+    ],
+    [
+     257.13,
+     "sense"
+    ],
+    [
+     257.37,
+     "of"
+    ],
+    [
+     257.49,
+     "predictability."
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-11-03T17:12:52+00:00"
+  },
+  {
+   "id": 17,
+   "video_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 512.82,
+   "end": 534.09,
+   "score": 0.6456,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.46,
+    "density": 1.0,
+    "editorial_score": 0.71,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "hook_type": "strong_statement",
+    "duration_bucket": "20-29s"
+   },
+   "title": "",
+   "caption": "How to Train Your Brain to Do Hard Things | Dr. Andrew Huberman\n\n🎙️ Jay Shetty (@jayshetty)\nFull episode on YouTube: https://www.youtube.com/watch?v=Ct031ZNAy6A\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
+   "content_type": "other",
+   "promotion_type": "none",
+   "promotion_confidence": 0.0,
+   "promotion_evidence": "",
+   "editorial_review_required": true,
+   "editorial_gate_reason": "low_classification_confidence",
+   "editorial_scores": {},
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v2",
+    "format": "general",
+    "caption_style": "minimal",
+    "caption_group_words": 4,
+    "caption_font_size": 68,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "off",
+    "caption_emphasis": "meaningful",
+    "title_duration_s": 2.8,
+    "caption_animation": "pop",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Use the safe default conversational treatment."
+   },
+   "polished": true,
+   "words": [
+    [
+     512.82,
+     "We"
+    ],
+    [
+     513.02,
+     "don't"
+    ],
+    [
+     513.3,
+     "know."
+    ],
+    [
+     513.74,
+     "You"
+    ],
+    [
+     513.86,
+     "know,"
+    ],
+    [
+     513.98,
+     "we"
+    ],
+    [
+     514.18,
+     "don't"
+    ],
+    [
+     514.38,
+     "know"
+    ],
+    [
+     514.58,
+     "what"
+    ],
+    [
+     514.7,
+     "it"
+    ],
+    [
+     514.82,
+     "was"
+    ],
+    [
+     515.02,
+     "like,"
+    ],
+    [
+     515.38,
+     "but"
+    ],
+    [
+     515.5,
+     "you"
+    ],
+    [
+     515.62,
+     "can"
+    ],
+    [
+     515.74,
+     "be"
+    ],
+    [
+     515.86,
+     "sure"
+    ],
+    [
+     516.18,
+     "that"
+    ],
+    [
+     516.34,
+     "the"
+    ],
+    [
+     516.46,
+     "same"
+    ],
+    [
+     516.9,
+     "neural"
+    ],
+    [
+     517.22,
+     "circuits"
+    ],
+    [
+     517.66,
+     "that"
+    ],
+    [
+     517.82,
+     "were"
+    ],
+    [
+     517.94,
+     "responsible"
+    ],
+    [
+     518.74,
+     "for"
+    ],
+    [
+     518.9,
+     "stress"
+    ],
+    [
+     519.82,
+     "and"
+    ],
+    [
+     520.38,
+     "lack"
+    ],
+    [
+     520.9,
+     "of"
+    ],
+    [
+     521.98,
+     "safety,"
+    ],
+    [
+     522.66,
+     "and"
+    ],
+    [
+     522.82,
+     "therefore"
+    ],
+    [
+     523.1,
+     "vigilance,"
+    ],
+    [
+     523.9,
+     "back"
+    ],
+    [
+     524.18,
+     "then,"
+    ],
+    [
+     525.3,
+     "are"
+    ],
+    [
+     525.54,
+     "very"
+    ],
+    [
+     525.98,
+     "much"
+    ],
+    [
+     526.22,
+     "alive"
+    ],
+    [
+     526.62,
+     "in"
+    ],
+    [
+     526.74,
+     "our"
+    ],
+    [
+     526.82,
+     "brains"
+    ],
+    [
+     527.26,
+     "now."
+    ],
+    [
+     528.02,
+     "So,"
+    ],
+    [
+     528.18,
+     "again,"
+    ],
+    [
+     528.42,
+     "the"
+    ],
+    [
+     528.5,
+     "protocols"
+    ],
+    [
+     528.98,
+     "are"
+    ],
+    [
+     529.06,
+     "designed"
+    ],
+    [
+     529.62,
+     "to,"
+    ],
+    [
+     530.06,
+     "um,"
+    ],
+    [
+     530.74,
+     "think"
+    ],
+    [
+     530.98,
+     "about"
+    ],
+    [
+     531.14,
+     "it"
+    ],
+    [
+     531.26,
+     "like"
+    ],
+    [
+     531.46,
+     "putting,"
+    ],
+    [
+     532.02,
+     "um,"
+    ],
+    [
+     532.34,
+     "ingredients"
+    ],
+    [
+     532.94,
+     "in"
+    ],
+    [
+     533.02,
+     "the"
+    ],
+    [
+     533.14,
+     "refrigerator."
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-11-03T17:12:52+00:00"
   }
  ],
- "next_id": 15,
+ "next_id": 18,
  "journal": [
   {
    "t": "2026-10-30T17:57:06+00:00",
@@ -4136,6 +5140,43 @@
    "event": "youtube_upload_failed",
    "clip": 10,
    "error": "YouTube upload dependencies are missing; install requirements.txt."
+  },
+  {
+   "t": "2026-11-03T17:07:50+00:00",
+   "event": "clip_needs_review",
+   "clip": 11,
+   "artifact": "clip_11.mp4",
+   "issues": [
+    "Clip appears promotional or its promotion classification is uncertain. Evidence: To know more about our title sponsor, Porter, and their services, check out the link in the description below."
+   ],
+   "review_stage": "promotion_screen"
+  },
+  {
+   "t": "2026-11-03T17:09:05+00:00",
+   "event": "publish_started",
+   "clip": 12,
+   "channel": "Raj Shamani"
+  },
+  {
+   "t": "2026-11-03T17:09:38+00:00",
+   "event": "posted",
+   "clip": 12,
+   "media": "18021464945739128",
+   "channel": "Raj Shamani",
+   "qa": "pass"
+  },
+  {
+   "t": "2026-11-03T17:09:40+00:00",
+   "event": "youtube_uploaded",
+   "clip": 12,
+   "video": "Hufo0_Om5B4"
+  },
+  {
+   "t": "2026-11-03T17:12:52+00:00",
+   "event": "episode_queued",
+   "video": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "clips": 3
   }
  ],
  "candidate_decisions": [
@@ -4722,6 +5763,552 @@
     "editorial_gate_reason": "promotional_content",
     "learned_score": null,
     "transcript_excerpt": "What should they do in the first 30 minutes to build a certain vibe? >> From reading the research on first dates, my biggest surprise from a paper that came out earlier this year, what they show is that >> I have a small favor to ask you. I need you to subscribe to our channel. The more subscribers we have, the better and bigger guests we can bring"
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 0.0,
+   "end": 32.55,
+   "rank": 1,
+   "selected": true,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 0.0,
+    "end": 32.550000000000004,
+    "heat": 0.5,
+    "hook": 0.46,
+    "density": 1.0,
+    "pre": 0.617392,
+    "final": 0.7011382857142858,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.8400000000000001,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": 1.0,
+    "classification_confidence": null,
+    "hook_type": "strong_statement",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "What's happening from a neuroscience perspective as our friendships are getting weaker even though our followerships and online friendships are getting bigger? >> So, at the neuroscience level, we have to remember that the brain circuitry, which of course is always linked to the body. We want to remember brain body are fortunately now understood to"
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 229.81,
+   "end": 258.44,
+   "rank": 2,
+   "selected": true,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 229.812,
+    "end": 258.4440000000001,
+    "heat": 0.5,
+    "hook": 0.5299999999999999,
+    "density": 1.0,
+    "pre": 0.6364319999999999,
+    "final": 0.6548754285714286,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.64,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": 1.0,
+    "classification_confidence": null,
+    "hook_type": "strong_statement",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "tools, we call them protocols, to anchor one's physiology in some predictable states. I've never actually articulated that, but that's really what it's about. So, why get sunlight in your eyes in the morning? Because it wakes you up. I could tell you it increases cortisol in a good way early in the day, that it sets a timer on your melatonin secret"
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 20.6,
+   "end": 56.03,
+   "rank": 3,
+   "selected": false,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 20.6,
+    "end": 56.03,
+    "heat": 0.5,
+    "hook": 0.54,
+    "density": 1.0,
+    "pre": 0.6391520000000002,
+    "final": 0.6507154285714286,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.62,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": 1.0,
+    "classification_confidence": null,
+    "hook_type": "number_or_stat",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "5 years ago, 10 years ago, that wasn't so much an accepted idea, but the nervous system, the brain, the spinal cord, and all the connections to the body and back to the brain and spinal cord are bidirectional and highly interconnected. So, when we say brain, I'm more or less using that as a proxy for whole nervous system including body. The circuit"
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 512.82,
+   "end": 534.09,
+   "rank": 4,
+   "selected": true,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 512.817,
+    "end": 534.087,
+    "heat": 0.5,
+    "hook": 0.46,
+    "density": 1.0,
+    "pre": 0.617392,
+    "final": 0.6455936000000001,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": null,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": null,
+    "classification_confidence": null,
+    "hook_type": "strong_statement",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "We don't know You know, we don't know what it was like, but you can be sure that the same neural circuits that were responsible for stress and lack of safety, and therefore vigilance, back then, are very much alive in our brains now. So, again, the protocols are designed to um Think about it like putting um ingredients in the refrigerator."
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 243.57,
+   "end": 258.44,
+   "rank": 5,
+   "selected": false,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 243.574,
+    "end": 258.4440000000001,
+    "heat": 0.5,
+    "hook": 0.62,
+    "density": 1.0,
+    "pre": 0.6609119999999999,
+    "final": 0.638864,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.5349999999999999,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": 1.0,
+    "classification_confidence": null,
+    "hook_type": "question",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "why get sunlight in your eyes in the morning? Because it wakes you up. I could tell you it increases cortisol in a good way early in the day, that it sets a timer on your melatonin secretion for later at night, it helps you sleep at night, and that's all true. But, it creates a sense of predictability."
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 348.61,
+   "end": 375.16,
+   "rank": 6,
+   "selected": false,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 348.614,
+    "end": 375.15500000000003,
+    "heat": 0.5,
+    "hook": 0.42000000000000004,
+    "density": 1.0,
+    "pre": 0.606512,
+    "final": 0.6368896000000002,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": null,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": null,
+    "classification_confidence": null,
+    "hook_type": "strong_statement",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "to safety and acceptance because it allows you to have to not have to think about a number of other things. So, you know, I've been criticized, and fairly so, that gosh, there's so many protocols, how could anyone possibly do all these protocols? And the truth is that many of the protocols are, you know, it's a buffet, and many of them, like how to"
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 538.54,
+   "end": 573.14,
+   "rank": 7,
+   "selected": false,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 538.537,
+    "end": 573.1370000000001,
+    "heat": 0.5,
+    "hook": 0.5099999999999999,
+    "density": 1.0,
+    "pre": 0.630992,
+    "final": 0.6189097142857143,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.5249999999999999,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": 0.0,
+    "classification_confidence": null,
+    "hook_type": "question",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "when you have when you know that all the basic macronutrients are covered. Um Everything's All the bases are covered. And then you can start to think about what you would cook. Whereas, if you've ever arrived late in the city, you get to your Airbnb or your hotel, and you see like three or four things and one lousy pan, and you think, \"Well, then n"
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 500.14,
+   "end": 534.09,
+   "rank": 8,
+   "selected": false,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 500.137,
+    "end": 534.087,
+    "heat": 0.5,
+    "hook": 0.46,
+    "density": 1.0,
+    "pre": 0.617392,
+    "final": 0.588281142857143,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.445,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": 1.0,
+    "classification_confidence": null,
+    "hook_type": "strong_statement",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "Someone could take off on a hunt or a gather, and they If they didn't come back, we might assume they're never coming back. And then two nights later, they might come back and say, \"That was a close call.\" Or they come back with a great yield. We don't know You know, we don't know what it was like, but you can be sure that the same neural circuits "
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 237.49,
+   "end": 258.44,
+   "rank": 9,
+   "selected": false,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 237.492,
+    "end": 258.4440000000001,
+    "heat": 0.5,
+    "hook": 0.57,
+    "density": 1.0,
+    "pre": 0.6473119999999999,
+    "final": 0.5853782857142856,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.375,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": 1.0,
+    "classification_confidence": null,
+    "hook_type": "contrast",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "I've never actually articulated that, but that's really what it's about. So, why get sunlight in your eyes in the morning? Because it wakes you up. I could tell you it increases cortisol in a good way early in the day, that it sets a timer on your melatonin secretion for later at night, it helps you sleep at night, and that's all true. But, it crea"
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 373.45,
+   "end": 397.77,
+   "rank": 10,
+   "selected": false,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 373.455,
+    "end": 397.76500000000004,
+    "heat": 0.5,
+    "hook": 0.46,
+    "density": 1.0,
+    "pre": 0.579312,
+    "final": 0.5849296,
+    "editorial_score": 0.5906,
+    "standalone_heuristic": 0.818,
+    "payoff_heuristic": 0.35,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": null,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": null,
+    "classification_confidence": null,
+    "hook_type": "strong_statement",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "Um you know, this isn't law. Um so, the idea, however, is that through some simple basic behaviors, viewing sunlight, a little bit of a walk after a meal, um a little bit of sunlight in the evening, um dimming the lights in the evening, you know, these are the the basics, eating at more or less consistent meal times and mostly unprocessed or minima"
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 432.18,
+   "end": 447.55,
+   "rank": 11,
+   "selected": false,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 432.175,
+    "end": 447.545,
+    "heat": 0.5,
+    "hook": 0.46,
+    "density": 1.0,
+    "pre": 0.579312,
+    "final": 0.5849296,
+    "editorial_score": 0.5906,
+    "standalone_heuristic": 0.818,
+    "payoff_heuristic": 0.35,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": null,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": null,
+    "classification_confidence": null,
+    "hook_type": "strong_statement",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "No big deal. These are slow integrative systems. Your system will recover just fine, but don't on a consistent basis, you're going to feel much better, and you're going to have more energy, and you're going to be able to think about what you might want to do in your creative life,"
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 15.88,
+   "end": 32.55,
+   "rank": 12,
+   "selected": false,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 15.88,
+    "end": 32.550000000000004,
+    "heat": 0.5,
+    "hook": 0.54,
+    "density": 1.0,
+    "pre": 0.6391520000000002,
+    "final": 0.5564297142857144,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.29000000000000004,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": 1.0,
+    "classification_confidence": null,
+    "hook_type": "number_or_stat",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "We want to remember brain body are fortunately now understood to be interconnected. 5 years ago, 10 years ago, that wasn't so much an accepted idea, but the nervous system, the brain, the spinal cord, and all the connections to the body and back to the brain and spinal cord are bidirectional and highly interconnected."
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 122.57,
+   "end": 143.32,
+   "rank": 13,
+   "selected": false,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 122.572,
+    "end": 143.322,
+    "heat": 0.5,
+    "hook": 0.42000000000000004,
+    "density": 1.0,
+    "pre": 0.49928000000000006,
+    "final": 0.48152400000000006,
+    "editorial_score": 0.3745,
+    "standalone_heuristic": 0.46,
+    "payoff_heuristic": 0.35,
+    "context_dependency": 0.55,
+    "llm": null,
+    "vid": null,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": null,
+    "classification_confidence": null,
+    "hook_type": "strong_statement",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "whether there is safety and acceptance from the other members of our species. Now, these brain circuits have names, and we could get into that. They almost all have some connectedness to an area of the brain called the hypothalamus, which sits above the roof of your mouth, which has many, many dense collections of neurons we call nuclei responsible"
+   }
+  },
+  {
+   "episode_id": "Ct031ZNAy6A",
+   "channel": "Jay Shetty",
+   "start": 126.61,
+   "end": 143.32,
+   "rank": 14,
+   "selected": false,
+   "recorded_at": "2026-11-03T17:12:39+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 126.612,
+    "end": 143.322,
+    "heat": 0.5,
+    "hook": 0.46,
+    "density": 1.0,
+    "pre": 0.4850400000000001,
+    "final": 0.4558320000000001,
+    "editorial_score": 0.296,
+    "standalone_heuristic": 0.33,
+    "payoff_heuristic": 0.35,
+    "context_dependency": 0.75,
+    "llm": null,
+    "vid": null,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": null,
+    "classification_confidence": null,
+    "hook_type": "strong_statement",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "Now, these brain circuits have names, and we could get into that. They almost all have some connectedness to an area of the brain called the hypothalamus, which sits above the roof of your mouth, which has many, many dense collections of neurons we call nuclei responsible for everything from temperature regulation to feeding to reproductive behavio"
    }
   }
  ]
