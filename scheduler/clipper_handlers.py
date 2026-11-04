@@ -100,8 +100,8 @@ def prepare_clip(user_id,payload):
         return {"missed":True}
     with connect() as conn,conn.transaction():
         with conn.cursor() as cur:
-            cur.execute("UPDATE slots SET state='preparing',updated_at=now() WHERE id=%s AND user_id=%s AND state='assigned' RETURNING id",
-                        (slot_id,user_id))
+            cur.execute("UPDATE slots SET state='preparing',updated_at=now() WHERE id=%s AND user_id=%s AND state='assigned' AND clip_id=%s RETURNING id",
+                        (slot_id,user_id,clip_id))
             if not cur.fetchone():
                 return {"slot_state_changed":True}
     clip=_load_clip(user_id,clip_id,payload.get("clip"))
@@ -113,6 +113,10 @@ def prepare_clip(user_id,payload):
         if review.get("verdict")!="pass":
             with connect() as conn,conn.transaction():
                 with conn.cursor() as cur:
+                    cur.execute("SELECT state,clip_id FROM slots WHERE id=%s AND user_id=%s FOR UPDATE",(slot_id,user_id))
+                    current=cur.fetchone()
+                    if not current or current[0]!="preparing" or current[1]!=clip_id:
+                        return {"stale_worker_result":True}
                     cur.execute("UPDATE clips SET status='needs_review',qa_report=%s::jsonb,updated_at=now() WHERE user_id=%s AND id=%s",
                                 (json.dumps(review),user_id,clip_id))
                     append_event(conn,user_id,slot_id,"clip_qa_blocked",review)
@@ -124,11 +128,12 @@ def prepare_clip(user_id,payload):
         upload_file(path,key)
         with connect() as conn,conn.transaction():
             with conn.cursor() as cur:
-                cur.execute("UPDATE clips SET status='ready',storage_key=%s,qa_report=%s::jsonb,updated_at=now() WHERE user_id=%s AND id=%s",
-                            (key,json.dumps(review),user_id,clip_id))
-                cur.execute("UPDATE slots SET state='verified',updated_at=now() WHERE id=%s AND user_id=%s AND state='preparing' RETURNING id",
-                            (slot_id,user_id))
-                if cur.fetchone(): append_event(conn,user_id,slot_id,"clip_rendered_qa_passed",{"storage_key":key,"qa":review})
+                cur.execute("UPDATE slots SET state='verified',updated_at=now() WHERE id=%s AND user_id=%s AND state='preparing' AND clip_id=%s RETURNING id",
+                            (slot_id,user_id,clip_id))
+                if cur.fetchone():
+                    cur.execute("UPDATE clips SET status='ready',storage_key=%s,qa_report=%s::jsonb,updated_at=now() WHERE user_id=%s AND id=%s AND status='assigned'",
+                                (key,json.dumps(review),user_id,clip_id))
+                    append_event(conn,user_id,slot_id,"clip_rendered_qa_passed",{"storage_key":key,"qa":review})
         return {"storage_key":key,"qa":review}
     finally:
         if path: Path(path).unlink(missing_ok=True)
