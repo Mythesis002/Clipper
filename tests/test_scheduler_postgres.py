@@ -12,6 +12,7 @@ except ImportError:
 
 from scheduler.materializer import materialize_user
 from scheduler.queue import claim_slots_near_due, transition_slot
+from scheduler.provider_limits import provider_request,ProviderCircuitOpen
 
 
 DSN=os.environ.get("TEST_DATABASE_URL","").strip()
@@ -83,6 +84,24 @@ class PostgreSQLSchedulerTests(unittest.TestCase):
         self.assertFalse(errors,errors)
         self.assertEqual(len(claimed),500)
         self.assertEqual(len(set(claimed)),500)
+
+
+    def test_global_provider_bucket_and_circuit_are_database_shared(self):
+        os.environ["GEMINI_RATE_CAPACITY"]="3"
+        os.environ["GEMINI_REQUESTS_PER_SECOND"]="10"
+        with provider_request("gemini"):
+            pass
+        with self.conn.transaction():
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE provider_circuits SET state='open',opened_until=now()+interval '30 seconds' WHERE provider='gemini'")
+        with self.assertRaises(ProviderCircuitOpen):
+            with provider_request("gemini"):
+                self.fail("open circuit must not yield a provider permit")
+        with self.conn.transaction():
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE provider_circuits SET state='closed',failure_count=0,opened_until=NULL WHERE provider='gemini'")
+        os.environ.pop("GEMINI_RATE_CAPACITY",None)
+        os.environ.pop("GEMINI_REQUESTS_PER_SECOND",None)
 
     def test_publishing_intent_is_not_claimed_after_crash_or_timeout(self):
         user,account=self._tenant("UTC")
