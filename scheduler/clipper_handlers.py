@@ -262,7 +262,7 @@ def produce_for_slot(user_id,payload):
                      AND NOT EXISTS (SELECT 1 FROM slots x WHERE x.user_id=c.user_id
                        AND x.clip_id=c.id AND x.state NOT IN ('published','missed','failed','cancelled'))
                    ORDER BY c.score DESC NULLS LAST,c.created_at,c.id
-                   FOR UPDATE SKIP LOCKED LIMIT 1""",(user_id,))
+                   LIMIT 1 FOR UPDATE SKIP LOCKED""",(user_id,))
             row=cur.fetchone()
             if not row:
                 return {"retry_after_seconds":600,"reason":"no eligible clip in buffer yet"}
