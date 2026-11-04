@@ -27,7 +27,7 @@ def materialize_user(conn, user_id: str, now_utc: datetime | None = None, horizo
         )
         rules = cur.fetchall()
         local_today = now_utc.astimezone(ZoneInfo(tz_name)).date()
-        for day_offset in range(horizon_days + 1):
+        for day_offset in range(horizon_days):
             local_date = local_today + timedelta(days=day_offset)
             weekday = local_date.weekday()  # Monday=0
             for account_id, rule_weekday, local_time, max_late in rules:
