@@ -40,7 +40,11 @@ def materialize_user(conn, user_id: str, now_utc: datetime | None = None, horizo
                        (user_id,account_id,local_date,local_time,tz_snapshot,run_at_utc,
                         state,max_late_minutes)
                        VALUES (%s,%s,%s,%s,%s,%s,'scheduled',%s)
-                       ON CONFLICT(account_id,local_date,local_time) DO NOTHING
+                       ON CONFLICT(account_id,local_date,local_time) DO UPDATE SET
+                         tz_snapshot=EXCLUDED.tz_snapshot,run_at_utc=EXCLUDED.run_at_utc,
+                         state='scheduled',last_error=NULL,updated_at=now()
+                       WHERE slots.state='cancelled' AND slots.last_error='schedule_rule_changed'
+                         AND slots.run_at_utc>now() AND slots.lease_owner IS NULL
                        RETURNING id""",
                     (user_id, account_id, local_date, local_time, tz_name, run_at, max_late),
                 )
