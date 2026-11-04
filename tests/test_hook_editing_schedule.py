@@ -33,31 +33,34 @@ class PremiumCaptionPlanTests(unittest.TestCase):
         self.assertEqual(plan["title_duration_s"], 5.0)
 
 
-class WeekdayScheduleTests(unittest.TestCase):
-    def test_due_slot_uses_weekday_config(self):
+class DailyScheduleTests(unittest.TestCase):
+    def test_due_slot_uses_same_configured_times_on_weekdays_and_weekends(self):
         cfg = {
             "timezone": "Asia/Kolkata",
-            "post_times": ["19:00"],
-            "weekly_post_times": {"Monday": ["19:00"], "Saturday": ["12:00"]},
+            "post_times": ["06:00", "18:00"],
             "schedule": {"max_wait_min": 25, "catchup_hours": 6},
         }
-        now = datetime(2026, 11, 2, 18, 55, tzinfo=ZoneInfo("Asia/Kolkata"))
-        result = clipper.due_slot(cfg, {"clips": []}, now=now)
-        self.assertIsNotNone(result)
-        self.assertEqual(result[0].strftime("%A %H:%M"), "Monday 19:00")
+        for now, expected in (
+            (datetime(2026, 11, 2, 5, 55, tzinfo=ZoneInfo("Asia/Kolkata")), "Monday 06:00"),
+            (datetime(2026, 11, 7, 17, 55, tzinfo=ZoneInfo("Asia/Kolkata")), "Saturday 18:00"),
+            (datetime(2026, 11, 8, 5, 55, tzinfo=ZoneInfo("Asia/Kolkata")), "Sunday 06:00"),
+        ):
+            with self.subTest(now=now):
+                result = clipper.due_slot(cfg, {"clips": []}, now=now)
+                self.assertIsNotNone(result)
+                self.assertEqual(result[0].strftime("%A %H:%M"), expected)
 
-    def test_diagnostic_mentions_weekday_slots(self):
+    def test_daily_slot_diagnostic_has_no_weekday_override(self):
         cfg = {
             "timezone": "Asia/Kolkata",
-            "post_times": ["19:00"],
-            "weekly_post_times": {"Saturday": ["12:00"]},
+            "post_times": ["06:00", "18:00"],
             "schedule": {"max_wait_min": 25, "catchup_hours": 6},
         }
-        now = datetime(2026, 11, 7, 11, 40, tzinfo=ZoneInfo("Asia/Kolkata"))
+        now = datetime(2026, 11, 7, 5, 40, tzinfo=ZoneInfo("Asia/Kolkata"))
         diagnostic = clipper.posting_slot_diagnostic(cfg, {"clips": []}, now=now)
-        self.assertIn("Saturday", diagnostic)
-        self.assertIn("12:00", diagnostic)
-
+        self.assertIn("configured_slots=06:00,18:00 IST", diagnostic)
+        self.assertNotIn("weekly_slots", diagnostic)
+        self.assertNotIn("Saturday", diagnostic)
 
 class CaptionRenderTests(unittest.TestCase):
     def test_title_is_short_lived_and_kinetic_word_has_ass_animation(self):
