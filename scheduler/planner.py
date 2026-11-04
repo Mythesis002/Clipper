@@ -33,6 +33,11 @@ def swap_failed_clip(conn,user_id,slot_id,failed_clip_id,reason):
     is available, a produce job is queued; caller must enforce the slot deadline.
     """
     with conn.cursor() as cur:
+        cur.execute("SELECT state,clip_id FROM slots WHERE id=%s AND user_id=%s FOR UPDATE",
+                    (slot_id,user_id))
+        current=cur.fetchone()
+        if not current or current[1]!=failed_clip_id or current[0] not in ('assigned','preparing','verified','container_uploading'):
+            return False
         cur.execute(
             """UPDATE clips SET status='quarantined',updated_at=now()
                WHERE user_id=%s AND id=%s AND status NOT IN ('posted','quarantined')""",
@@ -57,7 +62,7 @@ def swap_failed_clip(conn,user_id,slot_id,failed_clip_id,reason):
             clip_id,clip_payload=candidate
             cur.execute(
                 """UPDATE slots SET state='assigned',clip_id=%s,container_id=NULL,
-                   verification_checked_at=NULL,last_error=%s,lease_owner=NULL,lease_until=NULL,
+                   verification_checked_at=NULL,quota_checked_at=NULL,quota_snapshot='{}'::jsonb,last_error=%s,lease_owner=NULL,lease_until=NULL,
                    updated_at=now()
                    WHERE id=%s AND user_id=%s
                      AND state IN ('preparing','verified','container_uploading')
