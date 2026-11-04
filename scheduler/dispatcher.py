@@ -13,8 +13,10 @@ import time
 from datetime import datetime, timezone
 
 import requests
+from contextlib import contextmanager
 
 from db import connect
+from scheduler.instagram_limits import assert_publish_quota_available
 from scheduler.queue import (
     append_event, claim_slots_near_due, heartbeat_slot, transition_slot,
 )
@@ -116,6 +118,23 @@ def _load_slot_account(conn, slot_id, user_id):
                 "status": row[2], "account_id": row[3]}
 
 
+@contextmanager
+def _account_publish_lock(account_id):
+    """Session-level PostgreSQL advisory lock serializes posts for one IG account."""
+    conn=connect()
+    conn.autocommit=True
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_lock(hashtextextended(%s, 0))", (str(account_id),))
+        yield
+    finally:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT pg_advisory_unlock(hashtextextended(%s, 0))", (str(account_id),))
+        finally:
+            conn.close()
+
+
 def run_dispatcher(poll_seconds=1.0, claim_limit=50):
     dispatcher_id = os.environ.get("DISPATCHER_ID") or f"{socket.gethostname()}-{os.getpid()}"
     log.info("dispatcher online id=%s", dispatcher_id)
@@ -142,11 +161,16 @@ def run_dispatcher(poll_seconds=1.0, claim_limit=50):
                                             dispatcher_id, lease_owner=None, lease_until=None)
                         continue
                     deadline = time.monotonic() + delay
+                    lease_ok = True
                     while time.monotonic() < deadline:
                         with connect() as conn, conn.transaction():
-                            if not heartbeat_slot(conn, slot_id, dispatcher_id, lease_seconds=30):
-                                break
+                            lease_ok = heartbeat_slot(conn, slot_id, dispatcher_id, lease_seconds=30)
+                        if not lease_ok:
+                            break
                         time.sleep(min(0.5, max(0.01, deadline - time.monotonic())))
+                    if not lease_ok:
+                        log.warning("slot lease lost during wait; skip slot=%s", slot_id)
+                        continue
                 # Re-read account and use KMS decrypt adapter in deployment.
                 with connect() as conn:
                     account_row = _load_slot_account(conn, slot_id, user_id)
@@ -161,9 +185,10 @@ def run_dispatcher(poll_seconds=1.0, claim_limit=50):
                 token = os.environ.get("IG_ACCESS_TOKEN", "").strip()
                 if not token:
                     raise RuntimeError("IG_ACCESS_TOKEN is not configured for Phase 1 dispatcher")
-                _publish_one(slot, dispatcher_id,
-                             {"external_id": account_row["external_id"], "access_token": token},
-                             {"graph_version": os.environ.get("IG_GRAPH_VERSION", "v25.0")})
+                with _account_publish_lock(account_id):
+                    _publish_one(slot, dispatcher_id,
+                                 {"external_id": account_row["external_id"], "access_token": token},
+                                 {"graph_version": os.environ.get("IG_GRAPH_VERSION", "v25.0")})
         except Exception:
             log.exception("dispatcher loop error; retrying next poll")
         time.sleep(poll_seconds)
