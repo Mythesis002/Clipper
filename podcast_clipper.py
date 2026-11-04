@@ -195,12 +195,24 @@ def load_config(path=None):
     return cfg
 
 def load_state():
+    """Load legacy pipeline state through JSON (default) or Postgres adapter.
+
+    CLIPPER_STATE_BACKEND=postgres is opt-in during migration. The scheduler's
+    normalized slots/jobs tables remain authoritative for scheduling and leases.
+    """
+    if os.environ.get("CLIPPER_STATE_BACKEND", "json").strip().lower() == "postgres":
+        from scheduler.legacy_adapter import load_state as load_postgres_state
+        return load_postgres_state()
     if STATE_FILE.exists():
         return json.loads(STATE_FILE.read_text(encoding="utf-8"))
     return {"episodes": {}, "clips": [], "next_id": 1}
 
 
 def save_state(st):
+    if os.environ.get("CLIPPER_STATE_BACKEND", "json").strip().lower() == "postgres":
+        from scheduler.legacy_adapter import save_state as save_postgres_state
+        save_postgres_state(st)
+        return
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     tmp = STATE_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")
