@@ -73,6 +73,8 @@ CI runs existing tests and PostgreSQL integration tests against PostgreSQL 16.
 - [ ] Verify each enabled creator's permission and submit the source-rights attestation.
 - [ ] Bootstrap one test tenant and inspect sources, schedule_rules, connected_accounts.
 - [ ] Run materializer twice; second run should create zero duplicate slots.
+- [ ] Edit one weekday/time and user timezone via scheduler.schedule_admin; confirm only future unclaimed scheduled slots regenerate, while assigned/publishing slots remain fixed.
+- [ ] Verify DST gap/fold and odd-offset timezone cases using tests (e.g. New York, Kathmandu, Lord Howe).
 - [ ] Test a slot in the next few minutes using a test Instagram account only.
 - [ ] Confirm T-6h render/QA completes by worker; inspect S3 object and QA report.
 - [ ] Confirm T-30m verification is a separate worker job.
@@ -82,6 +84,7 @@ CI runs existing tests and PostgreSQL integration tests against PostgreSQL 16.
 - [ ] Simulate timeout after publish_started; verify publish_uncertain and no retry.
 - [ ] Confirm Instagram success enqueues independent YouTube job; fail YouTube and verify Instagram slot remains published.
 - [ ] Verify concurrent slots for one account serialize with advisory locks.
+- [ ] Exhaust a test provider bucket and open its circuit; confirm retries are bounded and no T-0 request is duplicated.
 - [ ] Run 500-slot PostgreSQL burst test and inspect DB/dispatcher CPU, connections, and p95 lag.
 - [ ] Do not merge/cut over until CI is green and a test account completes the lifecycle.
 
