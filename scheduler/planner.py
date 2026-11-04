@@ -26,6 +26,70 @@ def _enqueue(cur, user_id, kind, payload, priority, dedupe_key, run_after=None):
     )
 
 
+def swap_failed_clip(conn,user_id,slot_id,failed_clip_id,reason):
+    """Quarantine a rejected clip and reserve the next eligible one for this slot.
+
+    The slot is moved back to assigned with a fresh preparation job. If no clip
+    is available, a produce job is queued; caller must enforce the slot deadline.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            """UPDATE clips SET status='quarantined',updated_at=now()
+               WHERE user_id=%s AND id=%s AND status NOT IN ('posted','quarantined')""",
+            (user_id,failed_clip_id))
+        cur.execute(
+            """SELECT c.id,c.payload FROM clips c
+               WHERE c.user_id=%s AND c.id<>%s AND c.status IN ('queued','ready')
+                 AND EXISTS (
+                   SELECT 1 FROM sources src
+                   WHERE src.user_id=c.user_id
+                     AND src.youtube_handle=c.payload->>'source_handle'
+                     AND src.permission_attested=true AND src.status='active'
+                 )
+                 AND NOT EXISTS (
+                   SELECT 1 FROM slots x WHERE x.user_id=c.user_id
+                     AND x.clip_id=c.id AND x.state NOT IN ('published','missed','failed','cancelled')
+                 )
+               ORDER BY c.score DESC NULLS LAST,c.created_at,c.id
+               LIMIT 1 FOR UPDATE SKIP LOCKED""",(user_id,failed_clip_id))
+        candidate=cur.fetchone()
+        if candidate:
+            clip_id,clip_payload=candidate
+            cur.execute(
+                """UPDATE slots SET state='assigned',clip_id=%s,container_id=NULL,
+                   verification_checked_at=NULL,last_error=%s,lease_owner=NULL,lease_until=NULL,
+                   updated_at=now()
+                   WHERE id=%s AND user_id=%s
+                     AND state IN ('preparing','verified','container_uploading')
+                   RETURNING id""",(clip_id,reason[:500],slot_id,user_id))
+            if not cur.fetchone():
+                return False
+            cur.execute("UPDATE clips SET status='assigned',updated_at=now() WHERE user_id=%s AND id=%s",
+                        (user_id,clip_id))
+            _enqueue(cur,user_id,"prepare_clip",
+                     {"slot_id":str(slot_id),"clip_id":int(clip_id),"clip":clip_payload},
+                     5,f"slot:{slot_id}:prepare:{int(clip_id)}")
+            append_event(conn,user_id,slot_id,"clip_replaced",
+                         {"failed_clip_id":int(failed_clip_id),"replacement_clip_id":int(clip_id),
+                          "reason":reason[:400]})
+            return True
+
+        cur.execute(
+            """UPDATE slots SET state='assigned',clip_id=NULL,container_id=NULL,
+               verification_checked_at=NULL,last_error=%s,lease_owner=NULL,lease_until=NULL,
+               updated_at=now()
+               WHERE id=%s AND user_id=%s
+                 AND state IN ('preparing','verified','container_uploading')
+               RETURNING id""",(reason[:500]+"; no replacement clip ready",slot_id,user_id))
+        if not cur.fetchone():
+            return False
+        _enqueue(cur,user_id,"produce",{"slot_id":str(slot_id)},0,
+                 f"slot:{slot_id}:produce",run_after=None)
+        append_event(conn,user_id,slot_id,"clip_replacement_unavailable",
+                     {"failed_clip_id":int(failed_clip_id),"reason":reason[:400]})
+        return False
+
+
 def assign_due_slots(conn, lead_minutes=360, limit=100):
     """CAS scheduled slots to assigned and reserve the best eligible ready clip."""
     assigned=0
