@@ -62,3 +62,21 @@ def materialize_active_users(conn, horizon_days: int = 7) -> int:
         with conn.transaction():
             total += materialize_user(conn, str(user_id), horizon_days=horizon_days)
     return total
+
+
+def materialize_active_users_if_due(conn, interval_minutes=60, horizon_days=7):
+    """Hourly idempotent materialization with a DB advisory lock across planner replicas."""
+    with conn.cursor() as cur:
+        cur.execute("SELECT pg_try_advisory_xact_lock(hashtextextended('clipper:materializer',0))")
+        if not cur.fetchone()[0]:
+            return 0
+        cur.execute("SELECT last_run_at FROM scheduler_control WHERE key='materializer' FOR UPDATE")
+        row=cur.fetchone()
+        if row:
+            cur.execute("SELECT now() - %s < (%s * interval '1 minute')",(row[0],interval_minutes))
+            if cur.fetchone()[0]:
+                return 0
+        cur.execute(
+            """INSERT INTO scheduler_control(key,last_run_at) VALUES ('materializer',now())
+               ON CONFLICT(key) DO UPDATE SET last_run_at=now()""")
+    return materialize_active_users(conn,horizon_days=horizon_days)
