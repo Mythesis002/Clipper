@@ -199,18 +199,24 @@ def mark_expired_slots(conn, limit=500):
     with conn.cursor() as cur:
         cur.execute(
             """WITH expired AS (
-                 SELECT s.id,s.user_id,s.state FROM slots s
+                 SELECT s.id,s.user_id,s.state,s.clip_id FROM slots s
                  WHERE s.state IN ('scheduled','assigned','preparing','verified','container_uploading','container_ready')
                    AND s.run_at_utc + (s.max_late_minutes * interval '1 minute') < now()
                  ORDER BY s.run_at_utc LIMIT %s FOR UPDATE OF s SKIP LOCKED
                )
                UPDATE slots s SET state='missed',last_error='max_late_minutes exceeded',
                  lease_owner=NULL,lease_until=NULL,updated_at=now()
-               FROM expired e WHERE s.id=e.id RETURNING s.id,s.user_id,e.state""",(limit,))
+               FROM expired e WHERE s.id=e.id RETURNING s.id,s.user_id,e.state,e.clip_id""",(limit,))
         rows=cur.fetchall()
-        for slot_id,user_id,previous_state in rows:
+        for slot_id,user_id,previous_state,clip_id in rows:
+            if clip_id is not None:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """UPDATE clips SET status=CASE WHEN storage_key IS NULL THEN 'queued' ELSE 'ready' END,
+                           updated_at=now() WHERE user_id=%s AND id=%s AND status='assigned'""",
+                        (user_id,clip_id))
             append_event(conn,user_id,slot_id,"slot_missed",
-                         {"reason":"max_late_minutes exceeded","previous_state":previous_state})
+                         {"reason":"max_late_minutes exceeded","previous_state":previous_state,"clip_id":clip_id})
         return len(rows)
 
 
