@@ -36,7 +36,9 @@ def _acquire(provider):
             with conn.cursor() as cur:
                 cur.execute(
                     """INSERT INTO provider_rate_limits(provider,capacity,tokens,refill_per_second)
-                       VALUES (%s,%s,%s,%s) ON CONFLICT(provider) DO NOTHING""",
+                       VALUES (%s,%s,%s,%s) ON CONFLICT(provider) DO UPDATE SET
+                         capacity=EXCLUDED.capacity,refill_per_second=EXCLUDED.refill_per_second,
+                         tokens=LEAST(provider_rate_limits.tokens,EXCLUDED.capacity),updated_at=now()""",
                     (provider,capacity,capacity,refill))
                 cur.execute(
                     """INSERT INTO provider_circuits(provider) VALUES (%s)
