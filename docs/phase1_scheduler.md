@@ -32,7 +32,7 @@ Requirements: Docker Compose, Git, Python 3.12 for bootstrap scripts.
    - cp state/state.json state/state.json.pre-scheduler.bak
    - python scripts/import_legacy_state.py
 12. Start services: docker compose up -d --build --scale worker=4 --scale dispatcher=2
-   Four worker replicas are a starting point for 1,000 scheduled posts/day; benchmark actual render/QA duration and scale workers before enabling that volume. Compose defaults to 150 publishing threads per dispatcher (300 across two replicas). Tune only after API/DB load testing. Some Compose versions ignore deploy.replicas; use explicit --scale flags.
+   Four worker replicas are a starting point for 1,000 scheduled posts/day; benchmark actual render/QA duration and scale workers before enabling that volume. Compose defaults to 32 publishing threads per dispatcher (64 across two replicas). This is intentionally conservative until connection-pool and API-rate load tests justify raising it. Some Compose versions ignore deploy.replicas; use explicit --scale flags.
 
 ## Phase 1 environment
 
@@ -51,6 +51,7 @@ scheduled → assigned → preparing → verified → container_uploading → co
 Terminal/hold states: missed, failed, publish_uncertain, cancelled.
 
 - Render/Gemini/QA is a worker job and never executes inside the dispatcher.
+- A reclaimed `prepare_clip` job resumes only when its slot is still `preparing` for the same clip; per-slot advisory locking serializes duplicate/reclaimed prepare attempts.
 - A QA or permanent Instagram processing rejection quarantines the clip and attempts replacement from the user's permission-attested ready queue.
 - At publish, slot CASes to publishing and appends publish_started before the API call.
 - Timeout/5xx/unknown response becomes publish_uncertain; no automatic retry is allowed.
