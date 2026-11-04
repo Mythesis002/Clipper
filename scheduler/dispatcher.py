@@ -232,8 +232,9 @@ def _dispatch_claimed_slot(slot, dispatcher_id, stop_event=None):
                 log.exception("account-lock lease heartbeat failed slot=%s",slot_id)
     heartbeat=threading.Thread(target=lock_heartbeat,daemon=True)
     heartbeat.start()
+    account_lock_ctx=_account_publish_lock(account_id)
     try:
-        with _account_publish_lock(account_id) as lock_conn:
+        with account_lock_ctx as lock_conn:
             lock_stop.set(); heartbeat.join(timeout=2)
             with lock_conn.cursor() as cur:
                 cur.execute("SELECT now()")
@@ -263,6 +264,14 @@ def _dispatch_claimed_slot(slot, dispatcher_id, stop_event=None):
     finally:
         lock_stop.set()
         heartbeat.join(timeout=2)
+        if heartbeat.is_alive():
+            log.error("account-lock heartbeat thread did not stop slot=%s",slot_id)
+        # Do not leave a session-level advisory lock behind if shutdown or an
+        # exception interrupted the context manager's normal exit.
+        try:
+            account_lock_ctx.__exit__(None,None,None)
+        except RuntimeError:
+            pass
 
 
 def run_dispatcher(poll_seconds=0.5, claim_limit=None, stop_event=None):
