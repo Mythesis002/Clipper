@@ -15,6 +15,7 @@ except ImportError:
 
 from scheduler.materializer import materialize_user
 from scheduler.queue import claim_slots_near_due, transition_slot
+from scheduler.worker import claim_jobs
 from scheduler.provider_limits import provider_request,ProviderCircuitOpen
 from scheduler.dispatcher import _publish_one
 
