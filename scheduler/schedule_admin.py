@@ -3,17 +3,18 @@ from datetime import datetime,timezone
 from scheduler.materializer import materialize_user
 
 
-def update_schedule_rule(conn,user_id,account_id,weekday,local_time,active=True,
+def update_schedule_rule(conn,user_id,account_id,weekday,local_time,old_local_time=None,active=True,
                          max_late_minutes=20,assignment_lead_minutes=360,
                          verify_lead_minutes=30,container_lead_minutes=10):
     """Replace a weekday/time rule and regenerate only future unclaimed slots."""
     with conn.transaction():
         with conn.cursor() as cur:
             cur.execute("SELECT set_config('app.user_id',%s,true)",(str(user_id),))
-            cur.execute(
-                """UPDATE schedule_rules SET active=false,updated_at=now()
-                   WHERE user_id=%s AND account_id=%s AND weekday=%s AND active=true
-                     AND local_time<>%s""",(user_id,account_id,weekday,local_time))
+            if old_local_time is not None and old_local_time != local_time:
+                cur.execute(
+                    """UPDATE schedule_rules SET active=false,updated_at=now()
+                       WHERE user_id=%s AND account_id=%s AND weekday=%s AND local_time=%s""",
+                    (user_id,account_id,weekday,old_local_time))
             cur.execute(
                 """INSERT INTO schedule_rules(user_id,account_id,weekday,local_time,active,
                    max_late_minutes,assignment_lead_minutes,verify_lead_minutes,container_lead_minutes)
