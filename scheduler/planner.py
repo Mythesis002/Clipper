@@ -208,9 +208,10 @@ def run_planner(poll_seconds=5):
                 verified=enqueue_verification_jobs(conn)
                 containers=enqueue_container_uploads(conn)
                 missed=mark_expired_slots(conn)
-            if materialized or assigned or verified or containers or missed:
-                log.info("planner materialized=%d assigned=%d verify_jobs=%d container_jobs=%d missed=%d",
-                         materialized,assigned,verified,containers,missed)
+                uncertain=quarantine_stuck_publishing(conn)
+            if materialized or assigned or verified or containers or missed or uncertain:
+                log.info("planner materialized=%d assigned=%d verify_jobs=%d container_jobs=%d missed=%d publish_uncertain=%d",
+                         materialized,assigned,verified,containers,missed,uncertain)
         except Exception:
             log.exception("planner failed this iteration")
         time.sleep(poll_seconds)
