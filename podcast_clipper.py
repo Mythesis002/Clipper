@@ -203,9 +203,8 @@ def load_state():
     if os.environ.get("CLIPPER_STATE_BACKEND", "json").strip().lower() == "postgres":
         from scheduler.legacy_adapter import load_state as load_postgres_state
         return load_postgres_state()
-    if STATE_FILE.exists():
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    return {"episodes": {}, "clips": [], "next_id": 1}
+    from scheduler.store import JsonFileStateStore
+    return JsonFileStateStore(STATE_FILE).load()
 
 
 def save_state(st):
@@ -213,10 +212,8 @@ def save_state(st):
         from scheduler.legacy_adapter import save_state as save_postgres_state
         save_postgres_state(st)
         return
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = STATE_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")
-    tmp.replace(STATE_FILE)
+    from scheduler.store import JsonFileStateStore
+    JsonFileStateStore(STATE_FILE).save(st)
 
 
 def now_utc():
