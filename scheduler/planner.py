@@ -59,7 +59,7 @@ def assign_due_slots(conn, lead_minutes=360, limit=100):
                              AND x.clip_id=c.id AND x.state NOT IN ('published','missed','failed','cancelled')
                          )
                        ORDER BY c.score DESC NULLS LAST,c.created_at,c.id
-                       FOR UPDATE SKIP LOCKED LIMIT 1""",
+                       LIMIT 1 FOR UPDATE SKIP LOCKED""",
                     (user_id,),
                 )
                 clip=cur.fetchone()
