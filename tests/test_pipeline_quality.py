@@ -267,6 +267,43 @@ class PipelineQualityTests(unittest.TestCase):
         }]}
         self.assertIsNone(clipper.due_slot(cfg, posted_state, now=now))
 
+    def test_scheduled_slot_requires_confirmed_post_not_uncertain_state(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        cfg = {
+            "timezone": "Asia/Kolkata",
+            "schedule": {"max_wait_min": 25, "catchup_hours": 6},
+        }
+        slot = datetime(2026, 10, 30, 6, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        uncertain = {"clips": [{
+            "id": 21, "status": "publish_uncertain",
+            "publish_started_at": "2026-10-30T06:01:00+05:30",
+        }]}
+        self.assertIsNone(clipper.confirmed_post_for_slot(cfg, uncertain, slot))
+        posted = {"clips": [{
+            "id": 22, "status": "posted", "media_id": "ig-media",
+            "posted_at": "2026-10-30T06:02:00+05:30",
+        }]}
+        self.assertEqual(
+            clipper.confirmed_post_for_slot(cfg, posted, slot)["id"], 22
+        )
+
+    def test_stale_publishing_intent_is_quarantined_without_reposting(self):
+        from datetime import datetime, timezone
+        state = {"clips": [{
+            "id": 23, "status": "publishing",
+            "publish_started_at": "2026-10-30T05:00:00+00:00",
+        }], "journal": []}
+        now = datetime(2026, 10, 30, 5, 20, tzinfo=timezone.utc)
+        changed, unresolved = clipper.quarantine_stale_publish_intents(
+            state, timeout_minutes=15, now=now
+        )
+        self.assertTrue(changed)
+        self.assertEqual(state["clips"][0]["status"], "publish_uncertain")
+        self.assertEqual([c["id"] for c in unresolved], [23])
+        self.assertTrue(any(j["event"] == "publish_intent_quarantined"
+                            for j in state["journal"]))
+
     def test_due_slot_does_not_catch_up_after_window_expires(self):
         from datetime import datetime
         from zoneinfo import ZoneInfo
