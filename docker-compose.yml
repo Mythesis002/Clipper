@@ -18,7 +18,7 @@ services:
       retries: 20
 
   garage:
-    image: dxflrs/garage:v2.4.1
+    image: dxflrs/garage:v2.5.0
     command: ["/garage", "server", "--single-node", "--default-bucket"]
     restart: unless-stopped
     environment:
@@ -53,7 +53,7 @@ services:
       TOKEN_ENCRYPTION_KEY_FILE: /run/secrets/token_encryption_key
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       YOUTUBE_ENABLED: ${YOUTUBE_ENABLED:-true}
-      PUBLISH_CONCURRENCY: ${PUBLISH_CONCURRENCY:-32}
+      PUBLISH_CONCURRENCY: ${PUBLISH_CONCURRENCY:-150}
       META_RATE_CAPACITY: ${META_RATE_CAPACITY:-300}
       META_REQUESTS_PER_SECOND: ${META_REQUESTS_PER_SECOND:-100}
       GEMINI_RATE_CAPACITY: ${GEMINI_RATE_CAPACITY:-10}
