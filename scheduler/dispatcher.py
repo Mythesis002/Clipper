@@ -19,6 +19,7 @@ from contextlib import contextmanager
 
 from db import connect
 from scheduler.crypto import decrypt_token
+from scheduler.provider_limits import provider_request
 from scheduler.instagram_limits import assert_publish_quota_available
 from scheduler.queue import (
     append_event, claim_slots_near_due, heartbeat_slot, transition_slot,
@@ -73,11 +74,12 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) ->
                      {"container_id":container_id,"run_at":run_at.isoformat()})
 
     try:
-        response=requests.post(
-            _publish_url(cfg.get("graph_version","v25.0"),account["external_id"]),
-            data={"creation_id":container_id,"access_token":account["access_token"]},
-            timeout=(5,30),
-        )
+        with provider_request("meta"):
+            response=requests.post(
+                _publish_url(cfg.get("graph_version","v25.0"),account["external_id"]),
+                data={"creation_id":container_id,"access_token":account["access_token"]},
+                timeout=(5,30),
+            )
     except requests.RequestException as exc:
         with db_conn.transaction():
             transition_slot(db_conn,slot_id,"publishing","publish_uncertain",
