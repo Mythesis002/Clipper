@@ -80,6 +80,8 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) ->
                 data={"creation_id":container_id,"access_token":account["access_token"]},
                 timeout=(5,30),
             )
+            if response.status_code in (408,429,500,502,503,504):
+                raise requests.HTTPError(f"transient Graph API HTTP {response.status_code}",response=response)
     except ProviderCircuitOpen as exc:
         with db_conn.transaction():
             transition_slot(db_conn,slot_id,"publishing","failed",
