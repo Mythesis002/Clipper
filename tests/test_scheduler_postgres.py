@@ -24,13 +24,8 @@ class PostgreSQLSchedulerTests(unittest.TestCase):
         cls.conn=psycopg.connect(DSN)
         cls.created_users=[]
 
-    @classmethod
-    def tearDownClass(cls):
-        if cls.created_users:
-            with cls.conn.cursor() as cur:
-                cur.execute("DELETE FROM users WHERE id=ANY(%s)",(cls.created_users,))
-            cls.conn.commit()
-        cls.conn.close()
+    # Test rows intentionally remain in the ephemeral CI database. The audit
+    # events table is append-only, so cascading cleanup would violate its trigger.
 
     def _tenant(self,tz="Asia/Kolkata"):
         user=str(uuid.uuid4())
