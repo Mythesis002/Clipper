@@ -38,8 +38,6 @@ def save_state(state):
         JSON_STORE.save(state)
         return
     user_id = _user_id()
-    store = PostgresStateStore(connect, user_id)
-    store.save(state)
     # Map creator display names to configured handles. permission:true is an
     # explicit operator assertion in config.yaml, but DB source attestation is
     # still required before the scheduler can assign a clip.
@@ -51,6 +49,12 @@ def save_state(state):
     with connect() as conn, conn.transaction():
         with conn.cursor() as cur:
             cur.execute("SELECT set_config('app.user_id', %s, true)", (user_id,))
+            cur.execute(
+                """INSERT INTO state_meta(user_id,payload,revision,updated_at)
+                   VALUES (%s,%s::jsonb,1,now())
+                   ON CONFLICT(user_id) DO UPDATE
+                   SET payload=EXCLUDED.payload,revision=state_meta.revision+1,updated_at=now()""",
+                (user_id,json.dumps(state,ensure_ascii=False)))
             for clip in state.get("clips", []):
                 clip_id = int(clip["id"])
                 payload = dict(clip)
