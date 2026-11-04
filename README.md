@@ -62,15 +62,11 @@ The intelligence layers improve the decision process; they cannot guarantee a pe
 
 ## Automatic publishing
 
-The scheduled workflow is configured for:
+Production scheduling is owned by the PostgreSQL scheduler, not GitHub Actions cron. Each slot stores a UTC instant; schedule rules use the user's IANA timezone and local wall-clock times. Planner and worker services prepare and QA clips before the publish window. The dispatcher performs only the final Instagram media_publish call.
 
-<p align="center">
-  <strong>Mon–Thu: 7:00 PM IST</strong> &nbsp; · &nbsp; <strong>Fri: 8:00 PM IST</strong> &nbsp; · &nbsp; <strong>Sat: 12:00 PM IST</strong> &nbsp; · &nbsp; <strong>Sun: 7:00 PM IST</strong>
-</p>
+GitHub Actions is manual/CI only. Do not cut over production until the scheduler has been deployed, bootstrapped, and verified with a test account. See [Phase 1 scheduler runbook](docs/phase1_scheduler.md).
 
-GitHub Actions starts the scheduled runs shortly before each slot. Each run uses the normal pipeline, fills the queue when needed, applies quality and manual-review safeguards, and attempts at most one Reel per slot.
-
-**A scheduled run is an attempt, not a guarantee of a post.** A slot may not publish if no eligible clip is ready, a clip needs review, or an external service such as YouTube or Instagram is unavailable.
+**A slot is not silently posted late:** if it exceeds max_late_minutes (default 20), it is marked missed. An ambiguous Instagram publish response becomes publish_uncertain and is never automatically retried.
 
 ## Get it running
 
