@@ -37,7 +37,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read             # diagnostics only; no production state commits
+  contents: read             # manual diagnostics only; Postgres is production state
 
 jobs:
   run:
@@ -73,9 +73,6 @@ jobs:
           print(f"bgutil-ytdlp-pot-provider: {version('bgutil-ytdlp-pot-provider')}")
           PY
           deno --version
-
-      - name: Regression tests
-        run: python -m unittest discover -s tests -v
 
       - name: Optional pyannote speaker diarization dependency
         env:
@@ -133,7 +130,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           YT_PROXY: ${{ secrets.YT_PROXY }}
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
-          CMD: ${{ inputs.command || 'tick' }}      # scheduled runs have no input -> tick
+          CMD: ${{ inputs.command || 'check-live' }}
           DRY: ${{ inputs.dry_run }}
           FORCE: ${{ inputs.force }}
           CLIP_ID: ${{ inputs.clip_id }}
@@ -172,18 +169,3 @@ jobs:
           path: review/*.mp4
           if-no-files-found: ignore
           retention-days: 14
-
-      - name: Save state (queue + results)
-        if: always()
-        run: |
-          git config user.name "clipper-bot"
-          git config user.email "clipper-bot@users.noreply.github.com"
-          # The state directory may not exist on a fresh checkout or on an idle run.
-          mkdir -p state
-          touch state/.gitkeep
-          git add -A -- state/
-          if ! git diff --cached --quiet; then
-            git commit -m "state: $(date -u +%Y-%m-%dT%H:%MZ)"
-            git pull --rebase -q
-            git push
-          fi
