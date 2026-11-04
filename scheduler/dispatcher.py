@@ -92,12 +92,16 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) ->
             if response.status_code in (408,429,500,502,503,504):
                 raise requests.HTTPError(f"transient Graph API HTTP {response.status_code}",response=response)
     except ProviderCircuitOpen as exc:
+        # Circuit acquisition happens before publish intent. A stale dispatcher
+        # must not mutate a slot after its lease expires or another worker owns it.
         with db_conn.transaction():
-            transition_slot(db_conn,slot_id,"container_ready","failed",
-                            last_error=f"publish blocked by provider circuit: {exc}",
-                            lease_owner=None,lease_until=None)
-            append_event(db_conn,user_id,slot_id,"publish_blocked_circuit",{"provider":"meta"})
-        log.error("publish blocked by Meta circuit slot=%s",slot_id)
+            changed=transition_slot(
+                db_conn,slot_id,"container_ready","failed",dispatcher_id,
+                last_error=f"publish blocked by provider circuit: {exc}",
+                lease_owner=None,lease_until=None)
+            if changed:
+                append_event(db_conn,user_id,slot_id,"publish_blocked_circuit",{"provider":"meta"})
+        log.error("publish blocked by Meta circuit slot=%s changed=%s",slot_id,changed)
         return
     except requests.RequestException as exc:
         with db_conn.transaction():
