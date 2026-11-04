@@ -19,7 +19,8 @@ Requirements: Docker Compose, Git, Python 3.12 for bootstrap scripts.
 1. Copy env.example to .env and set secure secrets. Do not commit .env.
 2. Create a UUID for the Phase 1 user and set CLIPPER_USER_ID.
 3. Set CLIPPER_USER_EMAIL, IG_USER_ID, IG_ACCESS_TOKEN, GEMINI_API_KEY, and optional YT_TOKEN_JSON/YT_CHANNEL_ID. These platform tokens are bootstrap-only inputs; they are encrypted before database storage and are not passed to long-running containers.
-4. Generate TOKEN_ENCRYPTION_KEY using the command in env.example. Keep the key in a secret manager for production; losing it means tokens must be reconnected.\n5. Set SOURCE_RIGHTS_ATTESTATION to a truthful statement that you own, licensed, or have explicit permission to repost each enabled source. Bootstrap intentionally refuses to attest on your behalf.
+4. Generate TOKEN_ENCRYPTION_KEY using the command in env.example. Keep the key in a secret manager for production; losing it means tokens must be reconnected.
+5. Set SOURCE_RIGHTS_ATTESTATION to a truthful statement that you own, licensed, or have explicit permission to repost each enabled source. Bootstrap intentionally refuses to attest on your behalf.
 6. Install Python dependencies: python -m pip install -r requirements.txt -r requirements-scheduler.txt
 7. Start PostgreSQL and MinIO only: docker compose up -d postgres minio
 8. Apply migrations (fresh Postgres volume applies them via container entrypoint; for an existing DB, apply both):
