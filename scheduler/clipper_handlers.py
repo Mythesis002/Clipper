@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import podcast_clipper as pipeline
@@ -20,6 +21,25 @@ from storage import download_file,upload_file
 log=logging.getLogger("clipper.handlers")
 BASE=Path(__file__).resolve().parents[1]
 
+
+
+
+@contextmanager
+def _tenant_state_lock(user_id):
+    """Serialize legacy pipeline state read-modify-write per tenant."""
+    conn=connect()
+    conn.autocommit=True
+    lock_key=f"clipper:legacy-state:{user_id}"
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_lock(hashtextextended(%s,0))",(lock_key,))
+        yield
+    finally:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT pg_advisory_unlock(hashtextextended(%s,0))",(lock_key,))
+        finally:
+            conn.close()
 
 def _cfg():
     return pipeline.load_config(os.environ.get("CLIPPER_CONFIG",str(BASE/"config.yaml")))
@@ -199,7 +219,8 @@ def produce_for_slot(user_id,payload):
     if expired:
         _mark_missed(user_id,slot_id,"deadline exceeded while waiting for clip buffer")
         return {"missed":True}
-    pipeline.produce(_cfg())
+    with _tenant_state_lock(user_id):
+        pipeline.produce(_cfg())
     with connect() as conn,conn.transaction():
         with conn.cursor() as cur:
             cur.execute(
