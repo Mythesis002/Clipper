@@ -46,13 +46,14 @@ def _record_exhausted(user_id,job_id,kind,payload,error):
                        RETURNING clip_id""",
                     (error,slot_id,user_id))
                 row=cur.fetchone()
-                if row and row[0] is not None:
-                    cur.execute("UPDATE clips SET status='needs_review',updated_at=now() WHERE user_id=%s AND id=%s AND status='assigned'",
-                                (user_id,row[0]))
-                cur.execute(
-                    """INSERT INTO events(user_id,slot_id,type,detail)
-                       VALUES (%s,%s,'job_exhausted',%s::jsonb)""",
-                    (user_id,slot_id,json.dumps({"job_id":job_id,"kind":kind,"error":error})))
+                if row:
+                    if row[0] is not None:
+                        cur.execute("UPDATE clips SET status='needs_review',updated_at=now() WHERE user_id=%s AND id=%s AND status='assigned'",
+                                    (user_id,row[0]))
+                    cur.execute(
+                        """INSERT INTO events(user_id,slot_id,type,detail)
+                           VALUES (%s,%s,'job_exhausted',%s::jsonb)""",
+                        (user_id,slot_id,json.dumps({"job_id":str(job_id),"kind":kind,"error":error})))
     except Exception:
         log.exception("could not mark slot failed after job exhaustion")
 
@@ -85,14 +86,25 @@ def run_worker(poll_seconds=2):
             result=handler(user_id=str(user_id),payload=payload)
             if isinstance(result,dict) and result.get("retry_after_seconds"):
                 delay=max(5,int(result["retry_after_seconds"]))
+                exhausted=attempts>=max_attempts
                 with connect() as conn,conn.transaction():
                     with conn.cursor() as cur:
                         cur.execute(
-                            """UPDATE jobs SET state='retry',run_after=now()+(%s * interval '1 second'),
+                            """UPDATE jobs SET state=%s,run_after=now()+(%s * interval '1 second'),
                                lease_owner=NULL,lease_until=NULL,last_error=%s,updated_at=now()
-                               WHERE id=%s AND state='leased' AND lease_owner=%s""",
-                            (delay,str(result.get("reason") or "handler requested retry")[:1000],job_id,worker_id))
-                log.info("job deferred id=%s kind=%s in=%ss",job_id,kind,delay)
+                               WHERE id=%s AND state='leased' AND lease_owner=%s AND lease_until > now()
+                               RETURNING id""",
+                            ("failed" if exhausted else "retry",delay,
+                             str(result.get("reason") or "handler requested retry")[:1000],
+                             job_id,worker_id))
+                        updated=cur.fetchone() is not None
+                if updated and exhausted:
+                    _record_exhausted(user_id,job_id,kind,payload,
+                                      str(result.get("reason") or "retry limit reached")[:1000])
+                if exhausted:
+                    log.error("job exhausted retries id=%s kind=%s",job_id,kind)
+                else:
+                    log.info("job deferred id=%s kind=%s in=%ss",job_id,kind,delay)
             else:
                 with connect() as conn,conn.transaction():
                     finish_job(conn,job_id,worker_id,True)
@@ -111,7 +123,8 @@ def run_worker(poll_seconds=2):
                                WHERE id=%s AND state='leased' AND lease_owner=%s AND lease_until > now()
                                RETURNING id""",
                             (state,int(delay),error,job_id,worker_id))
-                if state=="failed":
+                        updated=cur.fetchone() is not None
+                if updated and state=="failed":
                     _record_exhausted(user_id,job_id,kind,payload,error)
             except Exception:
                 log.exception("could not update failed job id=%s",job_id)
