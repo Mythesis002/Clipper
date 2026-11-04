@@ -111,10 +111,39 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict) -> None:
         return
 
     with connect() as conn, conn.transaction():
+        published_at=datetime.now(timezone.utc)
         transition_slot(conn, slot_id, "publishing", "published",
-                        media_id=str(media_id), published_at=datetime.now(timezone.utc),
+                        media_id=str(media_id), published_at=published_at,
                         lease_owner=None, lease_until=None, last_error=None)
         append_event(conn, user_id, slot_id, "published", {"media_id": str(media_id)})
+        if clip_id is not None:
+            cur=conn.cursor()
+            cur.execute(
+                """UPDATE clips SET status='posted',
+                   payload=jsonb_set(
+                     jsonb_set(payload,'{status}','"posted"'::jsonb,true),
+                     '{platforms,instagram}',%s::jsonb,true),
+                   updated_at=now()
+                   WHERE user_id=%s AND id=%s""",
+                (json.dumps({"status":"posted","media_id":str(media_id),
+                            "url":f"https://www.instagram.com/reel/{media_id}/",
+                            "posted_at":published_at.isoformat()}),user_id,clip_id),
+            )
+            if os.environ.get("YOUTUBE_ENABLED","true").strip().lower()=="true":
+                if os.environ.get("YT_TOKEN_JSON","").strip():
+                    cur.execute(
+                        """INSERT INTO jobs(user_id,kind,payload,priority,run_after,dedupe_key)
+                           VALUES (%s,'youtube_upload',%s::jsonb,50,now(),%s)
+                           ON CONFLICT(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING""",
+                        (user_id,json.dumps({"clip_id":int(clip_id)}),f"clip:{clip_id}:youtube"),
+                    )
+                    append_event(conn,user_id,slot_id,"youtube_upload_enqueued",{"clip_id":int(clip_id)})
+                else:
+                    cur.execute(
+                        """UPDATE clips SET payload=jsonb_set(payload,'{platforms,youtube}',
+                           '{"status":"not_configured"}'::jsonb,true) WHERE user_id=%s AND id=%s""",
+                        (user_id,clip_id),
+                    )
 
 
 def _load_slot_account(conn, slot_id, user_id):
