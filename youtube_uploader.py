@@ -14,6 +14,10 @@ SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 RETRIABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 MAX_RETRIES = 8
 CHUNK_SIZE = 8 * 1024 * 1024
+class YouTubeUploadUncertainError(RuntimeError):
+    """Upload may have reached YouTube; never create a second video automatically."""
+
+
 DEFAULT_TAGS = ["podcast", "shorts", "clips", "india"]
 
 
@@ -131,14 +135,14 @@ def upload_to_youtube(video, title, description="", category="22",
             if exc.resp.status not in RETRIABLE_STATUS_CODES:
                 raise
             if retry >= MAX_RETRIES:
-                raise RuntimeError(f"YouTube upload retry limit reached (HTTP {exc.resp.status}).") from exc
+                raise YouTubeUploadUncertainError(f"YouTube upload outcome uncertain after HTTP {exc.resp.status}; reconcile before retry.") from exc
             retry += 1
             delay = min(60.0, random.uniform(0, 2 ** min(retry, 6)))
             print(f"Retryable YouTube HTTP {exc.resp.status}; retry {retry}/{MAX_RETRIES} in {delay:.1f}s")
             time.sleep(delay)
         except (OSError, TimeoutError) as exc:
             if retry >= MAX_RETRIES:
-                raise RuntimeError("YouTube upload retry limit reached after network errors.") from exc
+                raise YouTubeUploadUncertainError("YouTube upload outcome uncertain after network retries; reconcile before retry.") from exc
             retry += 1
             delay = min(60.0, random.uniform(0, 2 ** min(retry, 6)))
             print(f"Retryable YouTube network error; retry {retry}/{MAX_RETRIES} in {delay:.1f}s")
