@@ -1,8 +1,11 @@
 """Postgres scheduler integration tests; run with TEST_DATABASE_URL against migrated DB."""
+import json
 import os
 import threading
+import requests
 import unittest
 import uuid
+from unittest.mock import patch
 from datetime import date, time, datetime, timezone
 
 try:
