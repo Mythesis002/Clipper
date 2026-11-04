@@ -121,13 +121,18 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict) -> None:
             cur.execute(
                 """UPDATE clips SET status='posted',
                    payload=jsonb_set(
-                     jsonb_set(payload,'{status}','"posted"'::jsonb,true),
+                     jsonb_set(
+                       jsonb_set(
+                         jsonb_set(payload,'{status}','"posted"'::jsonb,true),
+                         '{media_id}',to_jsonb(%s::text),true),
+                       '{posted_at}',to_jsonb(%s::text),true),
                      '{platforms,instagram}',%s::jsonb,true),
                    updated_at=now()
                    WHERE user_id=%s AND id=%s""",
-                (json.dumps({"status":"posted","media_id":str(media_id),
-                            "url":f"https://www.instagram.com/reel/{media_id}/",
-                            "posted_at":published_at.isoformat()}),user_id,clip_id),
+                (str(media_id),published_at.isoformat(),
+                 json.dumps({"status":"posted","media_id":str(media_id),
+                             "url":f"https://www.instagram.com/reel/{media_id}/",
+                             "posted_at":published_at.isoformat()}),user_id,clip_id),
             )
             if os.environ.get("YOUTUBE_ENABLED","true").strip().lower()=="true":
                 if os.environ.get("YT_TOKEN_JSON","").strip():
