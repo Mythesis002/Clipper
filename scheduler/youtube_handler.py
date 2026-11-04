@@ -9,6 +9,7 @@ from db import connect
 from storage import download_file
 from scheduler.crypto import decrypt_token
 from scheduler.provider_limits import provider_request
+from scheduler.provider_limits import provider_request
 
 log=logging.getLogger("clipper.youtube_job")
 
