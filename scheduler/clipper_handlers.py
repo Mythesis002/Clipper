@@ -130,15 +130,15 @@ def verify_slot(user_id,payload):
     with connect() as conn,conn.transaction():
         with conn.cursor() as cur:
             if issues:
-                cur.execute("UPDATE slots SET state='failed',last_error=%s,updated_at=now() WHERE id=%s AND user_id=%s AND state='verified'",
-                            ("T-30 media verification failed: "+ "; ".join(issues)[:400],slot_id,user_id))
                 cur.execute("UPDATE clips SET status='needs_review',updated_at=now() WHERE user_id=%s AND id=%s",(user_id,clip_id))
                 append_event(conn,user_id,slot_id,"slot_verification_failed",{"issues":issues,"media":media})
+                swapped=swap_failed_clip(conn,user_id,slot_id,clip_id,
+                                         "T-30 media verification failed: "+ "; ".join(issues)[:300])
             else:
                 cur.execute("UPDATE slots SET verification_checked_at=now(),updated_at=now() WHERE id=%s AND user_id=%s AND state='verified' RETURNING id",
                             (slot_id,user_id))
                 if cur.fetchone(): append_event(conn,user_id,slot_id,"slot_media_verified",{"media":media})
-    if issues: return {"verification":"failed","issues":issues}
+    if issues: return {"verification":"failed","issues":issues,"replacement_assigned":swapped}
     return {"verification":"passed","media":media}
 
 
