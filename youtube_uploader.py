@@ -31,8 +31,8 @@ def sanitize_youtube_title(text, max_length=100):
     return text if len(text) >= 3 else "Podcast Short"
 
 
-def _credentials_from_environment():
-    raw = os.getenv("YT_TOKEN_JSON", "").strip()
+def _credentials_from_environment(token_json=None):
+    raw = (token_json if token_json is not None else os.getenv("YT_TOKEN_JSON", "")).strip()
     if not raw:
         raise RuntimeError("YT_TOKEN_JSON is not configured (Google OAuth token JSON secret).")
     try:
@@ -81,7 +81,8 @@ def check_youtube_account():
 
 
 def upload_to_youtube(video, title, description="", category="22",
-                      keywords=None, privacy_status="public", notify_subscribers=False):
+                      keywords=None, privacy_status="public", notify_subscribers=False,
+                      token_json=None):
     """Upload a local MP4 and return {video_id, url}. Does not download remote URLs."""
     path = Path(video)
     if not path.is_file():
@@ -91,7 +92,7 @@ def upload_to_youtube(video, title, description="", category="22",
     if privacy_status not in {"public", "unlisted", "private"}:
         raise ValueError("privacy_status must be public, unlisted, or private")
 
-    credentials = _credentials_from_environment()
+    credentials = _credentials_from_environment(token_json)
     tags = keywords or DEFAULT_TAGS
     if isinstance(tags, str):
         tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
