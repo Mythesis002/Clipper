@@ -319,15 +319,3 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT,_signal_handler)
     run_dispatcher(stop_event=shutdown)
 
-
-if __name__ == "__main__":
-    import signal
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    # Graceful shutdown stops new claims; in-flight publish requests finish or
-    # become uncertain, while future slots release their leases for takeover.
-    shutdown=threading.Event()
-    def _signal_handler(_signum,_frame):
-        shutdown.set()
-    signal.signal(signal.SIGTERM,_signal_handler)
-    signal.signal(signal.SIGINT,_signal_handler)
-    run_dispatcher(stop_event=shutdown)
