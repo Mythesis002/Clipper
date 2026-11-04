@@ -659,6 +659,33 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertNotIn("Lex Fridman", channels)
         self.assertNotIn("The Diary of a CEO", channels)
 
+    def test_tick_fails_scheduled_slot_when_no_post_is_confirmed(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        cfg = {
+            "timezone": "Asia/Kolkata",
+            "schedule": {"max_wait_min": 25, "catchup_hours": 6},
+            "queue": {"refill_when_below": 3},
+        }
+        slot = datetime(2026, 10, 30, 6, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        state = {"clips": [], "episodes": {}, "next_id": 1, "journal": []}
+        with patch.object(clipper, "authorized_channels", return_value=[{"name": "allowed"}]), \
+             patch.object(clipper, "load_state", return_value=state), \
+             patch.object(clipper, "save_state"), \
+             patch.object(clipper, "retry_transient_promotion_reviews", return_value=False), \
+             patch.object(clipper, "queued_for_authorized_channels", return_value=[]), \
+             patch.object(clipper, "produce"), \
+             patch.object(clipper, "publish_next", return_value=True), \
+             patch.object(clipper, "due_slot", return_value=(slot, 0)), \
+             patch.object(clipper, "update_metrics"), \
+             patch.object(clipper, "write_summary"), \
+             patch.object(clipper, "gha") as gha_mock:
+            result = clipper.tick(cfg)
+        self.assertFalse(result)
+        self.assertTrue(any(call.args[0] == "error" for call in gha_mock.call_args_list))
+        self.assertTrue(any(item["event"] == "slot_delivery_failed"
+                            for item in state["journal"]))
+
     def test_publish_now_command_runs_forced_tick(self):
         with patch.object(clipper.sys, "argv", ["podcast_clipper.py", "publish-now"]), \
              patch.object(clipper, "load_config", return_value={}), \
