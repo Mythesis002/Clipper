@@ -60,20 +60,30 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) ->
         log.error("slot=%s blocked: stale quota snapshot; no media_publish call",slot_id)
         return
 
-    # Persist publish intent before making the irreversible external request.
-    with db_conn.transaction():
-        claimed=transition_slot(
-            db_conn,slot_id,"container_ready","publishing",dispatcher_id,
-            publish_started_at=now,attempts=attempts+1,
-        )
-        if not claimed:
-            log.warning("slot lost lease or state changed; skip slot=%s",slot_id)
-            return
-        append_event(db_conn,user_id,slot_id,"publish_started",
-                     {"container_id":container_id,"run_at":run_at.isoformat()})
-
+    # Acquire the global Meta permit first; then persist publish intent immediately
+    # before the single irreversible media_publish request.
     try:
         with provider_request("meta"):
+            now=DatabaseClock.now_on(db_conn)
+            if now>late_limit:
+                with db_conn.transaction():
+                    transition_slot(db_conn,slot_id,"container_ready","missed",dispatcher_id,
+                                   last_error="slot deadline passed while waiting for Meta rate permit",
+                                   lease_owner=None,lease_until=None)
+                    append_event(db_conn,user_id,slot_id,"slot_missed",
+                                 {"reason":"Meta rate permit arrived after max_late_minutes"})
+                return
+            with db_conn.transaction():
+                claimed=transition_slot(
+                    db_conn,slot_id,"container_ready","publishing",dispatcher_id,
+                    publish_started_at=now,attempts=attempts+1,
+                )
+                if not claimed:
+                    log.warning("slot lost lease or state changed; skip slot=%s",slot_id)
+                    return
+                append_event(db_conn,user_id,slot_id,"publish_started",
+                             {"container_id":container_id,"run_at":run_at.isoformat()})
+
             response=requests.post(
                 _publish_url(cfg.get("graph_version","v25.0"),account["external_id"]),
                 data={"creation_id":container_id,"access_token":account["access_token"]},
@@ -83,7 +93,7 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) ->
                 raise requests.HTTPError(f"transient Graph API HTTP {response.status_code}",response=response)
     except ProviderCircuitOpen as exc:
         with db_conn.transaction():
-            transition_slot(db_conn,slot_id,"publishing","failed",
+            transition_slot(db_conn,slot_id,"container_ready","failed",
                             last_error=f"publish blocked by provider circuit: {exc}",
                             lease_owner=None,lease_until=None)
             append_event(db_conn,user_id,slot_id,"publish_blocked_circuit",{"provider":"meta"})
