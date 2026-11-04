@@ -134,9 +134,9 @@ def mark_expired_slots(conn, limit=500):
     with conn.cursor() as cur:
         cur.execute(
             """WITH expired AS (
-                 SELECT id,user_id FROM slots
-                 WHERE state IN ('scheduled','assigned','preparing','verified','container_uploading','container_ready')
-                   AND run_at_utc + (max_late_minutes * interval '1 minute') < now()
+                 SELECT s.id,s.user_id FROM slots s
+                 WHERE s.state IN ('scheduled','assigned','preparing','verified','container_uploading','container_ready')
+                   AND s.run_at_utc + (s.max_late_minutes * interval '1 minute') < now()
                  ORDER BY s.run_at_utc FOR UPDATE OF s SKIP LOCKED LIMIT %s
                )
                UPDATE slots s SET state='missed',last_error='max_late_minutes exceeded',
