@@ -166,3 +166,13 @@ def append_event(conn, user_id, slot_id, event_type, detail=None):
             "INSERT INTO events(user_id,slot_id,type,detail) VALUES (%s,%s,%s,%s::jsonb)",
             (user_id, slot_id, event_type, __import__("json").dumps(detail or {})),
         )
+
+
+def heartbeat_slots(conn,dispatcher_id,lease_seconds=45):
+    """Batch-renew all still-valid pre-publish leases for one dispatcher."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """UPDATE slots SET lease_until=now()+(%s * interval '1 second'),updated_at=now()
+               WHERE lease_owner=%s AND state='container_ready' AND lease_until>now()
+               RETURNING id""",(lease_seconds,dispatcher_id))
+        return len(cur.fetchall())
