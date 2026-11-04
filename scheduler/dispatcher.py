@@ -29,126 +29,120 @@ def _publish_url(graph_version: str, account_external_id: str) -> str:
     return f"https://graph.facebook.com/{graph_version}/{account_external_id}/media_publish"
 
 
-def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict) -> None:
-    slot_id, user_id, account_id, clip_id, container_id, run_at, max_late, attempts = slot
-    now = datetime.now(timezone.utc)
-    late_limit = run_at + __import__("datetime").timedelta(minutes=max_late)
-    if now > late_limit:
-        with connect() as conn, conn.transaction():
-            transition_slot(conn, slot_id, "container_ready", "missed",
-                            dispatcher_id, last_error="slot exceeded max_late_minutes",
-                            lease_owner=None, lease_until=None)
-            append_event(conn, user_id, slot_id, "slot_missed",
-                         {"now": now.isoformat(), "run_at": run_at.isoformat()})
+def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) -> None:
+    slot_id,user_id,account_id,clip_id,container_id,run_at,max_late,attempts=slot
+    now=datetime.now(timezone.utc)
+    late_limit=run_at+__import__("datetime").timedelta(minutes=max_late)
+    if now>late_limit:
+        with db_conn.transaction():
+            transition_slot(db_conn,slot_id,"container_ready","missed",dispatcher_id,
+                            last_error="slot exceeded max_late_minutes",
+                            lease_owner=None,lease_until=None)
+            append_event(db_conn,user_id,slot_id,"slot_missed",
+                         {"now":now.isoformat(),"run_at":run_at.isoformat()})
         return
 
-    # Verify that quota was checked during pre-slot container preparation.
-    with connect() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT quota_checked_at,quota_snapshot FROM slots WHERE id=%s",(slot_id,))
-            quota_row=cur.fetchone()
+    # Quota was checked during T-10 container preparation. T-0 must only call
+    # media_publish; stale snapshots fail closed without an extra Graph API call.
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT quota_checked_at,quota_snapshot FROM slots WHERE id=%s",(slot_id,))
+        quota_row=cur.fetchone()
     if not quota_row or not quota_row[0] or (now-quota_row[0]).total_seconds()>900:
-        with connect() as conn, conn.transaction():
-            transition_slot(conn,slot_id,"container_ready","failed",dispatcher_id,
+        with db_conn.transaction():
+            transition_slot(db_conn,slot_id,"container_ready","failed",dispatcher_id,
                             last_error="pre-publish quota snapshot missing or stale",
                             lease_owner=None,lease_until=None)
-            append_event(conn,user_id,slot_id,"publish_blocked_stale_quota",{})
+            append_event(db_conn,user_id,slot_id,"publish_blocked_stale_quota",{})
         log.error("slot=%s blocked: stale quota snapshot; no media_publish call",slot_id)
         return
 
-    # If process dies after persisting publishing but before/after HTTP call, the
-    # reconciler must inspect recent media. Never auto-retry this state.
-    with connect() as conn, conn.transaction():
-        claimed = transition_slot(
-            conn, slot_id, "container_ready", "publishing", dispatcher_id,
-            publish_started_at=now, attempts=attempts + 1,
+    # Persist publish intent before making the irreversible external request.
+    with db_conn.transaction():
+        claimed=transition_slot(
+            db_conn,slot_id,"container_ready","publishing",dispatcher_id,
+            publish_started_at=now,attempts=attempts+1,
         )
         if not claimed:
-            log.warning("slot lost lease or state changed; skipping publish slot=%s", slot_id)
+            log.warning("slot lost lease or state changed; skip slot=%s",slot_id)
             return
-        append_event(conn, user_id, slot_id, "publish_started",
-                     {"container_id": container_id, "run_at": run_at.isoformat()})
+        append_event(db_conn,user_id,slot_id,"publish_started",
+                     {"container_id":container_id,"run_at":run_at.isoformat()})
 
     try:
-        response = requests.post(
-            _publish_url(cfg.get("graph_version", "v25.0"), account["external_id"]),
-            data={"creation_id": container_id, "access_token": account["access_token"]},
-            timeout=(5, 30),
+        response=requests.post(
+            _publish_url(cfg.get("graph_version","v25.0"),account["external_id"]),
+            data={"creation_id":container_id,"access_token":account["access_token"]},
+            timeout=(5,30),
         )
     except requests.RequestException as exc:
-        with connect() as conn, conn.transaction():
-            transition_slot(conn, slot_id, "publishing", "publish_uncertain",
+        with db_conn.transaction():
+            transition_slot(db_conn,slot_id,"publishing","publish_uncertain",
                             last_error=f"publish outcome unknown: {type(exc).__name__}",
-                            lease_owner=None, lease_until=None)
-            append_event(conn, user_id, slot_id, "publish_uncertain",
-                         {"error_type": type(exc).__name__})
-        log.error("publish uncertain slot=%s; not retrying", slot_id)
+                            lease_owner=None,lease_until=None)
+            append_event(db_conn,user_id,slot_id,"publish_uncertain",
+                         {"error_type":type(exc).__name__})
+        log.error("publish uncertain slot=%s; not retrying",slot_id)
         return
 
-    if response.status_code >= 500:
-        with connect() as conn, conn.transaction():
-            transition_slot(conn, slot_id, "publishing", "publish_uncertain",
+    if response.status_code>=500:
+        with db_conn.transaction():
+            transition_slot(db_conn,slot_id,"publishing","publish_uncertain",
                             last_error=f"Instagram HTTP {response.status_code}",
-                            lease_owner=None, lease_until=None)
-            append_event(conn, user_id, slot_id, "publish_uncertain",
-                         {"http_status": response.status_code})
+                            lease_owner=None,lease_until=None)
+            append_event(db_conn,user_id,slot_id,"publish_uncertain",
+                         {"http_status":response.status_code})
         return
-    try:
-        body = response.json()
-    except ValueError:
-        body = {}
-    media_id = body.get("id") if response.ok and isinstance(body, dict) else None
+    try: body=response.json()
+    except ValueError: body={}
+    media_id=body.get("id") if response.ok and isinstance(body,dict) else None
     if not media_id:
-        # A 4xx is normally a definite rejection; a successful response without
-        # the expected media ID is ambiguous and needs reconciliation.
-        target = "failed" if response.status_code < 500 and not response.ok else "publish_uncertain"
-        with connect() as conn, conn.transaction():
-            transition_slot(conn, slot_id, "publishing", target,
+        target="failed" if response.status_code<500 and not response.ok else "publish_uncertain"
+        with db_conn.transaction():
+            transition_slot(db_conn,slot_id,"publishing",target,
                             last_error=f"Instagram response HTTP {response.status_code}: {response.text[:250]}",
-                            lease_owner=None, lease_until=None)
-            append_event(conn, user_id, slot_id, target,
-                         {"http_status": response.status_code})
+                            lease_owner=None,lease_until=None)
+            append_event(db_conn,user_id,slot_id,target,{"http_status":response.status_code})
         return
 
-    with connect() as conn, conn.transaction():
+    with db_conn.transaction():
         published_at=datetime.now(timezone.utc)
-        transition_slot(conn, slot_id, "publishing", "published",
-                        media_id=str(media_id), published_at=published_at,
-                        lease_owner=None, lease_until=None, last_error=None)
-        append_event(conn, user_id, slot_id, "published", {"media_id": str(media_id)})
+        transition_slot(db_conn,slot_id,"publishing","published",
+                        media_id=str(media_id),published_at=published_at,
+                        lease_owner=None,lease_until=None,last_error=None)
+        append_event(db_conn,user_id,slot_id,"published",{"media_id":str(media_id)})
         if clip_id is not None:
-            cur=conn.cursor()
-            cur.execute(
-                """UPDATE clips SET status='posted',
-                   payload=jsonb_set(
-                     jsonb_set(
-                       jsonb_set(
-                         jsonb_set(payload,'{status}','"posted"'::jsonb,true),
-                         '{media_id}',to_jsonb(%s::text),true),
-                       '{posted_at}',to_jsonb(%s::text),true),
-                     '{platforms,instagram}',%s::jsonb,true),
-                   updated_at=now()
-                   WHERE user_id=%s AND id=%s""",
-                (str(media_id),published_at.isoformat(),
-                 json.dumps({"status":"posted","media_id":str(media_id),
-                             "url":f"https://www.instagram.com/reel/{media_id}/",
-                             "posted_at":published_at.isoformat()}),user_id,clip_id),
-            )
-            if os.environ.get("YOUTUBE_ENABLED","true").strip().lower()=="true":
-                if os.environ.get("YT_TOKEN_JSON","").strip():
-                    cur.execute(
-                        """INSERT INTO jobs(user_id,kind,payload,priority,run_after,dedupe_key)
-                           VALUES (%s,'youtube_upload',%s::jsonb,50,now(),%s)
-                           ON CONFLICT(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING""",
-                        (user_id,json.dumps({"clip_id":int(clip_id)}),f"clip:{clip_id}:youtube"),
-                    )
-                    append_event(conn,user_id,slot_id,"youtube_upload_enqueued",{"clip_id":int(clip_id)})
-                else:
-                    cur.execute(
-                        """UPDATE clips SET payload=jsonb_set(payload,'{platforms,youtube}',
-                           '{"status":"not_configured"}'::jsonb,true) WHERE user_id=%s AND id=%s""",
-                        (user_id,clip_id),
-                    )
+            with db_conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE clips SET status='posted',
+                       payload=jsonb_set(
+                         jsonb_set(
+                           jsonb_set(
+                             jsonb_set(payload,'{status}','"posted"'::jsonb,true),
+                             '{media_id}',to_jsonb(%s::text),true),
+                           '{posted_at}',to_jsonb(%s::text),true),
+                         '{platforms,instagram}',%s::jsonb,true),
+                       updated_at=now()
+                       WHERE user_id=%s AND id=%s""",
+                    (str(media_id),published_at.isoformat(),
+                     json.dumps({"status":"posted","media_id":str(media_id),
+                                 "url":f"https://www.instagram.com/reel/{media_id}/",
+                                 "posted_at":published_at.isoformat()}),user_id,clip_id),
+                )
+                if os.environ.get("YOUTUBE_ENABLED","true").strip().lower()=="true":
+                    if os.environ.get("YT_TOKEN_JSON","").strip():
+                        cur.execute(
+                            """INSERT INTO jobs(user_id,kind,payload,priority,run_after,dedupe_key)
+                               VALUES (%s,'youtube_upload',%s::jsonb,50,now(),%s)
+                               ON CONFLICT(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING""",
+                            (user_id,json.dumps({"clip_id":int(clip_id)}),f"clip:{clip_id}:youtube"),
+                        )
+                        append_event(db_conn,user_id,slot_id,"youtube_upload_enqueued",{"clip_id":int(clip_id)})
+                    else:
+                        cur.execute(
+                            """UPDATE clips SET payload=jsonb_set(payload,'{platforms,youtube}',
+                               '{"status":"not_configured"}'::jsonb,true) WHERE user_id=%s AND id=%s""",
+                            (user_id,clip_id),
+                        )
 
 
 def _load_slot_account(conn, slot_id, user_id):
@@ -175,7 +169,7 @@ def _account_publish_lock(account_id):
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT pg_advisory_lock(hashtextextended(%s, 0))", (str(account_id),))
-        yield
+        yield conn
     finally:
         try:
             with conn.cursor() as cur:
@@ -207,10 +201,11 @@ def _dispatch_claimed_slot(slot, dispatcher_id):
     token=os.environ.get("IG_ACCESS_TOKEN","").strip()
     if not token:
         raise RuntimeError("IG_ACCESS_TOKEN is not configured for Phase 1 dispatcher")
-    with _account_publish_lock(account_id):
+    with _account_publish_lock(account_id) as lock_conn:
         _publish_one(slot,dispatcher_id,
                      {"external_id":account_row["external_id"],"access_token":token},
-                     {"graph_version":os.environ.get("IG_GRAPH_VERSION","v25.0")})
+                     {"graph_version":os.environ.get("IG_GRAPH_VERSION","v25.0")},
+                     db_conn=lock_conn)
 
 
 def run_dispatcher(poll_seconds=0.5, claim_limit=None):
