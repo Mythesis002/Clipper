@@ -208,7 +208,8 @@ def verify_slot(user_id,payload):
             else:
                 cur.execute("UPDATE slots SET verification_checked_at=now(),updated_at=now() WHERE id=%s AND user_id=%s AND state='verified' AND clip_id=%s RETURNING id",
                             (slot_id,user_id,clip_id))
-                if cur.fetchone(): append_event(conn,user_id,slot_id,"slot_media_verified",{"media":media})
+                if not cur.fetchone(): return {"stale_worker_result":True}
+                append_event(conn,user_id,slot_id,"slot_media_verified",{"media":media})
     if issues: return {"verification":"failed","issues":issues,"replacement_assigned":swapped}
     return {"verification":"passed","media":media}
 
