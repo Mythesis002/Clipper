@@ -19,7 +19,7 @@ from contextlib import contextmanager
 
 from db import connect
 from scheduler.crypto import decrypt_token
-from scheduler.provider_limits import provider_request
+from scheduler.provider_limits import provider_request,ProviderCircuitOpen
 from scheduler.provider_limits import provider_request
 from scheduler.instagram_limits import assert_publish_quota_available
 from scheduler.queue import (
@@ -81,6 +81,14 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) ->
                 data={"creation_id":container_id,"access_token":account["access_token"]},
                 timeout=(5,30),
             )
+    except ProviderCircuitOpen as exc:
+        with db_conn.transaction():
+            transition_slot(db_conn,slot_id,"publishing","failed",
+                            last_error=f"publish blocked by provider circuit: {exc}",
+                            lease_owner=None,lease_until=None)
+            append_event(db_conn,user_id,slot_id,"publish_blocked_circuit",{"provider":"meta"})
+        log.error("publish blocked by Meta circuit slot=%s",slot_id)
+        return
     except requests.RequestException as exc:
         with db_conn.transaction():
             transition_slot(db_conn,slot_id,"publishing","publish_uncertain",
