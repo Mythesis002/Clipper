@@ -39,10 +39,10 @@ def assign_due_slots(conn, lead_minutes=360, limit=100):
                  AND s.run_at_utc <= now() + (r.assignment_lead_minutes * interval '1 minute')
                  AND s.run_at_utc > now() - (s.max_late_minutes * interval '1 minute')
                ORDER BY s.run_at_utc FOR UPDATE OF s SKIP LOCKED LIMIT %s""",
-            (lead_minutes,limit),
+            (limit,),
         )
         slots=cur.fetchall()
-    for slot_id,user_id,account_id,run_at in slots:
+    for slot_id,user_id,account_id,run_at,assignment_lead in slots:
         with conn.transaction():
             with conn.cursor() as cur:
                 cur.execute(
