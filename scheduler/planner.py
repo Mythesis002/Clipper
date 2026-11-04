@@ -10,7 +10,8 @@ import time
 from datetime import timedelta
 
 from db import connect
-from scheduler.queue import append_event\nfrom scheduler.materializer import materialize_active_users
+from scheduler.queue import append_event
+from scheduler.materializer import materialize_active_users
 
 log=logging.getLogger("clipper.planner")
 
