@@ -41,6 +41,7 @@ Requirements: Docker Compose, Git, Python 3.12 for bootstrap scripts.
 - IG_ACCESS_TOKEN and YT_TOKEN_JSON are bootstrap-only. Bootstrap encrypts them with AES-256-GCM into connected_accounts.token_ciphertext. Runtime services decrypt only in memory. The master key is mounted as a secret file; keep it in a secret manager, rotate with a planned re-encryption procedure, and never log or commit it.
 - S3_ENDPOINT_URL, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_BUCKET: MinIO locally or S3-compatible storage (Cloudflare R2/AWS) in deployment.
 - PUBLISH_CONCURRENCY: per dispatcher process. 150 x 2 replicas = 300 maximum in-flight slots.
+- Provider buckets/circuit breakers are global PostgreSQL state. Defaults (Meta 100 req/s with burst 300; Gemini 5 req/s with burst 10; YouTube 1 req/s with burst 10) are Clipper-side throttles, not provider quota claims. Tune them against live response headers and error rates.
 - MAX_LATE_MINUTES: default 20 in bootstrap; per schedule rule in PostgreSQL.
 
 ## State transitions
