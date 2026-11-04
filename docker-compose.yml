@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: clipper
+      POSTGRES_USER: clipper
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clipper-local-dev}
+    ports: ["5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clipper -d clipper"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  minio:
+    image: minio/minio:RELEASE.2025-02-07T23-21-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-clipper-local}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-clipper-local-secret}
+    ports: ["9000:9000","9001:9001"]
+    volumes:
+      - minio_data:/data
+  planner:
+    build: .
+    command: python -m scheduler.planner
+    environment: &clipper_env
+      DATABASE_URL: postgresql://clipper:${POSTGRES_PASSWORD:-clipper-local-dev}@postgres:5432/clipper
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-clipper-local}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-clipper-local-secret}
+      S3_BUCKET: ${S3_BUCKET:-clipper-media}
+      S3_REGION: us-east-1
+      CLIPPER_STATE_BACKEND: postgres
+      CLIPPER_USER_ID: ${CLIPPER_USER_ID}
+      IG_USER_ID: ${IG_USER_ID}
+      IG_ACCESS_TOKEN: ${IG_ACCESS_TOKEN}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      YT_TOKEN_JSON: ${YT_TOKEN_JSON:-}
+    depends_on:
+      postgres: {condition: service_healthy}
+  worker:
+    build: .
+    command: python -m scheduler.worker
+    environment:
+      <<: *clipper_env
+      CLIPPER_JOB_HANDLER_MODULE: scheduler.clipper_handlers
+    depends_on:
+      postgres: {condition: service_healthy}
+      minio: {condition: service_started}
+    deploy:
+      replicas: 2
+  dispatcher:
+    build: .
+    command: python -m scheduler.dispatcher
+    environment: *clipper_env
+    depends_on:
+      postgres: {condition: service_healthy}
+    deploy:
+      replicas: 2
+volumes:
+  postgres_data:
+  minio_data:
