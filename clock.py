@@ -17,14 +17,18 @@ class DatabaseClock(Clock):
     def __init__(self, connection_factory):
         self.connection_factory=connection_factory
 
-    def now(self) -> datetime:
-        with self.connection_factory() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT now()")
-                value=cur.fetchone()[0]
+    @staticmethod
+    def now_on(conn) -> datetime:
+        with conn.cursor() as cur:
+            cur.execute("SELECT now()")
+            value=cur.fetchone()[0]
         if value.tzinfo is None:
             raise RuntimeError("PostgreSQL now() returned a naive timestamp")
         return value.astimezone(timezone.utc)
+
+    def now(self) -> datetime:
+        with self.connection_factory() as conn:
+            return self.now_on(conn)
 
 
 class FrozenClock(Clock):
