@@ -7,6 +7,7 @@ from pathlib import Path
 
 from db import connect
 from storage import download_file
+from scheduler.crypto import decrypt_token
 
 log=logging.getLogger("clipper.youtube_job")
 
@@ -17,8 +18,13 @@ def upload_youtube(user_id,payload):
         with conn.cursor() as cur:
             cur.execute("SELECT storage_key,payload FROM clips WHERE user_id=%s AND id=%s",(user_id,clip_id))
             row=cur.fetchone()
+            cur.execute("SELECT token_ciphertext,status FROM connected_accounts WHERE user_id=%s AND platform='youtube' ORDER BY created_at DESC LIMIT 1",(user_id,))
+            account=cur.fetchone()
     if not row or not row[0]: raise RuntimeError("YouTube job cannot find stored clip media")
     storage_key,clip=row
+    if not account or account[1]!="active" or not account[0]:
+        raise RuntimeError("YouTube account is not connected or its token is unavailable")
+    youtube_token_json=decrypt_token(account[0])
     platforms=clip.get("platforms") or {}
     yt=platforms.get("youtube") or {}
     if yt.get("status")=="uploaded":
@@ -54,6 +60,7 @@ def upload_youtube(user_id,payload):
                 keywords=["podcast","shorts","clips"],
                 privacy_status=os.environ.get("YT_PRIVACY_STATUS","public"),
                 notify_subscribers=False,
+                token_json=youtube_token_json,
             )
         except YouTubeUploadUncertainError as exc:
             with connect() as conn,conn.transaction():
