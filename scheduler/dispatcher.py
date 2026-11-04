@@ -23,7 +23,7 @@ from scheduler.crypto import decrypt_token
 from scheduler.provider_limits import provider_request, ProviderCircuitOpen
 from scheduler.instagram_limits import assert_publish_quota_available
 from scheduler.queue import (
-    append_event, claim_slots_near_due, heartbeat_slot, transition_slot,
+    append_event, claim_slots_near_due, heartbeat_slots, transition_slot,
 )
 
 log = logging.getLogger("clipper.dispatcher")
