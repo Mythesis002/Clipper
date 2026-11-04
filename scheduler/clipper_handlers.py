@@ -49,6 +49,9 @@ def prepare_clip(user_id,payload):
                 if not row: raise RuntimeError("assigned clip row missing")
                 clip=row[0]
     cfg=_cfg()
+    with connect() as conn,conn.transaction():
+        with conn.cursor() as cur:
+            cur.execute("UPDATE slots SET state='preparing',updated_at=now() WHERE id=%s AND state='preparing'",(slot_id,))
     path=None
     try:
         path=pipeline.render_clip(cfg,clip)
@@ -105,4 +108,4 @@ def upload_container(user_id,payload):
     return {"container_id":str(container_id)}
 
 
-JOB_HANDLERS={"prepare_clip":prepare_clip,"upload_container":upload_container,"produce":produce_for_slot}
+JOB_HANDLERS={"prepare_clip":prepare_clip,"verify_slot":verify_slot,"upload_container":upload_container,"produce":produce_for_slot}
