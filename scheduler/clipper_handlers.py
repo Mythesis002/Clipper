@@ -16,6 +16,7 @@ from clock import DatabaseClock
 from scheduler.crypto import decrypt_token
 from scheduler.instagram_limits import assert_publish_quota_available
 from scheduler.planner import _enqueue,swap_failed_clip
+from scheduler.provider_limits import provider_request
 from scheduler.queue import append_event
 from storage import download_file,upload_file
 
@@ -185,13 +186,15 @@ def upload_container(user_id,payload):
         raise RuntimeError("Instagram account inactive or missing encrypted token")
     storage_key,clip=clip_row
     ig_id,token=account[0],decrypt_token(account[1])
-    quota=assert_publish_quota_available(os.environ.get("IG_GRAPH_VERSION","v25.0"),ig_id,token)
+    with provider_request("meta"):
+        quota=assert_publish_quota_available(os.environ.get("IG_GRAPH_VERSION","v25.0"),ig_id,token)
     with tempfile.TemporaryDirectory(prefix="clipper-container-") as temp:
         path=download_file(storage_key,Path(temp)/"clip.mp4")
         cfg=_cfg()
         try:
-            container_id=pipeline.upload_reel_container(
-                cfg,path,str(clip.get("caption") or ""),access_token=token,ig_user_id=ig_id)
+            with provider_request("meta"):
+                container_id=pipeline.upload_reel_container(
+                    cfg,path,str(clip.get("caption") or ""),access_token=token,ig_user_id=ig_id)
         except Exception as exc:
             permanent=("InstagramProcessingFailedError" in type(exc).__name__
                        or "compatibility retry failed" in str(exc))
