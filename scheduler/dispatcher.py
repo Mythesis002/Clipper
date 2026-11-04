@@ -240,6 +240,12 @@ def _dispatch_claimed_slot(slot, dispatcher_id, stop_event=None):
     heartbeat.start()
     try:
         with _account_publish_lock(account_id) as lock_conn:
+            if stop_event is not None and stop_event.is_set():
+                with lock_conn.transaction():
+                    with lock_conn.cursor() as cur:
+                        cur.execute("UPDATE slots SET lease_owner=NULL,lease_until=NULL,updated_at=now() WHERE id=%s AND state='container_ready' AND lease_owner=%s",
+                                    (slot_id,dispatcher_id))
+                return
             with lock_conn.cursor() as cur:
                 cur.execute("SELECT now()")
                 account_lock_now=cur.fetchone()[0]
