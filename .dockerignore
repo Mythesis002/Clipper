@@ -1,0 +1,15 @@
+.git
+.github
+.env
+.env.*
+secrets/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+work/
+review/
+*.mp4
+*.wav
+state/state.json
+state/state.json.*
