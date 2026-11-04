@@ -172,13 +172,17 @@ def verify_slot(user_id,payload):
     with connect() as conn,conn.transaction():
         with conn.cursor() as cur:
             if issues:
+                cur.execute("SELECT state,clip_id FROM slots WHERE id=%s AND user_id=%s FOR UPDATE",(slot_id,user_id))
+                current=cur.fetchone()
+                if not current or current[0]!="verified" or current[1]!=clip_id:
+                    return {"stale_worker_result":True}
                 cur.execute("UPDATE clips SET status='needs_review',updated_at=now() WHERE user_id=%s AND id=%s",(user_id,clip_id))
                 append_event(conn,user_id,slot_id,"slot_verification_failed",{"issues":issues,"media":media})
                 swapped=swap_failed_clip(conn,user_id,slot_id,clip_id,
                                          "T-30 media verification failed: "+ "; ".join(issues)[:300])
             else:
-                cur.execute("UPDATE slots SET verification_checked_at=now(),updated_at=now() WHERE id=%s AND user_id=%s AND state='verified' RETURNING id",
-                            (slot_id,user_id))
+                cur.execute("UPDATE slots SET verification_checked_at=now(),updated_at=now() WHERE id=%s AND user_id=%s AND state='verified' AND clip_id=%s RETURNING id",
+                            (slot_id,user_id,clip_id))
                 if cur.fetchone(): append_event(conn,user_id,slot_id,"slot_media_verified",{"media":media})
     if issues: return {"verification":"failed","issues":issues,"replacement_assigned":swapped}
     return {"verification":"passed","media":media}
@@ -192,6 +196,12 @@ def upload_container(user_id,payload):
         _mark_missed(user_id,slot_id,"deadline exceeded before container upload")
         return {"missed":True}
     if state!="container_uploading":
+        return {"stale_worker_result":True}
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT clip_id FROM slots WHERE id=%s AND user_id=%s AND state='container_uploading'",(slot_id,user_id))
+            current_slot=cur.fetchone()
+    if not current_slot or current_slot[0]!=clip_id:
         return {"stale_worker_result":True}
     with connect() as conn:
         with conn.cursor() as cur:
@@ -230,8 +240,8 @@ def upload_container(user_id,payload):
             cur.execute(
                 """UPDATE slots SET state='container_ready',container_id=%s,
                    quota_checked_at=now(),quota_snapshot=%s::jsonb,updated_at=now()
-                   WHERE id=%s AND user_id=%s AND state='container_uploading' RETURNING id""",
-                (str(container_id),json.dumps(quota),slot_id,user_id))
+                   WHERE id=%s AND user_id=%s AND state='container_uploading' AND clip_id=%s RETURNING id""",
+                (str(container_id),json.dumps(quota),slot_id,user_id,clip_id))
             if cur.fetchone():
                 append_event(conn,user_id,slot_id,"container_ready",
                              {"container_id":str(container_id),"quota":quota})
