@@ -5,17 +5,17 @@ ciphertext is intentionally NULL in Phase 1; Phase 2 adds envelope encryption.
 """
 import os
 import uuid
-from db import connect
+from db import connect\nfrom scheduler.crypto import encrypt_token
 
 
 def main():
     user_id=os.environ.get("CLIPPER_USER_ID","").strip()
     email=os.environ.get("CLIPPER_USER_EMAIL","").strip()
     tz=os.environ.get("CLIPPER_TIMEZONE","Asia/Kolkata").strip()
-    ig_id=os.environ.get("IG_USER_ID","").strip()
+    ig_id=os.environ.get("IG_USER_ID","").strip()\n    ig_token=os.environ.get("IG_ACCESS_TOKEN","").strip()\n    token_key=os.environ.get("TOKEN_ENCRYPTION_KEY","").strip()
     attestation=os.environ.get("SOURCE_RIGHTS_ATTESTATION","").strip()
-    if not user_id or not email or not ig_id:
-        raise SystemExit("Set CLIPPER_USER_ID, CLIPPER_USER_EMAIL, and IG_USER_ID")
+    if not user_id or not email or not ig_id or not ig_token or not token_key:
+        raise SystemExit("Set CLIPPER_USER_ID, CLIPPER_USER_EMAIL, IG_USER_ID, IG_ACCESS_TOKEN, and TOKEN_ENCRYPTION_KEY")
     if len(attestation)<30:
         raise SystemExit("Set SOURCE_RIGHTS_ATTESTATION with a meaningful confirmation that you own/license/are authorized to repost the enabled sources.")
     uuid.UUID(user_id)
@@ -28,8 +28,11 @@ def main():
             cur.execute("SELECT set_config('app.user_id', %s, true)",(user_id,))
             cur.execute("INSERT INTO users(id,email,tz) VALUES (%s,%s,%s) ON CONFLICT(id) DO UPDATE SET email=EXCLUDED.email,tz=EXCLUDED.tz,updated_at=now()",
                         (user_id,email,tz))
-            cur.execute("INSERT INTO connected_accounts(user_id,platform,external_id,status) VALUES (%s,'instagram',%s,'active') ON CONFLICT(user_id,platform,external_id) DO NOTHING",
-                        (user_id,ig_id))
+            cur.execute("INSERT INTO connected_accounts(user_id,platform,external_id,token_ciphertext,status) VALUES (%s,'instagram',%s,%s,'active') ON CONFLICT(user_id,platform,external_id) DO UPDATE SET token_ciphertext=coalesce(EXCLUDED.token_ciphertext,connected_accounts.token_ciphertext),status='active',updated_at=now()",
+                        (user_id,ig_id,encrypted_ig))
+            if encrypted_yt:
+                cur.execute("INSERT INTO connected_accounts(user_id,platform,external_id,token_ciphertext,status) VALUES (%s,'youtube',%s,%s,'active') ON CONFLICT(user_id,platform,external_id) DO UPDATE SET token_ciphertext=coalesce(EXCLUDED.token_ciphertext,connected_accounts.token_ciphertext),status='active',updated_at=now()",
+                            (user_id,yt_channel,encrypted_yt))
             cur.execute("SELECT id FROM connected_accounts WHERE user_id=%s AND platform='instagram' AND external_id=%s",(user_id,ig_id))
             account_id=cur.fetchone()[0]
             for ch in enabled:
@@ -50,7 +53,7 @@ def main():
                            VALUES (%s,%s,%s,%s,true,%s)
                            ON CONFLICT(account_id,weekday,local_time) DO UPDATE SET active=true,max_late_minutes=EXCLUDED.max_late_minutes,updated_at=now()""",
                         (user_id,account_id,weekday,hhmm,int(os.environ.get("MAX_LATE_MINUTES","20"))))
-    print(f"Bootstrapped single tenant user={user_id}; attested_sources={len(enabled)}; no access token was written to DB.")
+    print(f"Bootstrapped single tenant user={user_id}; attested_sources={len(enabled)}; platform tokens were encrypted before storage; no plaintext token was written to DB.")
 
 
 if __name__=="__main__":
