@@ -130,7 +130,12 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) ->
                                  "posted_at":published_at.isoformat()}),user_id,clip_id),
                 )
                 if os.environ.get("YOUTUBE_ENABLED","true").strip().lower()=="true":
-                    if os.environ.get("YT_TOKEN_JSON","").strip():
+                    cur.execute(
+                        """SELECT id FROM connected_accounts WHERE user_id=%s AND platform='youtube'
+                           AND status='active' AND token_ciphertext IS NOT NULL ORDER BY created_at DESC LIMIT 1""",
+                        (user_id,))
+                    youtube_account=cur.fetchone()
+                    if youtube_account:
                         cur.execute(
                             """INSERT INTO jobs(user_id,kind,payload,priority,run_after,dedupe_key)
                                VALUES (%s,'youtube_upload',%s::jsonb,50,now(),%s)
