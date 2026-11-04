@@ -7,6 +7,7 @@ normalized PostgreSQL rows.
 import json
 import os
 from pathlib import Path
+import yaml
 
 from db import connect
 from scheduler.store import JsonFileStateStore, PostgresStateStore
@@ -39,6 +40,13 @@ def save_state(state):
     user_id = _user_id()
     store = PostgresStateStore(connect, user_id)
     store.save(state)
+    # Map creator display names to configured handles. permission:true is an
+    # explicit operator assertion in config.yaml, but DB source attestation is
+    # still required before the scheduler can assign a clip.
+    config_path = os.environ.get("CLIPPER_CONFIG", str(BASE / "config.yaml"))
+    with open(config_path, encoding="utf-8") as stream:
+        config = yaml.safe_load(stream) or {}
+    channel_map = {str(ch.get("name")): ch for ch in config.get("channels", [])}
     # Keep normalized clip metadata synchronized for Phase 1 slot assignment.
     with connect() as conn, conn.transaction():
         with conn.cursor() as cur:
@@ -46,6 +54,9 @@ def save_state(state):
             for clip in state.get("clips", []):
                 clip_id = int(clip["id"])
                 payload = dict(clip)
+                channel = channel_map.get(str(clip.get("channel") or ""), {})
+                payload["source_handle"] = channel.get("handle", "")
+                payload["source_permission_config"] = channel.get("permission") is True
                 qa = payload.get("qa") or {}
                 cur.execute(
                     """INSERT INTO clips(user_id,id,source_video_id,start_seconds,end_seconds,
