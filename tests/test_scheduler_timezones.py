@@ -23,6 +23,12 @@ class DstConversionTests(unittest.TestCase):
         result=local_datetime_to_utc(date(2026,10,4),time(2,15),"Australia/Lord_Howe")
         self.assertEqual(result,datetime(2026,10,3,15,30,tzinfo=timezone.utc))
 
+
+    def test_full_day_dateline_gap_uses_first_valid_instant(self):
+        # Samoa skipped 2011-12-30 when it moved across the dateline.
+        result=local_datetime_to_utc(date(2011,12,30),time(12,0),"Pacific/Apia")
+        self.assertEqual(result,datetime(2011,12,30,10,0,tzinfo=timezone.utc))
+
     def test_kathmandu_odd_offset(self):
         result=local_datetime_to_utc(date(2026,11,4),time(18,0),"Asia/Kathmandu")
         self.assertEqual(result,datetime(2026,11,4,12,15,tzinfo=timezone.utc))
