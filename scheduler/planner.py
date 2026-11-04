@@ -93,7 +93,8 @@ def enqueue_container_uploads(conn, lead_minutes=10, limit=200):
     with conn.cursor() as cur:
         cur.execute(
             """SELECT id,user_id,clip_id FROM slots
-               WHERE state='verified' AND run_at_utc <= now() + (%s * interval '1 minute')
+               WHERE state='verified' AND verification_checked_at IS NOT NULL
+                 AND run_at_utc <= now() + (%s * interval '1 minute')
                  AND run_at_utc > now() - (max_late_minutes * interval '1 minute')
                ORDER BY run_at_utc FOR UPDATE SKIP LOCKED LIMIT %s""",
             (lead_minutes,limit),
@@ -140,17 +141,44 @@ def mark_expired_slots(conn, limit=500):
         return len(rows)
 
 
+def enqueue_verification_jobs(conn, lead_minutes=30, limit=200):
+    count=0
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT id,user_id,clip_id FROM slots
+               WHERE state='verified' AND verification_checked_at IS NULL
+                 AND run_at_utc <= now() + (%s * interval '1 minute')
+                 AND run_at_utc > now() - (max_late_minutes * interval '1 minute')
+               ORDER BY run_at_utc FOR UPDATE SKIP LOCKED LIMIT %s""",
+            (lead_minutes,limit))
+        slots=cur.fetchall()
+    for slot_id,user_id,clip_id in slots:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute("SELECT storage_key FROM clips WHERE user_id=%s AND id=%s",(user_id,clip_id))
+                row=cur.fetchone()
+                if not row or not row[0]:
+                    cur.execute("UPDATE slots SET state='failed',last_error='rendered clip storage key missing' WHERE id=%s AND state='verified'",(slot_id,))
+                    append_event(conn,user_id,slot_id,"slot_verification_failed",{"reason":"storage key missing"})
+                    continue
+                _enqueue(cur,user_id,"verify_slot",{"slot_id":str(slot_id),"clip_id":int(clip_id),"storage_key":row[0]},
+                         8,f"slot:{slot_id}:verify")
+                count+=1
+    return count
+
+
 def run_planner(poll_seconds=5):
     while True:
         try:
             with connect() as conn,conn.transaction():
                 materialized=materialize_active_users(conn,horizon_days=7)
                 assigned=assign_due_slots(conn)
+                verified=enqueue_verification_jobs(conn)
                 containers=enqueue_container_uploads(conn)
                 missed=mark_expired_slots(conn)
-            if materialized or assigned or containers or missed:
-                log.info("planner materialized=%d assigned=%d container_jobs=%d missed=%d",
-                         materialized,assigned,containers,missed)
+            if materialized or assigned or verified or containers or missed:
+                log.info("planner materialized=%d assigned=%d verify_jobs=%d container_jobs=%d missed=%d",
+                         materialized,assigned,verified,containers,missed)
         except Exception:
             log.exception("planner failed this iteration")
         time.sleep(poll_seconds)
