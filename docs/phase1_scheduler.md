@@ -22,8 +22,8 @@ Requirements: Docker Compose, Git, Python 3.12 for bootstrap scripts.
 4. The generated token key file is required for bootstrap and mounted as a Docker secret for worker/dispatcher. Losing it means stored tokens cannot be decrypted and accounts must reconnect.
 5. Set SOURCE_RIGHTS_ATTESTATION to a truthful statement that you own, licensed, or have explicit permission to repost each enabled source. Bootstrap intentionally refuses to attest on your behalf.
 6. Install Python dependencies: python -m pip install -r requirements.txt -r requirements-scheduler.txt
-7. Load bootstrap variables in the shell: set -a && source .env && set +a
-8. Start PostgreSQL and MinIO only: docker compose up -d postgres minio
+7. Load bootstrap variables in the shell: set -a && source .env && set +a. Generate local Garage config/keys: python scripts/init_garage.py. Re-source .env after it updates local credentials.
+8. Start PostgreSQL and Garage only: docker compose up -d postgres garage
 9. Apply migrations (fresh Postgres volume applies them via container entrypoint; for an existing DB, apply both):
    - psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/001_scheduler.sql
    - psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/002_scheduler_seed.sql
@@ -39,7 +39,7 @@ Requirements: Docker Compose, Git, Python 3.12 for bootstrap scripts.
 - CLIPPER_STATE_BACKEND=postgres: opt-in legacy pipeline state adapter. JSON remains default for existing unit tests and rollback.
 - CLIPPER_USER_ID: UUID created during bootstrap.
 - IG_ACCESS_TOKEN and YT_TOKEN_JSON are bootstrap-only. Bootstrap encrypts them with AES-256-GCM into connected_accounts.token_ciphertext. Runtime services decrypt only in memory. The master key is mounted as a secret file; keep it in a secret manager, rotate with a planned re-encryption procedure, and never log or commit it.
-- S3_ENDPOINT_URL, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_BUCKET: MinIO locally or S3-compatible storage (Cloudflare R2/AWS) in deployment.
+- S3_ENDPOINT_URL, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_BUCKET: Garage locally or Cloudflare R2/AWS in deployment. Garage is single-node development storage; do not treat it as redundant production storage.
 - PUBLISH_CONCURRENCY: per dispatcher process. 150 x 2 replicas = 300 maximum in-flight slots.
 - Provider buckets/circuit breakers are global PostgreSQL state. Defaults (Meta 100 req/s with burst 300; Gemini 5 req/s with burst 10; YouTube 1 req/s with burst 10) are Clipper-side throttles, not provider quota claims. Tune them against live response headers and error rates.
 - MAX_LATE_MINUTES: default 20 in bootstrap; per schedule rule in PostgreSQL.
