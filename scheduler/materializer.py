@@ -7,7 +7,7 @@ def local_datetime_to_utc(local_date: date, local_time: time, tz_name: str) -> d
     """Resolve wall time: first occurrence for folds, first valid minute after gaps."""
     zone=ZoneInfo(tz_name)
     naive=datetime.combine(local_date,local_time.replace(tzinfo=None))
-    for minute_offset in range(0,181):
+    for minute_offset in range(0,1441):
         candidate=naive+timedelta(minutes=minute_offset)
         valid=[]
         for fold in (0,1):
