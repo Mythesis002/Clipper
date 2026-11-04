@@ -32,7 +32,9 @@ def _publish_url(graph_version: str, account_external_id: str) -> str:
 
 def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) -> None:
     slot_id,user_id,account_id,clip_id,container_id,run_at,max_late,attempts=slot
-    now=datetime.now(timezone.utc)
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT now()")
+        now=cur.fetchone()[0]
     late_limit=run_at+__import__("datetime").timedelta(minutes=max_late)
     if now>late_limit:
         with db_conn.transaction():
@@ -106,7 +108,9 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) ->
         return
 
     with db_conn.transaction():
-        published_at=datetime.now(timezone.utc)
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT now()")
+            published_at=cur.fetchone()[0]
         transition_slot(db_conn,slot_id,"publishing","published",
                         media_id=str(media_id),published_at=published_at,
                         lease_owner=None,lease_until=None,last_error=None)
@@ -186,7 +190,11 @@ def _account_publish_lock(account_id):
 
 def _dispatch_claimed_slot(slot, dispatcher_id):
     slot_id, user_id, account_id, clip_id, container_id, run_at, max_late, attempts = slot
-    delay=(run_at-datetime.now(timezone.utc)).total_seconds()
+    with connect() as clock_conn:
+        with clock_conn.cursor() as cur:
+            cur.execute("SELECT now()")
+            db_now=cur.fetchone()[0]
+    delay=(run_at-db_now).total_seconds()
     if delay>0:
         deadline=time.monotonic()+delay
         while time.monotonic()<deadline:
