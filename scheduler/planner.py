@@ -38,7 +38,7 @@ def assign_due_slots(conn, lead_minutes=360, limit=100):
                WHERE s.state='scheduled' AND u.status='active'
                  AND s.run_at_utc <= now() + (r.assignment_lead_minutes * interval '1 minute')
                  AND s.run_at_utc > now() - (s.max_late_minutes * interval '1 minute')
-               ORDER BY s.run_at_utc FOR UPDATE OF s SKIP LOCKED LIMIT %s""",
+               ORDER BY s.run_at_utc LIMIT %s FOR UPDATE OF s SKIP LOCKED""",
             (limit,),
         )
         slots=cur.fetchall()
@@ -103,7 +103,7 @@ def enqueue_container_uploads(conn, lead_minutes=10, limit=200):
                WHERE s.state='verified' AND s.verification_checked_at IS NOT NULL
                  AND s.run_at_utc <= now() + (r.container_lead_minutes * interval '1 minute')
                  AND s.run_at_utc > now() - (s.max_late_minutes * interval '1 minute')
-               ORDER BY s.run_at_utc FOR UPDATE OF s SKIP LOCKED LIMIT %s""",
+               ORDER BY s.run_at_utc LIMIT %s FOR UPDATE OF s SKIP LOCKED""",
             (limit,),
         )
         slots=cur.fetchall()
@@ -137,7 +137,7 @@ def mark_expired_slots(conn, limit=500):
                  SELECT s.id,s.user_id FROM slots s
                  WHERE s.state IN ('scheduled','assigned','preparing','verified','container_uploading','container_ready')
                    AND s.run_at_utc + (s.max_late_minutes * interval '1 minute') < now()
-                 ORDER BY s.run_at_utc FOR UPDATE OF s SKIP LOCKED LIMIT %s
+                 ORDER BY s.run_at_utc LIMIT %s FOR UPDATE OF s SKIP LOCKED
                )
                UPDATE slots s SET state='missed',last_error='max_late_minutes exceeded',
                  lease_owner=NULL,lease_until=NULL,updated_at=now()
@@ -159,7 +159,7 @@ def enqueue_verification_jobs(conn, lead_minutes=30, limit=200):
                WHERE s.state='verified' AND s.verification_checked_at IS NULL
                  AND s.run_at_utc <= now() + (r.verify_lead_minutes * interval '1 minute')
                  AND s.run_at_utc > now() - (s.max_late_minutes * interval '1 minute')
-               ORDER BY s.run_at_utc FOR UPDATE OF s SKIP LOCKED LIMIT %s""",
+               ORDER BY s.run_at_utc LIMIT %s FOR UPDATE OF s SKIP LOCKED""",
             (limit,))
         slots=cur.fetchall()
     for slot_id,user_id,clip_id in slots:
