@@ -12,7 +12,7 @@ import os
 import socket
 import time
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import requests
 from contextlib import contextmanager
@@ -36,7 +36,7 @@ def _publish_url(graph_version: str, account_external_id: str) -> str:
 def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) -> None:
     slot_id,user_id,account_id,clip_id,container_id,run_at,max_late,attempts=slot
     now=DatabaseClock.now_on(db_conn)
-    late_limit=run_at+__import__("datetime").timedelta(minutes=max_late)
+    late_limit=run_at+timedelta(minutes=max_late)
     if now>late_limit:
         with db_conn.transaction():
             transition_slot(db_conn,slot_id,"container_ready","missed",dispatcher_id,
