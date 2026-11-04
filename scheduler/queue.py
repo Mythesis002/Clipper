@@ -30,7 +30,7 @@ def claim_jobs(conn, worker_id: str, limit: int = 1, lease_seconds: int = 120):
         cur.execute(
             """UPDATE jobs SET state='failed',lease_owner=NULL,lease_until=NULL,
                    last_error='worker lease expired after max_attempts',updated_at=now()
-               WHERE state='leased' AND lease_until < now() AND attempts >= max_attempts
+               WHERE attempts >= max_attempts AND (state IN ('pending','retry') OR (state='leased' AND lease_until < now()))
                RETURNING id,user_id,payload,kind"""
         )
         _mark_exhausted_job_slots(conn,cur.fetchall())
