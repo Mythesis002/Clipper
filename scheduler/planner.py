@@ -30,10 +30,13 @@ def assign_due_slots(conn, lead_minutes=360, limit=100):
     assigned=0
     with conn.cursor() as cur:
         cur.execute(
-            """SELECT s.id,s.user_id,s.account_id,s.run_at_utc
+            """SELECT s.id,s.user_id,s.account_id,s.run_at_utc,r.assignment_lead_minutes
                FROM slots s JOIN users u ON u.id=s.user_id
+               JOIN schedule_rules r ON r.user_id=s.user_id AND r.account_id=s.account_id
+                 AND r.weekday=(extract(isodow from s.local_date)::int - 1)
+                 AND r.local_time=s.local_time AND r.active=true
                WHERE s.state='scheduled' AND u.status='active'
-                 AND s.run_at_utc <= now() + (%s * interval '1 minute')
+                 AND s.run_at_utc <= now() + (r.assignment_lead_minutes * interval '1 minute')
                  AND s.run_at_utc > now() - (s.max_late_minutes * interval '1 minute')
                ORDER BY s.run_at_utc FOR UPDATE OF s SKIP LOCKED LIMIT %s""",
             (lead_minutes,limit),
@@ -93,9 +96,12 @@ def enqueue_container_uploads(conn, lead_minutes=10, limit=200):
     count=0
     with conn.cursor() as cur:
         cur.execute(
-            """SELECT id,user_id,clip_id FROM slots
-               WHERE state='verified' AND verification_checked_at IS NOT NULL
-                 AND run_at_utc <= now() + (%s * interval '1 minute')
+            """SELECT s.id,s.user_id,s.clip_id FROM slots s
+               JOIN schedule_rules r ON r.user_id=s.user_id AND r.account_id=s.account_id
+                 AND r.weekday=(extract(isodow from s.local_date)::int - 1)
+                 AND r.local_time=s.local_time AND r.active=true
+               WHERE s.state='verified' AND s.verification_checked_at IS NOT NULL
+                 AND s.run_at_utc <= now() + (r.container_lead_minutes * interval '1 minute')
                  AND run_at_utc > now() - (max_late_minutes * interval '1 minute')
                ORDER BY run_at_utc FOR UPDATE SKIP LOCKED LIMIT %s""",
             (lead_minutes,limit),
@@ -146,9 +152,12 @@ def enqueue_verification_jobs(conn, lead_minutes=30, limit=200):
     count=0
     with conn.cursor() as cur:
         cur.execute(
-            """SELECT id,user_id,clip_id FROM slots
-               WHERE state='verified' AND verification_checked_at IS NULL
-                 AND run_at_utc <= now() + (%s * interval '1 minute')
+            """SELECT s.id,s.user_id,s.clip_id FROM slots s
+               JOIN schedule_rules r ON r.user_id=s.user_id AND r.account_id=s.account_id
+                 AND r.weekday=(extract(isodow from s.local_date)::int - 1)
+                 AND r.local_time=s.local_time AND r.active=true
+               WHERE s.state='verified' AND s.verification_checked_at IS NULL
+                 AND s.run_at_utc <= now() + (r.verify_lead_minutes * interval '1 minute')
                  AND run_at_utc > now() - (max_late_minutes * interval '1 minute')
                ORDER BY run_at_utc FOR UPDATE SKIP LOCKED LIMIT %s""",
             (lead_minutes,limit))
