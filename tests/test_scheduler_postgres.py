@@ -113,6 +113,35 @@ class PostgreSQLSchedulerTests(unittest.TestCase):
             recovered=transition_slot(self.conn,slot_id,"container_ready","publishing","dispatcher-recovery")
         self.assertTrue(recovered)
 
+    def test_expired_job_at_retry_limit_fails_slot_instead_of_reclaiming_forever(self):
+        user,account=self._tenant("UTC")
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO slots(user_id,account_id,local_date,local_time,tz_snapshot,run_at_utc,state)
+                   VALUES (%s,%s,'2026-11-04','20:00','UTC',now(),'assigned') RETURNING id""",
+                (user,account))
+            slot_id=cur.fetchone()[0]
+            cur.execute(
+                """INSERT INTO jobs(user_id,kind,payload,state,lease_owner,lease_until,attempts,max_attempts)
+                   VALUES (%s,'prepare_clip',%s::jsonb,'leased','worker-crashed',now()-interval '1 minute',3,3)
+                   RETURNING id""",
+                (user,json.dumps({"slot_id":str(slot_id)})))
+            job_id=cur.fetchone()[0]
+        self.conn.commit()
+
+        with self.conn.transaction():
+            reclaimed=claim_jobs(self.conn,"recovery-worker",limit=10,lease_seconds=30)
+        self.assertEqual(reclaimed,[])
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT state,lease_owner,lease_until FROM jobs WHERE id=%s",(job_id,))
+            job=cur.fetchone()
+            cur.execute("SELECT state,last_error FROM slots WHERE id=%s",(slot_id,))
+            slot=cur.fetchone()
+        self.assertEqual(job[0],"failed")
+        self.assertIsNone(job[1]); self.assertIsNone(job[2])
+        self.assertEqual(slot[0],"failed")
+        self.assertIn("exhausted",slot[1])
+
     def test_global_provider_bucket_and_circuit_are_database_shared(self):
         os.environ["GEMINI_RATE_CAPACITY"]="3"
         os.environ["GEMINI_REQUESTS_PER_SECOND"]="10"
