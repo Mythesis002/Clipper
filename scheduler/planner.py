@@ -149,6 +149,27 @@ def mark_expired_slots(conn, limit=500):
         return len(rows)
 
 
+
+
+def quarantine_stuck_publishing(conn,limit=200):
+    """Convert expired publish leases to uncertain; never retry an external publish."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """WITH stuck AS (
+                 SELECT id,user_id FROM slots
+                 WHERE state='publishing' AND lease_until IS NOT NULL AND lease_until < now()
+                 ORDER BY publish_started_at LIMIT %s FOR UPDATE SKIP LOCKED
+               )
+               UPDATE slots s SET state='publish_uncertain',
+                 last_error='dispatcher lease expired after publish_started; reconcile provider outcome',
+                 lease_owner=NULL,lease_until=NULL,updated_at=now()
+               FROM stuck x WHERE s.id=x.id RETURNING s.id,s.user_id""",(limit,))
+        rows=cur.fetchall()
+        for slot_id,user_id in rows:
+            append_event(conn,user_id,slot_id,"publish_uncertain",
+                         {"reason":"dispatcher lease expired after publish_started"})
+        return len(rows)
+
 def enqueue_verification_jobs(conn, lead_minutes=30, limit=200):
     count=0
     with conn.cursor() as cur:
