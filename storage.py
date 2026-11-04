@@ -1,4 +1,4 @@
-"""S3-compatible rendered-media storage (Cloudflare R2, MinIO, or AWS S3)."""
+"""S3-compatible rendered-media storage (local Garage, Cloudflare R2, or AWS S3)."""
 import os
 from pathlib import Path
 
@@ -6,7 +6,7 @@ from pathlib import Path
 def _client():
     try:
         import boto3
-    from botocore.config import Config
+        from botocore.config import Config
     except ImportError as exc:
         raise RuntimeError("Install boto3 for S3-compatible storage") from exc
     endpoint=os.environ.get("S3_ENDPOINT_URL","").strip() or None
