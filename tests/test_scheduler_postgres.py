@@ -89,6 +89,30 @@ class PostgreSQLSchedulerTests(unittest.TestCase):
 
 
 
+    def test_stale_dispatcher_cannot_fail_slot_when_meta_circuit_is_open(self):
+        from scheduler.provider_limits import ProviderCircuitOpen
+        user,account=self._tenant("UTC")
+        owner="current-dispatcher"
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO slots(user_id,account_id,local_date,local_time,tz_snapshot,run_at_utc,
+                   state,container_id,quota_checked_at,lease_owner,lease_until)
+                   VALUES (%s,%s,'2026-11-04','20:00','UTC',now(),'container_ready','container-circuit',
+                   now(),%s,now()+interval '60 seconds') RETURNING id,run_at_utc,max_late_minutes,attempts""",
+                (user,account,owner))
+            row=cur.fetchone()
+        self.conn.commit()
+        slot=(str(row[0]),user,account,None,"container-circuit",row[1],row[2],row[3])
+        with patch("scheduler.dispatcher.provider_request",side_effect=ProviderCircuitOpen("meta",30)):
+            _publish_one(slot,"stale-dispatcher",{"external_id":"ig-test","access_token":"test-token"},
+                         {"graph_version":"v25.0"},db_conn=self.conn)
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT state,lease_owner FROM slots WHERE id=%s",(row[0],))
+            self.assertEqual(cur.fetchone(),("container_ready",owner))
+            cur.execute("SELECT count(*) FROM events WHERE slot_id=%s AND type='publish_blocked_circuit'",(row[0],))
+            self.assertEqual(cur.fetchone()[0],0)
+        self.conn.commit()
+
     def test_media_publish_timeout_is_uncertain_and_never_auto_retried(self):
         user,account=self._tenant("UTC")
         dispatcher_id="timeout-chaos-dispatcher"
