@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS state_meta (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS dispatcher_heartbeats (
+CREATE TABLE IF NOT EXISTS scheduler_control (\n    key text PRIMARY KEY,\n    last_run_at timestamptz NOT NULL\n);\n\nCREATE TABLE IF NOT EXISTS dispatcher_heartbeats (
     dispatcher_id text PRIMARY KEY,
     ts timestamptz NOT NULL DEFAULT now(),
     detail jsonb NOT NULL DEFAULT '{}'::jsonb
