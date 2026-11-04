@@ -740,7 +740,12 @@ def gemini_text(cfg, parts, temperature=0.2, max_tokens=8192, response_schema=No
         GEMINI_MULTIMODAL_READ_TIMEOUT if multimodal else GEMINI_TEXT_READ_TIMEOUT
     )
     timeout = (GEMINI_CONNECT_TIMEOUT, read_timeout)
-    response = _gemini_post(GEMINI_MODEL, body, key, timeout=timeout)
+    if os.environ.get("CLIPPER_STATE_BACKEND","json").strip().lower()=="postgres":
+        from scheduler.provider_limits import provider_request
+        with provider_request("gemini"):
+            response = _gemini_post(GEMINI_MODEL, body, key, timeout=timeout)
+    else:
+        response = _gemini_post(GEMINI_MODEL, body, key, timeout=timeout)
 
     if response.status_code == 404:
         raise GeminiError(
