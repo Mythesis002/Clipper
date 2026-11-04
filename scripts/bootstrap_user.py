@@ -5,14 +5,17 @@ ciphertext is intentionally NULL in Phase 1; Phase 2 adds envelope encryption.
 """
 import os
 import uuid
-from db import connect\nfrom scheduler.crypto import encrypt_token
+from db import connect
+from scheduler.crypto import encrypt_token
 
 
 def main():
     user_id=os.environ.get("CLIPPER_USER_ID","").strip()
     email=os.environ.get("CLIPPER_USER_EMAIL","").strip()
     tz=os.environ.get("CLIPPER_TIMEZONE","Asia/Kolkata").strip()
-    ig_id=os.environ.get("IG_USER_ID","").strip()\n    ig_token=os.environ.get("IG_ACCESS_TOKEN","").strip()\n    token_key=os.environ.get("TOKEN_ENCRYPTION_KEY","").strip()
+    ig_id=os.environ.get("IG_USER_ID","").strip()
+    ig_token=os.environ.get("IG_ACCESS_TOKEN","").strip()
+    token_key=os.environ.get("TOKEN_ENCRYPTION_KEY","").strip()
     attestation=os.environ.get("SOURCE_RIGHTS_ATTESTATION","").strip()
     if not user_id or not email or not ig_id or not ig_token or not token_key:
         raise SystemExit("Set CLIPPER_USER_ID, CLIPPER_USER_EMAIL, IG_USER_ID, IG_ACCESS_TOKEN, and TOKEN_ENCRYPTION_KEY")
