@@ -14,7 +14,7 @@ import yaml
 
 import podcast_clipper as pipeline
 from db import connect
-from scheduler.queue import append_event\nfrom scheduler.planner import _enqueue
+from scheduler.queue import append_event\nfrom scheduler.planner import _enqueue,swap_failed_clip
 from storage import upload_file,download_file\nfrom scheduler.instagram_limits import assert_publish_quota_available
 
 log=logging.getLogger("clipper.handlers")
@@ -98,7 +98,18 @@ def upload_container(user_id,payload):
     with tempfile.TemporaryDirectory(prefix="clipper-container-") as temp:
         path=download_file(storage_key,Path(temp)/"clip.mp4")
         cfg=_cfg()
-        container_id=pipeline.upload_reel_container(cfg,path,str(clip.get("caption") or ""))
+        try:
+            container_id=pipeline.upload_reel_container(cfg,path,str(clip.get("caption") or ""))
+        except Exception as exc:
+            # Only a processing/compatibility rejection is a permanent media issue.
+            permanent=("InstagramProcessingFailedError" in type(exc).__name__
+                       or "compatibility retry failed" in str(exc))
+            if permanent:
+                with connect() as conn,conn.transaction():
+                    swapped=swap_failed_clip(conn,user_id,slot_id,clip_id,
+                                              "Instagram container rejected media: "+str(exc)[:300])
+                return {"container_rejected":True,"replacement_assigned":swapped}
+            raise
     _update_slot(slot_id,"container_uploading","container_ready",user_id,container_id=str(container_id))
     with connect() as conn,conn.transaction():
         with conn.cursor() as cur:
