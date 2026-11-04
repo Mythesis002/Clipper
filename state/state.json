@@ -55,6 +55,14 @@
    "views": 125757,
    "processed_at": "2026-11-03T17:12:39+00:00",
    "clips": 3
+  },
+  "nebunAmduIM": {
+   "channel": "Jay Shetty",
+   "title": "Confidence Expert: The Quiet Habit Behind Self-Belief You Can’t Fake | Dr. Shadé Zahrai",
+   "url": "https://www.youtube.com/watch?v=nebunAmduIM",
+   "views": 334260,
+   "processed_at": "2026-11-04T14:37:14+00:00",
+   "clips": 2
   }
  },
  "clips": [
@@ -224,7 +232,7 @@
     "ig_reels_video_view_total_time": 65377,
     "reels_skip_rate": 50
    },
-   "metrics_at": "2026-11-03T17:12:58+00:00",
+   "metrics_at": "2026-11-04T14:37:48+00:00",
    "performance_detail": {
     "score": 0.3947,
     "avg_watch_s": 16.344,
@@ -2623,17 +2631,17 @@
     }
    },
    "metrics": {
-    "views": 150,
+    "views": 152,
     "reach": 116,
     "likes": 1,
     "comments": 0,
     "shares": 0,
     "saved": 0,
-    "ig_reels_avg_watch_time": 15521,
-    "ig_reels_video_view_total_time": 1815993,
-    "reels_skip_rate": 41.9
+    "ig_reels_avg_watch_time": 15399,
+    "ig_reels_video_view_total_time": 1817190,
+    "reels_skip_rate": 42.4
    },
-   "metrics_at": "2026-11-03T17:13:01+00:00",
+   "metrics_at": "2026-11-04T14:37:52+00:00",
    "metric_snapshots": [
     {
      "band": "24h",
@@ -2653,16 +2661,16 @@
     }
    ],
    "performance_detail": {
-    "score": 0.3626,
-    "avg_watch_s": 15.521,
-    "retention_pct": 49.49,
+    "score": 0.3598,
+    "avg_watch_s": 15.399,
+    "retention_pct": 49.1,
     "share_rate": 0.0,
     "save_rate": 0.0,
     "like_rate": 0.00862,
-    "skip_rate": 0.419,
+    "skip_rate": 0.424,
     "evidence_count": 5
    },
-   "performance_score": 0.3626
+   "performance_score": 0.3598
   },
   {
    "id": 11,
@@ -3224,14 +3232,21 @@
     "llm": 0.883,
     "vid": 0.68,
     "hook_type": "question",
-    "duration_bucket": "15-19s"
+    "duration_bucket": "15-19s",
+    "speaker_count": 2,
+    "speaker_turns": 3,
+    "speaker_switches": 1,
+    "dominant_speaker_ratio": 0.996,
+    "speaker_overlap_s": 0.08,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "2"
    },
    "title": "The True Measure of Character",
    "caption": "How do you truly know someone's character? It's not about how they treat you, but how they treat those who can't help them back.\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=khp7AnOJn8g\n\nFollow for daily podcast clips\n\n#Character #HumanBehavior #Psychology #AdamGrant #Relationships",
    "content_type": "insight",
-   "promotion_type": "sponsor_read",
-   "promotion_confidence": 0.9,
-   "promotion_evidence": "urban platter logo visible on mugs and in top right corner of screen",
+   "promotion_type": "none",
+   "promotion_confidence": 1.0,
+   "promotion_evidence": "I think the real measure of of somebody's character is how do they treat someone who can't help them back.",
    "editorial_review_required": true,
    "editorial_gate_reason": "promotional_content",
    "editorial_scores": {
@@ -3547,9 +3562,31 @@
      "back."
     ]
    ],
-   "status": "queued",
+   "status": "needs_review",
    "attempts": 0,
-   "created_at": "2026-11-01T17:14:21+00:00"
+   "created_at": "2026-11-01T17:14:21+00:00",
+   "speaker_analysis": {
+    "speaker_count": 2,
+    "speaker_turns": 3,
+    "speaker_switches": 1,
+    "dominant_speaker_ratio": 0.996,
+    "speaker_overlap_s": 0.08,
+    "speaker_score": 1.0
+   },
+   "promotion_screen_version": "publish-promotion-screen-v2",
+   "promotion_screened_at": "2026-11-04T14:28:25+00:00",
+   "classification_confidence": 1.0,
+   "promotion_screen_attempts": 1,
+   "promotion_screen_error": null,
+   "review_artifact_file": "clip_13.mp4",
+   "error": "Manual editorial review required: Existing editorial classification requires a human decision.",
+   "qa": {
+    "verdict": "soft_fail",
+    "score": null,
+    "issues": [
+     "Existing editorial classification requires a human decision."
+    ]
+   }
   },
   {
    "id": 14,
@@ -3569,14 +3606,21 @@
     "llm": 0.442,
     "vid": 0.785,
     "hook_type": "strong_statement",
-    "duration_bucket": "15-19s"
+    "duration_bucket": "15-19s",
+    "speaker_count": 1,
+    "speaker_turns": 2,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "1"
    },
    "title": "Urban Platter: Taste & Quality",
    "caption": "Your food choices matter! Urban Platter offers products that fuel you without sacrificing taste.\n\n🎙️ Raj Shamani (@rajshamani)\nFull episode on YouTube: https://www.youtube.com/watch?v=khp7AnOJn8g\n\nFollow for daily podcast clips\n\n#UrbanPlatter #HealthyFood #FoodChoices #Sponsor #podcast",
    "content_type": "promotion",
-   "promotion_type": "sponsor_read",
+   "promotion_type": "product_pitch",
    "promotion_confidence": 1.0,
-   "promotion_evidence": "And that's where Urban Platter comes in. They make better for you products that deliver on both taste and quality.",
+   "promotion_evidence": "And that's where Urban Platter comes in. They make better-for-you products that deliver on both taste and quality.",
    "editorial_review_required": true,
    "editorial_gate_reason": "promotional_content",
    "editorial_scores": {
@@ -3796,9 +3840,31 @@
      "Every"
     ]
    ],
-   "status": "queued",
+   "status": "needs_review",
    "attempts": 0,
-   "created_at": "2026-11-01T17:14:21+00:00"
+   "created_at": "2026-11-01T17:14:21+00:00",
+   "speaker_analysis": {
+    "speaker_count": 1,
+    "speaker_turns": 2,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0
+   },
+   "promotion_screen_version": "publish-promotion-screen-v2",
+   "promotion_screened_at": "2026-11-04T14:29:16+00:00",
+   "classification_confidence": 1.0,
+   "promotion_screen_attempts": 1,
+   "promotion_screen_error": null,
+   "review_artifact_file": "clip_14.mp4",
+   "error": "Manual editorial review required: Clip appears promotional or its promotion classification is uncertain. Evidence: And that's where Urban Platter comes in. They make better-for-you products that deliver on both taste and quality.",
+   "qa": {
+    "verdict": "soft_fail",
+    "score": null,
+    "issues": [
+     "Clip appears promotional or its promotion classification is uncertain. Evidence: And that's where Urban Platter comes in. They make better-for-you products that deliver on both taste and quality."
+    ]
+   }
   },
   {
    "id": 15,
@@ -3817,14 +3883,21 @@
     "context_dependency": 0.0,
     "vid": 0.84,
     "hook_type": "strong_statement",
-    "duration_bucket": "30-39s"
+    "duration_bucket": "30-39s",
+    "speaker_count": 2,
+    "speaker_turns": 5,
+    "speaker_switches": 1,
+    "dominant_speaker_ratio": 0.723,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "2"
    },
    "title": "",
    "caption": "How to Train Your Brain to Do Hard Things | Dr. Andrew Huberman\n\n🎙️ Jay Shetty (@jayshetty)\nFull episode on YouTube: https://www.youtube.com/watch?v=Ct031ZNAy6A\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
-   "content_type": "other",
+   "content_type": "explanation",
    "promotion_type": "none",
    "promotion_confidence": 1.0,
-   "promotion_evidence": "No explicit product or service promotion in the dialogue.",
+   "promotion_evidence": "at the neuroscience level, we have to remember that the brain circuitry",
    "editorial_review_required": true,
    "editorial_gate_reason": "low_classification_confidence",
    "editorial_scores": {},
@@ -4245,9 +4318,31 @@
      "interconnected."
     ]
    ],
-   "status": "queued",
+   "status": "needs_review",
    "attempts": 0,
-   "created_at": "2026-11-03T17:12:52+00:00"
+   "created_at": "2026-11-03T17:12:52+00:00",
+   "speaker_analysis": {
+    "speaker_count": 2,
+    "speaker_turns": 5,
+    "speaker_switches": 1,
+    "dominant_speaker_ratio": 0.723,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0
+   },
+   "promotion_screen_version": "publish-promotion-screen-v2",
+   "promotion_screened_at": "2026-11-04T14:31:06+00:00",
+   "classification_confidence": 1.0,
+   "promotion_screen_attempts": 1,
+   "promotion_screen_error": null,
+   "review_artifact_file": "clip_15.mp4",
+   "error": "Manual editorial review required: Existing editorial classification requires a human decision.",
+   "qa": {
+    "verdict": "soft_fail",
+    "score": null,
+    "issues": [
+     "Existing editorial classification requires a human decision."
+    ]
+   }
   },
   {
    "id": 16,
@@ -4266,14 +4361,21 @@
     "context_dependency": 0.0,
     "vid": 0.64,
     "hook_type": "strong_statement",
-    "duration_bucket": "20-29s"
+    "duration_bucket": "20-29s",
+    "speaker_count": 1,
+    "speaker_turns": 6,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "1"
    },
    "title": "",
    "caption": "How to Train Your Brain to Do Hard Things | Dr. Andrew Huberman\n\n🎙️ Jay Shetty (@jayshetty)\nFull episode on YouTube: https://www.youtube.com/watch?v=Ct031ZNAy6A\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
-   "content_type": "other",
+   "content_type": "explanation",
    "promotion_type": "none",
    "promotion_confidence": 1.0,
-   "promotion_evidence": "The speaker discusses general health protocols and their physiological effects without promoting any specific product or service.",
+   "promotion_evidence": "So, why get sunlight in your eyes in the morning? Because it wakes you up. I could tell you it increases cortisol in a good way early in the day, that it sets a timer on your melatonin secretion for later at night, it helps you sleep at nig",
    "editorial_review_required": true,
    "editorial_gate_reason": "low_classification_confidence",
    "editorial_scores": {},
@@ -4634,9 +4736,31 @@
      "predictability."
     ]
    ],
-   "status": "queued",
+   "status": "needs_review",
    "attempts": 0,
-   "created_at": "2026-11-03T17:12:52+00:00"
+   "created_at": "2026-11-03T17:12:52+00:00",
+   "speaker_analysis": {
+    "speaker_count": 1,
+    "speaker_turns": 6,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0
+   },
+   "promotion_screen_version": "publish-promotion-screen-v2",
+   "promotion_screened_at": "2026-11-04T14:33:10+00:00",
+   "classification_confidence": 1.0,
+   "promotion_screen_attempts": 1,
+   "promotion_screen_error": null,
+   "review_artifact_file": "clip_16.mp4",
+   "error": "Manual editorial review required: Existing editorial classification requires a human decision.",
+   "qa": {
+    "verdict": "soft_fail",
+    "score": null,
+    "issues": [
+     "Existing editorial classification requires a human decision."
+    ]
+   }
   },
   {
    "id": 17,
@@ -4654,14 +4778,21 @@
     "payoff_heuristic": 0.6,
     "context_dependency": 0.0,
     "hook_type": "strong_statement",
-    "duration_bucket": "20-29s"
+    "duration_bucket": "20-29s",
+    "speaker_count": 1,
+    "speaker_turns": 3,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "1"
    },
    "title": "",
    "caption": "How to Train Your Brain to Do Hard Things | Dr. Andrew Huberman\n\n🎙️ Jay Shetty (@jayshetty)\nFull episode on YouTube: https://www.youtube.com/watch?v=Ct031ZNAy6A\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
-   "content_type": "other",
+   "content_type": "explanation",
    "promotion_type": "none",
-   "promotion_confidence": 0.0,
-   "promotion_evidence": "",
+   "promotion_confidence": 1.0,
+   "promotion_evidence": "the same neural circuits that were responsible for stress and lack of safety, and therefore vigilance, back then, are very much alive in our brains now. So, again, the protocols are designed to, um, think about it like putting, um, ingredie",
    "editorial_review_required": true,
    "editorial_gate_reason": "low_classification_confidence",
    "editorial_scores": {},
@@ -4934,12 +5065,1178 @@
      "refrigerator."
     ]
    ],
+   "status": "needs_review",
+   "attempts": 0,
+   "created_at": "2026-11-03T17:12:52+00:00",
+   "speaker_analysis": {
+    "speaker_count": 1,
+    "speaker_turns": 3,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0
+   },
+   "promotion_screen_version": "publish-promotion-screen-v2",
+   "promotion_screened_at": "2026-11-04T14:34:37+00:00",
+   "classification_confidence": 1.0,
+   "promotion_screen_attempts": 1,
+   "promotion_screen_error": null,
+   "review_artifact_file": "clip_17.mp4",
+   "error": "Manual editorial review required: Existing editorial classification requires a human decision.",
+   "qa": {
+    "verdict": "soft_fail",
+    "score": null,
+    "issues": [
+     "Existing editorial classification requires a human decision."
+    ]
+   }
+  },
+  {
+   "id": 18,
+   "video_id": "nebunAmduIM",
+   "channel": "Jay Shetty",
+   "start": 105.6,
+   "end": 142.97,
+   "score": 0.7295,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.54,
+    "density": 1.0,
+    "editorial_score": 0.71,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.75,
+    "vid": 0.865,
+    "hook_type": "number_or_stat",
+    "duration_bucket": "30-39s"
+   },
+   "title": "The '70s Self-Image Experiment: How a Fake Scar Changed Perceptions",
+   "caption": "Let me tell you about a study that was conducted in the '70s and it opens your mind as to the power of the self-image.\n\n🎙️ Jay Shetty (@jayshetty)\nFull episode on YouTube: https://www.youtube.com/watch?v=nebunAmduIM\n\nFollow for daily podcast clips\n\n#SelfBelief #Confidence #SelfDoubt #PersonalGrowth #Psychology",
+   "content_type": "story",
+   "promotion_type": "none",
+   "promotion_confidence": 1.0,
+   "promotion_evidence": "",
+   "editorial_review_required": false,
+   "editorial_gate_reason": "",
+   "editorial_scores": {
+    "hook": 9.0,
+    "standalone": 9.0,
+    "payoff": 2.0,
+    "emotion": 8.0,
+    "specificity": 9.0,
+    "context_independence": 9.0,
+    "curiosity": 10.0,
+    "value": 6.0,
+    "story_structure": 6.0
+   },
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v2",
+    "format": "story",
+    "caption_style": "minimal",
+    "caption_group_words": 4,
+    "caption_font_size": 68,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "subtle",
+    "caption_emphasis": "meaningful",
+    "title_duration_s": 2.8,
+    "caption_animation": "pop",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Natural pacing for a story."
+   },
+   "polished": true,
+   "words": [
+    [
+     105.6,
+     "Let"
+    ],
+    [
+     105.72,
+     "me"
+    ],
+    [
+     105.8,
+     "tell"
+    ],
+    [
+     105.96,
+     "you"
+    ],
+    [
+     106.04,
+     "about"
+    ],
+    [
+     106.24,
+     "a"
+    ],
+    [
+     106.28,
+     "study"
+    ],
+    [
+     106.56,
+     "that"
+    ],
+    [
+     106.64,
+     "was"
+    ],
+    [
+     106.76,
+     "conducted"
+    ],
+    [
+     107.12,
+     "in"
+    ],
+    [
+     107.2,
+     "the"
+    ],
+    [
+     107.32,
+     "'70s,"
+    ],
+    [
+     108.4,
+     "and"
+    ],
+    [
+     108.56,
+     "it"
+    ],
+    [
+     108.84,
+     "opens"
+    ],
+    [
+     109.2,
+     "your"
+    ],
+    [
+     109.32,
+     "mind"
+    ],
+    [
+     109.68,
+     "as"
+    ],
+    [
+     109.8,
+     "to"
+    ],
+    [
+     109.92,
+     "the"
+    ],
+    [
+     110.0,
+     "power"
+    ],
+    [
+     110.36,
+     "of"
+    ],
+    [
+     110.64,
+     "the"
+    ],
+    [
+     110.76,
+     "self-image"
+    ],
+    [
+     111.4,
+     "that"
+    ],
+    [
+     111.52,
+     "we"
+    ],
+    [
+     111.64,
+     "have"
+    ],
+    [
+     111.84,
+     "about"
+    ],
+    [
+     112.08,
+     "ourselves"
+    ],
+    [
+     113.16,
+     "and"
+    ],
+    [
+     113.32,
+     "how"
+    ],
+    [
+     113.48,
+     "that"
+    ],
+    [
+     113.72,
+     "keeps"
+    ],
+    [
+     114.16,
+     "repeating"
+    ],
+    [
+     115.12,
+     "throughout"
+    ],
+    [
+     115.44,
+     "our"
+    ],
+    [
+     115.52,
+     "lives."
+    ],
+    [
+     116.44,
+     "So,"
+    ],
+    [
+     116.56,
+     "in"
+    ],
+    [
+     116.64,
+     "the"
+    ],
+    [
+     116.72,
+     "1970s,"
+    ],
+    [
+     117.48,
+     "a"
+    ],
+    [
+     117.64,
+     "psychology"
+    ],
+    [
+     118.12,
+     "professor"
+    ],
+    [
+     118.56,
+     "by"
+    ],
+    [
+     118.68,
+     "the"
+    ],
+    [
+     118.76,
+     "name"
+    ],
+    [
+     118.96,
+     "of"
+    ],
+    [
+     119.08,
+     "Robert"
+    ],
+    [
+     119.44,
+     "Kleck"
+    ],
+    [
+     120.16,
+     "from"
+    ],
+    [
+     120.64,
+     "Dartmouth,"
+    ],
+    [
+     121.56,
+     "he"
+    ],
+    [
+     121.64,
+     "conducted"
+    ],
+    [
+     122.04,
+     "this"
+    ],
+    [
+     122.16,
+     "fascinating"
+    ],
+    [
+     122.64,
+     "experiment"
+    ],
+    [
+     123.16,
+     "where"
+    ],
+    [
+     123.28,
+     "he"
+    ],
+    [
+     123.44,
+     "brought"
+    ],
+    [
+     123.72,
+     "people"
+    ],
+    [
+     124.0,
+     "together."
+    ],
+    [
+     124.36,
+     "He"
+    ],
+    [
+     124.48,
+     "split"
+    ],
+    [
+     124.8,
+     "them"
+    ],
+    [
+     124.92,
+     "into"
+    ],
+    [
+     125.08,
+     "groups,"
+    ],
+    [
+     125.84,
+     "and"
+    ],
+    [
+     126.0,
+     "with"
+    ],
+    [
+     126.2,
+     "one"
+    ],
+    [
+     126.4,
+     "group"
+    ],
+    [
+     126.68,
+     "he"
+    ],
+    [
+     126.8,
+     "drew"
+    ],
+    [
+     127.04,
+     "a"
+    ],
+    [
+     127.12,
+     "scar"
+    ],
+    [
+     127.68,
+     "on"
+    ],
+    [
+     127.8,
+     "their"
+    ],
+    [
+     127.96,
+     "face"
+    ],
+    [
+     128.92,
+     "from"
+    ],
+    [
+     129.12,
+     "their"
+    ],
+    [
+     129.32,
+     "right"
+    ],
+    [
+     129.68,
+     "ear"
+    ],
+    [
+     130.2,
+     "to"
+    ],
+    [
+     130.28,
+     "the"
+    ],
+    [
+     130.36,
+     "side"
+    ],
+    [
+     130.88,
+     "of"
+    ],
+    [
+     131.0,
+     "their"
+    ],
+    [
+     131.16,
+     "mouth."
+    ],
+    [
+     132.04,
+     "Big,"
+    ],
+    [
+     132.32,
+     "ugly"
+    ],
+    [
+     132.6,
+     "scar,"
+    ],
+    [
+     132.92,
+     "and"
+    ],
+    [
+     133.0,
+     "he"
+    ],
+    [
+     133.08,
+     "let"
+    ],
+    [
+     133.24,
+     "them"
+    ],
+    [
+     133.4,
+     "see"
+    ],
+    [
+     133.56,
+     "themselves"
+    ],
+    [
+     134.0,
+     "in"
+    ],
+    [
+     134.08,
+     "a"
+    ],
+    [
+     134.16,
+     "hand"
+    ],
+    [
+     134.48,
+     "mirror."
+    ],
+    [
+     135.48,
+     "Then"
+    ],
+    [
+     135.76,
+     "he"
+    ],
+    [
+     135.92,
+     "sends"
+    ],
+    [
+     136.96,
+     "the"
+    ],
+    [
+     137.12,
+     "groups"
+    ],
+    [
+     137.44,
+     "out"
+    ],
+    [
+     137.68,
+     "to"
+    ],
+    [
+     137.76,
+     "have"
+    ],
+    [
+     137.88,
+     "conversation"
+    ],
+    [
+     138.44,
+     "with"
+    ],
+    [
+     138.6,
+     "strangers,"
+    ],
+    [
+     139.16,
+     "right?"
+    ],
+    [
+     139.4,
+     "So,"
+    ],
+    [
+     139.52,
+     "you"
+    ],
+    [
+     139.6,
+     "have"
+    ],
+    [
+     139.76,
+     "one"
+    ],
+    [
+     139.96,
+     "group"
+    ],
+    [
+     140.16,
+     "that"
+    ],
+    [
+     140.28,
+     "has"
+    ],
+    [
+     140.48,
+     "a"
+    ],
+    [
+     140.52,
+     "scar,"
+    ],
+    [
+     141.28,
+     "another"
+    ],
+    [
+     141.52,
+     "group"
+    ],
+    [
+     141.84,
+     "has"
+    ],
+    [
+     142.0,
+     "no"
+    ],
+    [
+     142.12,
+     "scar."
+    ],
+    [
+     143.08,
+     "After"
+    ]
+   ],
    "status": "queued",
    "attempts": 0,
-   "created_at": "2026-11-03T17:12:52+00:00"
+   "created_at": "2026-11-04T14:37:43+00:00"
+  },
+  {
+   "id": 19,
+   "video_id": "nebunAmduIM",
+   "channel": "Jay Shetty",
+   "start": 304.08,
+   "end": 346.2,
+   "score": 0.6623,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.51,
+    "density": 1.0,
+    "editorial_score": 0.71,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.87,
+    "vid": 0.46,
+    "hook_type": "question",
+    "duration_bucket": "40s+"
+   },
+   "title": "Self-Acceptance: The Root of 'Pressure to Prove'",
+   "caption": "The first driver of your self-doubt which shapes your self-image, is what we call acceptance, self-acceptance.\n\n🎙️ Jay Shetty (@jayshetty)\nFull episode on YouTube: https://www.youtube.com/watch?v=nebunAmduIM\n\nFollow for daily podcast clips\n\n#SelfBelief #Confidence #SelfDoubt #PersonalGrowth #Psychology",
+   "content_type": "explanation",
+   "promotion_type": "none",
+   "promotion_confidence": 1.0,
+   "promotion_evidence": "",
+   "editorial_review_required": false,
+   "editorial_gate_reason": "",
+   "editorial_scores": {
+    "hook": 9.0,
+    "standalone": 9.0,
+    "payoff": 9.0,
+    "emotion": 7.0,
+    "specificity": 9.0,
+    "context_independence": 9.0,
+    "curiosity": 8.0,
+    "value": 9.0,
+    "story_structure": 9.0
+   },
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v2",
+    "format": "educational",
+    "caption_style": "kinetic",
+    "caption_group_words": 3,
+    "caption_font_size": 70,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "off",
+    "caption_emphasis": "meaningful",
+    "title_duration_s": 2.8,
+    "caption_animation": "pop",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Emphasise key phrases in an explanatory segment."
+   },
+   "polished": true,
+   "words": [
+    [
+     304.08,
+     "When"
+    ],
+    [
+     304.32,
+     "they're"
+    ],
+    [
+     304.52,
+     "weak."
+    ],
+    [
+     305.56,
+     "So,"
+    ],
+    [
+     305.68,
+     "the"
+    ],
+    [
+     305.8,
+     "very,"
+    ],
+    [
+     306.16,
+     "very"
+    ],
+    [
+     306.44,
+     "first"
+    ],
+    [
+     306.76,
+     "one,"
+    ],
+    [
+     307.16,
+     "the"
+    ],
+    [
+     307.28,
+     "first"
+    ],
+    [
+     307.52,
+     "driver"
+    ],
+    [
+     307.88,
+     "of"
+    ],
+    [
+     307.96,
+     "your"
+    ],
+    [
+     308.08,
+     "self-doubt"
+    ],
+    [
+     308.88,
+     "which"
+    ],
+    [
+     309.04,
+     "shapes"
+    ],
+    [
+     309.28,
+     "your"
+    ],
+    [
+     309.36,
+     "self-image,"
+    ],
+    [
+     310.36,
+     "is"
+    ],
+    [
+     310.84,
+     "what"
+    ],
+    [
+     311.0,
+     "we"
+    ],
+    [
+     311.08,
+     "call"
+    ],
+    [
+     311.44,
+     "acceptance:"
+    ],
+    [
+     312.52,
+     "self-acceptance."
+    ],
+    [
+     314.56,
+     "It"
+    ],
+    [
+     314.72,
+     "relates"
+    ],
+    [
+     315.16,
+     "to"
+    ],
+    [
+     315.28,
+     "this"
+    ],
+    [
+     315.48,
+     "personality"
+    ],
+    [
+     316.08,
+     "trait"
+    ],
+    [
+     316.44,
+     "of"
+    ],
+    [
+     316.64,
+     "self-esteem."
+    ],
+    [
+     317.84,
+     "So,"
+    ],
+    [
+     317.92,
+     "how"
+    ],
+    [
+     318.08,
+     "you"
+    ],
+    [
+     318.24,
+     "see"
+    ],
+    [
+     318.4,
+     "yourself"
+    ],
+    [
+     319.12,
+     "in"
+    ],
+    [
+     319.2,
+     "terms"
+    ],
+    [
+     319.44,
+     "of"
+    ],
+    [
+     319.52,
+     "your"
+    ],
+    [
+     319.68,
+     "value"
+    ],
+    [
+     320.6,
+     "and"
+    ],
+    [
+     320.72,
+     "your"
+    ],
+    [
+     320.84,
+     "worth."
+    ],
+    [
+     322.0,
+     "Now,"
+    ],
+    [
+     322.16,
+     "if"
+    ],
+    [
+     322.32,
+     "you"
+    ],
+    [
+     322.56,
+     "don't"
+    ],
+    [
+     323.0,
+     "accept"
+    ],
+    [
+     323.36,
+     "yourself,"
+    ],
+    [
+     324.36,
+     "it"
+    ],
+    [
+     324.48,
+     "shows"
+    ],
+    [
+     324.76,
+     "up"
+    ],
+    [
+     324.88,
+     "in"
+    ],
+    [
+     325.04,
+     "four"
+    ],
+    [
+     325.36,
+     "painfully"
+    ],
+    [
+     325.88,
+     "familiar"
+    ],
+    [
+     326.36,
+     "habits."
+    ],
+    [
+     327.44,
+     "The"
+    ],
+    [
+     327.52,
+     "first"
+    ],
+    [
+     327.84,
+     "one"
+    ],
+    [
+     328.04,
+     "is"
+    ],
+    [
+     328.2,
+     "what"
+    ],
+    [
+     328.32,
+     "we"
+    ],
+    [
+     328.4,
+     "call"
+    ],
+    [
+     328.64,
+     "the"
+    ],
+    [
+     328.72,
+     "pressure"
+    ],
+    [
+     329.16,
+     "to"
+    ],
+    [
+     329.32,
+     "prove."
+    ],
+    [
+     330.48,
+     "You"
+    ],
+    [
+     330.6,
+     "feel"
+    ],
+    [
+     330.88,
+     "like"
+    ],
+    [
+     331.08,
+     "you"
+    ],
+    [
+     331.2,
+     "constantly"
+    ],
+    [
+     331.72,
+     "have"
+    ],
+    [
+     331.96,
+     "to"
+    ],
+    [
+     332.12,
+     "prove"
+    ],
+    [
+     332.6,
+     "yourself"
+    ],
+    [
+     333.52,
+     "through"
+    ],
+    [
+     333.72,
+     "your"
+    ],
+    [
+     333.92,
+     "work,"
+    ],
+    [
+     334.48,
+     "through"
+    ],
+    [
+     334.6,
+     "your"
+    ],
+    [
+     334.76,
+     "performance."
+    ],
+    [
+     336.12,
+     "You"
+    ],
+    [
+     336.28,
+     "have"
+    ],
+    [
+     336.48,
+     "to"
+    ],
+    [
+     336.64,
+     "prove"
+    ],
+    [
+     336.96,
+     "that"
+    ],
+    [
+     337.16,
+     "you"
+    ],
+    [
+     337.28,
+     "are"
+    ],
+    [
+     337.44,
+     "of"
+    ],
+    [
+     337.56,
+     "value"
+    ],
+    [
+     337.96,
+     "to"
+    ],
+    [
+     338.08,
+     "other"
+    ],
+    [
+     338.24,
+     "people,"
+    ],
+    [
+     338.6,
+     "so"
+    ],
+    [
+     338.76,
+     "you"
+    ],
+    [
+     338.88,
+     "seek"
+    ],
+    [
+     339.16,
+     "their"
+    ],
+    [
+     339.32,
+     "validation"
+    ],
+    [
+     340.28,
+     "and"
+    ],
+    [
+     340.4,
+     "their"
+    ],
+    [
+     340.56,
+     "praise."
+    ],
+    [
+     341.44,
+     "And"
+    ],
+    [
+     341.56,
+     "when"
+    ],
+    [
+     341.72,
+     "you"
+    ],
+    [
+     341.8,
+     "don't"
+    ],
+    [
+     342.04,
+     "get"
+    ],
+    [
+     342.2,
+     "it,"
+    ],
+    [
+     342.48,
+     "it"
+    ],
+    [
+     342.56,
+     "becomes"
+    ],
+    [
+     342.92,
+     "this"
+    ],
+    [
+     343.12,
+     "automatic"
+    ],
+    [
+     343.68,
+     "switch,"
+    ],
+    [
+     344.44,
+     "and"
+    ],
+    [
+     344.56,
+     "you"
+    ],
+    [
+     344.64,
+     "need"
+    ],
+    [
+     344.88,
+     "to"
+    ],
+    [
+     345.36,
+     "win"
+    ],
+    [
+     345.52,
+     "it"
+    ],
+    [
+     345.6,
+     "back."
+    ],
+    [
+     346.2,
+     "Mhm."
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-11-04T14:37:43+00:00"
   }
  ],
- "next_id": 18,
+ "next_id": 20,
  "journal": [
   {
    "t": "2026-10-30T17:57:06+00:00",
@@ -5193,6 +6490,70 @@
    "video": "Ct031ZNAy6A",
    "channel": "Jay Shetty",
    "clips": 3
+  },
+  {
+   "t": "2026-11-04T14:28:25+00:00",
+   "event": "clip_needs_review",
+   "clip": 13,
+   "artifact": "clip_13.mp4",
+   "issues": [
+    "Existing editorial classification requires a human decision."
+   ],
+   "review_stage": "promotion_screen"
+  },
+  {
+   "t": "2026-11-04T14:29:16+00:00",
+   "event": "clip_needs_review",
+   "clip": 14,
+   "artifact": "clip_14.mp4",
+   "issues": [
+    "Clip appears promotional or its promotion classification is uncertain. Evidence: And that's where Urban Platter comes in. They make better-for-you products that deliver on both taste and quality."
+   ],
+   "review_stage": "promotion_screen"
+  },
+  {
+   "t": "2026-11-04T14:31:06+00:00",
+   "event": "clip_needs_review",
+   "clip": 15,
+   "artifact": "clip_15.mp4",
+   "issues": [
+    "Existing editorial classification requires a human decision."
+   ],
+   "review_stage": "promotion_screen"
+  },
+  {
+   "t": "2026-11-04T14:33:10+00:00",
+   "event": "clip_needs_review",
+   "clip": 16,
+   "artifact": "clip_16.mp4",
+   "issues": [
+    "Existing editorial classification requires a human decision."
+   ],
+   "review_stage": "promotion_screen"
+  },
+  {
+   "t": "2026-11-04T14:34:37+00:00",
+   "event": "clip_needs_review",
+   "clip": 17,
+   "artifact": "clip_17.mp4",
+   "issues": [
+    "Existing editorial classification requires a human decision."
+   ],
+   "review_stage": "promotion_screen"
+  },
+  {
+   "t": "2026-11-04T14:34:37+00:00",
+   "event": "slot_deferred",
+   "reason": "no Reel published; candidate(s) moved to manual review",
+   "checked_candidates": 5,
+   "queued_remaining": 0
+  },
+  {
+   "t": "2026-11-04T14:37:43+00:00",
+   "event": "episode_queued",
+   "video": "nebunAmduIM",
+   "channel": "Jay Shetty",
+   "clips": 2
   }
  ],
  "candidate_decisions": [
@@ -6325,6 +7686,240 @@
     "editorial_gate_reason": "low_classification_confidence",
     "learned_score": null,
     "transcript_excerpt": "Now, these brain circuits have names, and we could get into that. They almost all have some connectedness to an area of the brain called the hypothalamus, which sits above the roof of your mouth, which has many, many dense collections of neurons we call nuclei responsible for everything from temperature regulation to feeding to reproductive behavio"
+   }
+  },
+  {
+   "episode_id": "nebunAmduIM",
+   "channel": "Jay Shetty",
+   "start": 105.6,
+   "end": 142.97,
+   "rank": 1,
+   "selected": true,
+   "recorded_at": "2026-11-04T14:37:14+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 105.6,
+    "end": 142.97,
+    "heat": 0.5,
+    "hook": 0.54,
+    "density": 1.0,
+    "pre": 0.6391520000000002,
+    "final": 0.7295008000000002,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.7500000000000001,
+    "vid": 0.865,
+    "content_type": "story",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 1.0,
+    "hook_type": "number_or_stat",
+    "title": "The '70s Self-Image Experiment: How a Fake Scar Changed Perceptions",
+    "reject": false,
+    "editorial_review_required": false,
+    "editorial_gate_reason": "",
+    "learned_score": null,
+    "transcript_excerpt": "Let me tell you about a study that was conducted in the '70s and it opens your mind as to the power of the self-image that we have about ourselves and how that keeps repeating throughout our lives. So, in the 1970s, a psychology professor by the name of Robert Kleck from Dartmouth, he conducted this fascinating experiment where he brought people to"
+   }
+  },
+  {
+   "episode_id": "nebunAmduIM",
+   "channel": "Jay Shetty",
+   "start": 304.08,
+   "end": 346.2,
+   "rank": 2,
+   "selected": true,
+   "recorded_at": "2026-11-04T14:37:14+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 304.08,
+    "end": 346.2,
+    "heat": 0.5,
+    "hook": 0.5099999999999999,
+    "density": 1.0,
+    "pre": 0.630992,
+    "final": 0.6623138559999999,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.8699999999999999,
+    "vid": 0.45999999999999996,
+    "content_type": "explanation",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 1.0,
+    "hook_type": "question",
+    "title": "Self-Acceptance: The Root of 'Pressure to Prove'",
+    "reject": false,
+    "editorial_review_required": false,
+    "editorial_gate_reason": "",
+    "learned_score": null,
+    "transcript_excerpt": "when they're weak. So the very, very first one, the first driver of your self-doubt which shapes your self-image, is what we call acceptance, self-acceptance. It relates to this personality trait of self-esteem. So how you see yourself in terms of your value and your worth. Now if you don't accept yourself, it shows up in four painfully familiar ha"
+   }
+  },
+  {
+   "episode_id": "nebunAmduIM",
+   "channel": "Jay Shetty",
+   "start": 189.76,
+   "end": 225.48,
+   "rank": 3,
+   "selected": false,
+   "recorded_at": "2026-11-04T14:37:14+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 189.76,
+    "end": 225.48,
+    "heat": 0.5,
+    "hook": 0.5499999999999999,
+    "density": 1.0,
+    "pre": 0.641872,
+    "final": 0.606793696,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.7410000000000001,
+    "vid": 0.32999999999999996,
+    "content_type": "insight",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 1.0,
+    "hook_type": "question",
+    "title": "Your Brain Magnifies What You Focus On: The Self-Doubt Loop",
+    "reject": false,
+    "editorial_review_required": false,
+    "editorial_gate_reason": "",
+    "learned_score": null,
+    "transcript_excerpt": "When you think about the implications for us in our lives, okay, it may not be a physical scar, but we all have beliefs or expectations about ourselves based on how we see ourselves, our self-image, and then we're going to notice things that reinforce it because of how the brain is wired. >> >> Confirmation bias, Mhm. selective attention. Your brai"
+   }
+  },
+  {
+   "episode_id": "nebunAmduIM",
+   "channel": "Jay Shetty",
+   "start": 275.04,
+   "end": 305.37,
+   "rank": 4,
+   "selected": false,
+   "recorded_at": "2026-11-04T14:37:14+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 275.04,
+    "end": 305.37,
+    "heat": 0.5,
+    "hook": 0.53,
+    "density": 1.0,
+    "pre": 0.6364320000000001,
+    "final": 0.5728128000000001,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.5680000000000001,
+    "vid": 0.36,
+    "content_type": "insight",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 0.9,
+    "hook_type": "strong_statement",
+    "title": "The Four Personality Traits That Predict Your Life's Success",
+    "reject": false,
+    "editorial_review_required": false,
+    "editorial_gate_reason": "",
+    "learned_score": null,
+    "transcript_excerpt": "Not only that, these four things that actually have their base in our personality, they have been shown through meta-analyses of over 100 studies to predict our success, our job performance, our career satisfaction, how happy we are in our life and our relationships, and it all comes down to these four things. And I could not believe it when I came"
+   }
+  },
+  {
+   "episode_id": "nebunAmduIM",
+   "channel": "Jay Shetty",
+   "start": 81.52,
+   "end": 105.11,
+   "rank": 5,
+   "selected": false,
+   "recorded_at": "2026-11-04T14:37:14+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 81.52,
+    "end": 105.10999999999999,
+    "heat": 0.5,
+    "hook": 0.5499999999999999,
+    "density": 1.0,
+    "pre": 0.641872,
+    "final": 0.555089696,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.417,
+    "vid": 0.5349999999999999,
+    "content_type": "explanation",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 1.0,
+    "classification_confidence": 0.9,
+    "hook_type": "question",
+    "title": "How We Discovered the Link Between Doubt and Self-Image",
+    "reject": false,
+    "editorial_review_required": false,
+    "editorial_gate_reason": "",
+    "learned_score": null,
+    "transcript_excerpt": "How did we come across these four drivers? So, we've been working with leaders and teams across organizations for the last 5 to 10 years. That's tens of thousands of people. And we found that again, no matter where someone was at on their journey, they were hearing this voice of doubt. And it would sound different and it would look different. But, "
+   }
+  },
+  {
+   "episode_id": "nebunAmduIM",
+   "channel": "Jay Shetty",
+   "start": 289.76,
+   "end": 305.37,
+   "rank": 6,
+   "selected": false,
+   "recorded_at": "2026-11-04T14:37:14+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 289.76,
+    "end": 305.37,
+    "heat": 0.5,
+    "hook": 0.5099999999999999,
+    "density": 1.0,
+    "pre": 0.630992,
+    "final": 0.4130483200000001,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": 0.0,
+    "vid": null,
+    "content_type": "other",
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "none",
+    "promotion_confidence": 0.0,
+    "classification_confidence": 0.0,
+    "hook_type": "question",
+    "title": "",
+    "reject": true,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "how happy we are in our life and our relationships, and it all comes down to these four things. And I could not believe it when I came across it. So let me tell you what these four things are because essentially these four things drive our self-image, which then drives our self-doubt when they're weak."
    }
   }
  ]
