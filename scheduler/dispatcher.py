@@ -41,6 +41,20 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict) -> None:
                          {"now": now.isoformat(), "run_at": run_at.isoformat()})
         return
 
+    # Verify that quota was checked during pre-slot container preparation.
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT quota_checked_at,quota_snapshot FROM slots WHERE id=%s",(slot_id,))
+            quota_row=cur.fetchone()
+    if not quota_row or not quota_row[0] or (now-quota_row[0]).total_seconds()>900:
+        with connect() as conn, conn.transaction():
+            transition_slot(conn,slot_id,"container_ready","failed",dispatcher_id,
+                            last_error="pre-publish quota snapshot missing or stale",
+                            lease_owner=None,lease_until=None)
+            append_event(conn,user_id,slot_id,"publish_blocked_stale_quota",{})
+        log.error("slot=%s blocked: stale quota snapshot; no media_publish call",slot_id)
+        return
+
     # If process dies after persisting publishing but before/after HTTP call, the
     # reconciler must inspect recent media. Never auto-retry this state.
     with connect() as conn, conn.transaction():
