@@ -2547,10 +2547,10 @@ def publish_next(cfg, wait=True, force=False):
         if held:
             save_state(state)
             return True
-        gha("warning", "Posting slot reached but the queue is empty.")
-        jr(state, "slot_missed", reason="queue empty")
+        gha("warning", "No Reel published this slot: queue is empty after discovery/refill. This is an expected no-post outcome.")
+        jr(state, "slot_deferred", reason="queue empty; no eligible clip available")
         save_state(state)
-        return False
+        return True
     if slot and wait and slot[1] > 0:
         log.info("waiting %.0f s for the %s slot", slot[1], slot[0].strftime("%H:%M"))
         time.sleep(slot[1])
