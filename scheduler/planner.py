@@ -102,8 +102,8 @@ def enqueue_container_uploads(conn, lead_minutes=10, limit=200):
                  AND r.local_time=s.local_time AND r.active=true
                WHERE s.state='verified' AND s.verification_checked_at IS NOT NULL
                  AND s.run_at_utc <= now() + (r.container_lead_minutes * interval '1 minute')
-                 AND run_at_utc > now() - (max_late_minutes * interval '1 minute')
-               ORDER BY run_at_utc FOR UPDATE SKIP LOCKED LIMIT %s""",
+                 AND s.run_at_utc > now() - (s.max_late_minutes * interval '1 minute')
+               ORDER BY s.run_at_utc FOR UPDATE OF s SKIP LOCKED LIMIT %s""",
             (lead_minutes,limit),
         )
         slots=cur.fetchall()
