@@ -49,7 +49,7 @@ services:
       CLIPPER_JOB_HANDLER_MODULE: scheduler.clipper_handlers
     depends_on:
       postgres: {condition: service_healthy}
-      minio: {condition: service_started}
+      minio-init: {condition: service_completed_successfully}
     deploy:
       replicas: 2
   dispatcher:
