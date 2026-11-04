@@ -21,7 +21,7 @@ def materialize_user(conn, user_id: str, now_utc: datetime | None = None, horizo
         tz_name = row[0]
         ZoneInfo(tz_name)  # fail early for invalid timezone
         cur.execute(
-            """SELECT r.account_id,r.weekday,r.local_time,r.max_late_minutes
+            """SELECT r.account_id,r.weekday,r.local_time,r.max_late_minutes,\n                      r.assignment_lead_minutes,r.verify_lead_minutes,r.container_lead_minutes
                FROM schedule_rules r JOIN connected_accounts a
                  ON a.id=r.account_id AND a.user_id=r.user_id AND a.status='active'
                WHERE r.user_id=%s AND r.active=true""",
@@ -48,7 +48,7 @@ def materialize_user(conn, user_id: str, now_utc: datetime | None = None, horizo
                        WHERE slots.state='cancelled' AND slots.last_error='schedule_rule_changed'
                          AND slots.run_at_utc>now() AND slots.lease_owner IS NULL
                        RETURNING id""",
-                    (user_id, account_id, local_date, local_time, tz_name, run_at, max_late),
+                    (user_id, account_id, local_date, local_time, tz_name, run_at, max_late, assignment_lead, verify_lead, container_lead),
                 )
                 if cur.fetchone():
                     inserted += 1
