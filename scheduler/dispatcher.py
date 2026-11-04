@@ -237,18 +237,19 @@ def run_dispatcher(poll_seconds=0.5, claim_limit=None):
                     try: future.result()
                     except Exception: log.exception("slot dispatcher task failed")
                 free=max(0,max_workers-len(inflight))
-                if free:
-                    with connect() as conn,conn.transaction():
-                        with conn.cursor() as cur:
-                            cur.execute(
-                                "INSERT INTO dispatcher_heartbeats(dispatcher_id,ts,detail) VALUES (%s,now(),%s::jsonb) "
-                                "ON CONFLICT(dispatcher_id) DO UPDATE SET ts=now(),detail=EXCLUDED.detail",
-                                (dispatcher_id,json.dumps({"inflight":len(inflight),"capacity":max_workers})),
-                            )
+                with connect() as conn,conn.transaction():
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "INSERT INTO dispatcher_heartbeats(dispatcher_id,ts,detail) VALUES (%s,now(),%s::jsonb) "
+                            "ON CONFLICT(dispatcher_id) DO UPDATE SET ts=now(),detail=EXCLUDED.detail",
+                            (dispatcher_id,json.dumps({"inflight":len(inflight),"capacity":max_workers})),
+                        )
+                    slots=[]
+                    if free:
                         slots=claim_slots_near_due(conn,dispatcher_id,seconds_ahead=3,
                                                    limit=min(free,claim_limit),lease_seconds=45)
-                    for slot in slots:
-                        inflight.add(pool.submit(_dispatch_claimed_slot,slot,dispatcher_id))
+                for slot in slots:
+                    inflight.add(pool.submit(_dispatch_claimed_slot,slot,dispatcher_id))
                 if inflight:
                     wait(inflight,timeout=poll_seconds,return_when=FIRST_COMPLETED)
                 else:
