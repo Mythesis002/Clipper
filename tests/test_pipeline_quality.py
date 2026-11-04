@@ -117,7 +117,7 @@ class PipelineQualityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             with patch.object(clipper, "REVIEW_DIR", Path(folder)):
                 result = clipper.publish_next(cfg, wait=False, force=True)
-        self.assertFalse(result)  # no Reel was published; the slot must not report success
+        self.assertTrue(result)  # editorial hold is an expected no-post outcome, not a runner failure
         self.assertEqual(clip["status"], "needs_review")
         post_mock.assert_not_called()
         save_mock.assert_called()
@@ -266,6 +266,43 @@ class PipelineQualityTests(unittest.TestCase):
             "status": "posted", "posted_at": "2026-10-30T05:58:00+05:30",
         }]}
         self.assertIsNone(clipper.due_slot(cfg, posted_state, now=now))
+
+    def test_scheduled_slot_requires_confirmed_post_not_uncertain_state(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        cfg = {
+            "timezone": "Asia/Kolkata",
+            "schedule": {"max_wait_min": 25, "catchup_hours": 6},
+        }
+        slot = datetime(2026, 10, 30, 6, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        uncertain = {"clips": [{
+            "id": 21, "status": "publish_uncertain",
+            "publish_started_at": "2026-10-30T06:01:00+05:30",
+        }]}
+        self.assertIsNone(clipper.confirmed_post_for_slot(cfg, uncertain, slot))
+        posted = {"clips": [{
+            "id": 22, "status": "posted", "media_id": "ig-media",
+            "posted_at": "2026-10-30T06:02:00+05:30",
+        }]}
+        self.assertEqual(
+            clipper.confirmed_post_for_slot(cfg, posted, slot)["id"], 22
+        )
+
+    def test_stale_publishing_intent_is_quarantined_without_reposting(self):
+        from datetime import datetime, timezone
+        state = {"clips": [{
+            "id": 23, "status": "publishing",
+            "publish_started_at": "2026-10-30T05:00:00+00:00",
+        }], "journal": []}
+        now = datetime(2026, 10, 30, 5, 20, tzinfo=timezone.utc)
+        changed, unresolved = clipper.quarantine_stale_publish_intents(
+            state, timeout_minutes=15, now=now
+        )
+        self.assertTrue(changed)
+        self.assertEqual(state["clips"][0]["status"], "publish_uncertain")
+        self.assertEqual([c["id"] for c in unresolved], [23])
+        self.assertTrue(any(j["event"] == "publish_intent_quarantined"
+                            for j in state["journal"]))
 
     def test_due_slot_does_not_catch_up_after_window_expires(self):
         from datetime import datetime
@@ -621,6 +658,33 @@ class PipelineQualityTests(unittest.TestCase):
         self.assertEqual(channels["Prakhar Gupta"]["ig_handle"], "@prakharkepravachan")
         self.assertNotIn("Lex Fridman", channels)
         self.assertNotIn("The Diary of a CEO", channels)
+
+    def test_tick_fails_scheduled_slot_when_no_post_is_confirmed(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        cfg = {
+            "timezone": "Asia/Kolkata",
+            "schedule": {"max_wait_min": 25, "catchup_hours": 6},
+            "queue": {"refill_when_below": 3},
+        }
+        slot = datetime(2026, 10, 30, 6, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        state = {"clips": [], "episodes": {}, "next_id": 1, "journal": []}
+        with patch.object(clipper, "authorized_channels", return_value=[{"name": "allowed"}]), \
+             patch.object(clipper, "load_state", return_value=state), \
+             patch.object(clipper, "save_state"), \
+             patch.object(clipper, "retry_transient_promotion_reviews", return_value=False), \
+             patch.object(clipper, "queued_for_authorized_channels", return_value=[]), \
+             patch.object(clipper, "produce"), \
+             patch.object(clipper, "publish_next", return_value=True), \
+             patch.object(clipper, "due_slot", return_value=(slot, 0)), \
+             patch.object(clipper, "update_metrics"), \
+             patch.object(clipper, "write_summary"), \
+             patch.object(clipper, "gha") as gha_mock:
+            result = clipper.tick(cfg)
+        self.assertFalse(result)
+        self.assertTrue(any(call.args[0] == "error" for call in gha_mock.call_args_list))
+        self.assertTrue(any(item["event"] == "slot_delivery_failed"
+                            for item in state["journal"]))
 
     def test_publish_now_command_runs_forced_tick(self):
         with patch.object(clipper.sys, "argv", ["podcast_clipper.py", "publish-now"]), \

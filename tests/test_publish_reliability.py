@@ -134,8 +134,11 @@ class PublishQueueTests(unittest.TestCase):
             "journal": [],
         }
 
-    def _run_with_screens(self, screens):
+    def _run_with_screens(self, screens, scores=None):
         state = self._state()
+        if scores:
+            for clip, score in zip(state['clips'], scores):
+                clip['editorial_score'] = score
         cfg = {
             "queue": {"publish_candidate_limit": 10},
             "intelligence": {"promotion_policy": "manual_review"},
@@ -173,14 +176,68 @@ class PublishQueueTests(unittest.TestCase):
         self.assertEqual(post.call_count, 1)
         self.assertEqual(post.call_args.args[2]["id"], 4)
 
-    def test_review_only_slot_returns_failure_instead_of_green_success(self):
+    def test_review_only_slot_is_expected_no_post_not_runner_failure(self):
         held = {"review_required": True, "excluded": False,
                 "issues": ["human review"], "already_screened": False}
         result, state, screen, post = self._run_with_screens([held] * 4)
-        self.assertFalse(result)
+        self.assertTrue(result)
         self.assertEqual(screen.call_count, 4)
         self.assertTrue(all(c["status"] == "needs_review" for c in state["clips"]))
         post.assert_not_called()
+
+    def test_best_editorial_score_is_checked_first(self):
+        held = {"review_required": True, "excluded": False,
+                "issues": ["human review"], "already_screened": False}
+        clean = {"review_required": False, "excluded": False,
+                 "issues": [], "already_screened": False}
+        result, state, screen, post = self._run_with_screens(
+            [clean, held, held, held], scores=[0.3, 0.95, 0.6, 0.4])
+        self.assertTrue(result)
+        self.assertEqual(post.call_args.args[2]["id"], 2)
+
+    def test_transient_promotion_screen_failure_requeues_after_cooldown_only(self):
+        from datetime import timedelta, timezone
+        now = datetime(2026, 11, 4, 12, 0, tzinfo=timezone.utc)
+        state = {"clips": [
+            {"id": 1, "status": "needs_review", "promotion_screen_error": "timeout",
+             "promotion_retry_after": (now - timedelta(minutes=1)).isoformat(),
+             "promotion_retry_count": 0},
+            {"id": 2, "status": "needs_review", "promotion_screen_error": "timeout",
+             "promotion_retry_after": (now - timedelta(minutes=1)).isoformat(),
+             "promotion_retry_count": 0, "editorial_review_required": True},
+            {"id": 3, "status": "needs_review", "promotion_screen_error": "timeout",
+             "promotion_retry_after": (now + timedelta(hours=1)).isoformat(),
+             "promotion_retry_count": 0},
+        ]}
+        changed = clipper.retry_transient_promotion_reviews(state, now=now)
+        self.assertEqual(changed, 1)
+        self.assertEqual(state["clips"][0]["status"], "queued")
+        self.assertEqual(state["clips"][0]["promotion_retry_count"], 1)
+        self.assertEqual(state["clips"][1]["status"], "needs_review")
+        self.assertEqual(state["clips"][2]["status"], "needs_review")
+
+    def test_qa_approved_clip_below_preferred_score_can_pass_fallback_floor(self):
+        cfg = {"qa": {"min_ai_score": 6.5, "fallback_min_ai_score": 5.5}}
+        with patch.object(clipper, "qa_checks", return_value={"issues": []}), \
+             patch.object(clipper, "gemini_qa", return_value={
+                 "approve": True, "unsafe": False, "score": 5.8,
+                 "issues": ["minor pacing issue"],
+             }):
+            result = clipper.qa_review(cfg, "dummy.mp4", {})
+        self.assertEqual(result["verdict"], "pass")
+        self.assertTrue(result["fallback"])
+        self.assertEqual(result["score"], 5.8)
+
+    def test_gemini_rejection_does_not_use_fallback(self):
+        cfg = {"qa": {"min_ai_score": 6.5, "fallback_min_ai_score": 5.5}}
+        with patch.object(clipper, "qa_checks", return_value={"issues": []}), \
+             patch.object(clipper, "gemini_qa", return_value={
+                 "approve": False, "unsafe": False, "score": 6.2,
+                 "issues": ["misleading opening"],
+             }):
+            result = clipper.qa_review(cfg, "dummy.mp4", {})
+        self.assertEqual(result["verdict"], "soft_fail")
+        self.assertFalse(result.get("fallback", False))
 
 class YouTubeUploaderDependencyTests(unittest.TestCase):
     def test_google_oauth_and_youtube_client_dependencies_are_installed(self):

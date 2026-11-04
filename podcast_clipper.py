@@ -1333,6 +1333,46 @@ def queued_for_authorized_channels(state, cfg):
     return [clip for clip in queued(state) if clip.get("channel") in allowed_names]
 
 
+def retry_transient_promotion_reviews(state, max_retries=2, now=None):
+    """Requeue only transient promotion-screen API failures after a cooldown.
+
+    Uncertain classifications, possible promotions, final-video QA failures, and
+    technical failures remain held for human review. Retries are bounded.
+    """
+    now = now or datetime.now(timezone.utc)
+    changed = 0
+    for clip in state.get("clips", []):
+        if clip.get("status") != "needs_review":
+            continue
+        if not clip.get("promotion_screen_error"):
+            continue
+        if clip.get("editorial_review_required") or clip.get("editorial_gate_reason"):
+            continue
+        retries = int(clip.get("promotion_retry_count", 0))
+        if retries >= max_retries:
+            continue
+        retry_after = clip.get("promotion_retry_after")
+        if not retry_after:
+            continue
+        try:
+            due = datetime.fromisoformat(retry_after)
+            if due.tzinfo is None:
+                due = due.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            continue
+        if due > now:
+            continue
+        clip.update(status="queued", promotion_retry_count=retries + 1,
+                    promotion_retry_after=None, error=None)
+        clip.pop("qa", None)
+        jr(state, "promotion_screen_retry_queued", clip=clip.get("id"),
+           retry=clip["promotion_retry_count"])
+        log.info("Requeued clip %s for bounded promotion-screen retry (%d/%d).",
+                 clip.get("id"), clip["promotion_retry_count"], max_retries)
+        changed += 1
+    return changed
+
+
 # =============================================================================
 # 4. RENDER (happens at post time)
 # =============================================================================
@@ -1852,11 +1892,22 @@ def qa_review(cfg, path, clip=None):
                 "issues": ["AI final review unavailable; manual review required"]}
     if g["unsafe"]:
         return {"verdict": "hard_fail", "score": g["score"], "issues": ["unsafe content"] + g["issues"]}
-    min_score = cfg.get("qa", {}).get("min_ai_score", 6.5)
-    if not g["approve"] or g["score"] < min_score:
+    min_score = float(cfg.get("qa", {}).get("min_ai_score", 6.5))
+    fallback_score = float(cfg.get("qa", {}).get("fallback_min_ai_score", 5.5))
+    # Best-available fallback is ONLY for Gemini-approved, non-unsafe clips.
+    # Gemini approve=false, technical failures, unsafe content, and missing QA remain blocked.
+    if not g["approve"]:
         return {"verdict": "soft_fail", "score": g["score"],
-                "issues": g["issues"] or [f"AI quality score below {min_score:.1f}/10"]}
-    return {"verdict": "pass", "score": g["score"], "issues": g["issues"]}
+                "issues": g["issues"] or ["Gemini did not approve this clip"]}
+    if g["score"] < fallback_score:
+        return {"verdict": "soft_fail", "score": g["score"],
+                "issues": g["issues"] or [f"AI quality score below fallback floor {fallback_score:.1f}/10"]}
+    if g["score"] < min_score:
+        return {"verdict": "pass", "score": g["score"],
+                "issues": g["issues"] or [f"Best-available fallback: score {g['score']:.1f}/10 "
+                                          f"is below preferred threshold {min_score:.1f}/10"],
+                "fallback": True}
+    return {"verdict": "pass", "score": g["score"], "issues": g["issues"], "fallback": False}
 
 
 # =============================================================================
@@ -2079,6 +2130,56 @@ def due_slot(cfg, state, now=None):
                 continue
             due.append((slot, ahead))
     return min(due, key=lambda x: x[0]) if due else None
+
+
+def confirmed_post_for_slot(cfg, state, slot):
+    """Return a confirmed Instagram post for a slot; queued/publishing/uncertain is not delivery."""
+    tz = ZoneInfo(cfg["timezone"])
+    sch = cfg["schedule"]
+    lower = slot - timedelta(seconds=sch["max_wait_min"] * 60 + 300)
+    upper = slot + timedelta(seconds=sch["catchup_hours"] * 3600)
+    for clip in state.get("clips", []):
+        if clip.get("status") != "posted" or not clip.get("posted_at"):
+            continue
+        try:
+            stamp = datetime.fromisoformat(clip["posted_at"])
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=tz)
+            stamp = stamp.astimezone(tz)
+        except (TypeError, ValueError):
+            continue
+        if lower <= stamp <= upper:
+            return clip
+    return None
+
+
+def quarantine_stale_publish_intents(state, timeout_minutes=15, now=None):
+    """Turn abandoned 'publishing' intents into an explicit uncertain state, never auto-repost."""
+    now = now or now_utc()
+    changed = False
+    unresolved = []
+    for clip in state.get("clips", []):
+        status = clip.get("status")
+        if status == "publishing":
+            try:
+                started = datetime.fromisoformat(clip["publish_started_at"])
+                if started.tzinfo is None:
+                    started = started.replace(tzinfo=timezone.utc)
+                age = (now - started.astimezone(timezone.utc)).total_seconds()
+            except (KeyError, TypeError, ValueError):
+                age = timeout_minutes * 60 + 1
+            if age >= timeout_minutes * 60:
+                clip.update(
+                    status="publish_uncertain",
+                    error="Publishing intent is stale; check Instagram before retrying.",
+                )
+                jr(state, "publish_intent_quarantined", clip=clip.get("id"),
+                   age_minutes=round(age / 60))
+                changed = True
+                status = "publish_uncertain"
+        if status == "publish_uncertain":
+            unresolved.append(clip)
+    return changed, unresolved
 
 
 def _fail(state, clip, ex, stage):
@@ -2476,6 +2577,18 @@ def publish_next(cfg, wait=True, force=False):
             return True
     all_queued = queued(state)
     q = [clip for clip in all_queued if clip.get("channel") in allowed_names]
+    # Prefer clips with stronger editorial signals over FIFO order. Stable sorting
+    # preserves queue order for ties and older state entries with missing scores.
+    def queue_quality(clip):
+        for key in ("editorial_score", "pre", "learned_score", "heat"):
+            try:
+                value = float(clip.get(key))
+                if np.isfinite(value):
+                    return value
+            except (TypeError, ValueError):
+                pass
+        return 0.0
+    q.sort(key=queue_quality, reverse=True)
     held = len(all_queued) - len(q)
     if held:
         log.warning("Holding %d queued clip(s) from channels without current permission: true; they will not be published.", held)
@@ -2484,10 +2597,10 @@ def publish_next(cfg, wait=True, force=False):
         if held:
             save_state(state)
             return True
-        gha("warning", "Posting slot reached but the queue is empty.")
-        jr(state, "slot_missed", reason="queue empty")
+        gha("warning", "No Reel published this slot: queue is empty after discovery/refill. This is an expected no-post outcome.")
+        jr(state, "slot_deferred", reason="queue empty; no eligible clip available")
         save_state(state)
-        return False
+        return True
     if slot and wait and slot[1] > 0:
         log.info("waiting %.0f s for the %s slot", slot[1], slot[0].strftime("%H:%M"))
         time.sleep(slot[1])
@@ -2495,6 +2608,7 @@ def publish_next(cfg, wait=True, force=False):
         jr(state, "slot_due", slot=slot[0].isoformat(timespec="minutes"))
 
     needs_review = False
+    quality_blocked = False
     candidate_limit = int(cfg.get("queue", {}).get("publish_candidate_limit", 10))
     candidates_to_check = q[:candidate_limit]
     if len(q) > len(candidates_to_check):
@@ -2525,6 +2639,7 @@ def publish_next(cfg, wait=True, force=False):
             promotion_screen = screen_queued_clip_for_promotion(cfg, clip)
             if promotion_screen["excluded"]:
                 clip.update(status="rejected", error="Editorial policy: promotional content")
+                quality_blocked = True
                 clip["qa"] = {"verdict": "hard_fail", "score": None,
                               "issues": promotion_screen["issues"]}
                 jr(state, "clip_rejected", clip=clip["id"], issues=promotion_screen["issues"])
@@ -2539,15 +2654,27 @@ def publish_next(cfg, wait=True, force=False):
                 REVIEW_DIR.mkdir(parents=True, exist_ok=True)
                 review_path = REVIEW_DIR / f"clip_{clip['id']}.mp4"
                 shutil.copy2(path, review_path)
-                clip["editorial_review_required"] = True
+                # Preserve human-review holds for uncertain content, but allow bounded retries
+                # when the screen itself failed transiently (API/response error).
+                clip["editorial_review_required"] = not bool(clip.get("promotion_screen_error"))
                 clip.update(status="needs_review", review_artifact_file=review_path.name,
                             error="Manual editorial review required: " + "; ".join(issues)[:300])
+                # API/response failures can be transient. Schedule a bounded retry; low-confidence
+                # classifications and suspected promotions remain human-review-only.
+                if clip.get("promotion_screen_error"):
+                    retry_count = int(clip.get("promotion_retry_count", 0))
+                    if retry_count < 2:
+                        clip["promotion_retry_after"] = (
+                            datetime.now(timezone.utc) + timedelta(hours=24)
+                        ).isoformat()
+
                 clip["qa"] = {"verdict": "soft_fail", "score": None, "issues": issues}
                 jr(state, "clip_needs_review", clip=clip["id"], artifact=review_path.name,
                    issues=issues, review_stage="promotion_screen")
                 save_state(state)
                 gha("warning", f"Clip {clip['id']} needs editorial review; it will not be auto-published.")
                 needs_review = True
+                quality_blocked = True
                 continue
             # Persist the clean publication screen before proceeding to the normal quality gate.
             save_state(state)
@@ -2561,9 +2688,17 @@ def publish_next(cfg, wait=True, force=False):
                            + str(clip.get("editorial_gate_reason") or "editorial review"),
                            "Candidate has a high-confidence promotional or uncertain content classification"],
             }
-        clip["qa"] = {"verdict": review["verdict"], "score": review["score"], "issues": review["issues"]}
+        clip["qa"] = {"verdict": review["verdict"], "score": review["score"], "issues": review["issues"],
+                      "fallback": bool(review.get("fallback", False))}
+        if review.get("fallback"):
+            log.warning("Clip %s accepted as best-available fallback (QA %.1f/10; preferred %.1f/10).",
+                        clip["id"], review["score"],
+                        float(cfg.get("qa", {}).get("min_ai_score", 6.5)))
+            jr(state, "clip_best_available_fallback", clip=clip["id"],
+               score=review["score"], issues=review["issues"])
         if review["verdict"] == "hard_fail":
             clip.update(status="rejected", error="QA: " + "; ".join(review["issues"])[:300])
+            quality_blocked = True
             jr(state, "clip_rejected", clip=clip["id"], issues=review["issues"])
             save_state(state)
             gha("warning", f"Clip {clip['id']} rejected by QA: {review['issues']}")
@@ -2579,6 +2714,7 @@ def publish_next(cfg, wait=True, force=False):
             save_state(state)
             gha("warning", f"Clip {clip['id']} needs manual review; it will not be auto-published.")
             needs_review = True
+            quality_blocked = True
             continue
         post_result = _post_clip(cfg, state, clip, path)
         if post_result is True:
@@ -2589,18 +2725,18 @@ def publish_next(cfg, wait=True, force=False):
         # Definite create/upload/API failure: continue to the next queued clip.
         continue
 
-    if needs_review:
+    if needs_review or quality_blocked:
         remaining = max(0, len(q) - len(candidates_to_check))
         reason = (
-            "no Reel published; candidate(s) moved to manual review"
+            "no Reel published; best available candidates were held/rejected by editorial or QA gates"
             + (f"; {remaining} queued candidate(s) not scanned due to publish_candidate_limit"
                if remaining else "")
         )
         jr(state, "slot_deferred", reason=reason,
            checked_candidates=len(candidates_to_check), queued_remaining=remaining)
         save_state(state)
-        gha("error", "No Reel was published: checked candidates require manual review.")
-        return False
+        gha("warning", "No Reel published this slot: all checked candidates failed or were held by quality gates. This is an expected no-post outcome, not a runner failure.")
+        return True
     jr(state, "slot_missed", reason="no clip could be posted")
     save_state(state)
     return False
@@ -2689,15 +2825,44 @@ def tick(cfg, force=False):
         return True
 
     ok = True
-    if not queued_for_authorized_channels(load_state(), cfg):
+    state = load_state()
+    # An interrupted process may have persisted "publishing" before Instagram replied.
+    # Quarantine it after a bounded timeout; never blindly retry a possibly live Reel.
+    stale_changed, unresolved_publishes = quarantine_stale_publish_intents(state)
+    if stale_changed:
+        save_state(state)
+    if unresolved_publishes:
+        ok = False
+        ids = [str(c.get("id", "?")) for c in unresolved_publishes]
+        gha("error", "Instagram publish outcome unresolved for clip(s) "
+            + ", ".join(ids) + ". Check Instagram, then use confirm-post or retry-uncertain.")
+        log.error("Unresolved Instagram publish outcome(s): %s", ", ".join(ids))
+    # A scheduled slot is a delivery obligation: warning-only no-post outcomes are
+    # visible as a failed workflow run so the operator can intervene.
+    scheduled_slot = due_slot(cfg, state) if not force else None
+    if retry_transient_promotion_reviews(state):
+        save_state(state)
+    state = load_state()
+    active_queue = queued_for_authorized_channels(state, cfg)
+    allowed_names = {c["name"] for c in authorized_channels(cfg)}
+    review_backlog = [c for c in state.get("clips", [])
+                      if c.get("status") == "needs_review" and c.get("channel") in allowed_names]
+    pending_count = len(active_queue) + len(review_backlog)
+    if pending_count == 0:
         try:
-            produce(cfg)                          # no eligible clips: analyse first
+            produce(cfg)                          # nothing queued or held: analyse first
         except Exception:
             log.exception("initial produce failed")
     if not publish_next(cfg, wait=True, force=force):
         ok = False
-    if len(queued_for_authorized_channels(load_state(), cfg)) < cfg["queue"]["refill_when_below"]:
-        log.info("queue is low -> finding the next episode")
+    state = load_state()
+    active_queue = queued_for_authorized_channels(state, cfg)
+    review_backlog = [c for c in state.get("clips", [])
+                      if c.get("status") == "needs_review" and c.get("channel") in allowed_names]
+    pending_count = len(active_queue) + len(review_backlog)
+    if pending_count < cfg["queue"]["refill_when_below"]:
+        log.info("pending clips low (%d queued + %d awaiting review) -> finding next episode",
+                 len(active_queue), len(review_backlog))
         try:
             produce(cfg)
         except Exception:
@@ -2707,6 +2872,24 @@ def tick(cfg, force=False):
     except Exception:
         log.exception("metrics update failed")
     write_summary()
+    if scheduled_slot:
+        final_state = load_state()
+        confirmed = confirmed_post_for_slot(cfg, final_state, scheduled_slot[0])
+        if confirmed is None:
+            reason = (
+                "No confirmed Instagram post for scheduled slot "
+                + scheduled_slot[0].strftime("%Y-%m-%d %H:%M %Z")
+                + ". Check the Actions run and clip status; do not manually retry an uncertain publish."
+            )
+            jr(final_state, "slot_delivery_failed", slot=scheduled_slot[0].isoformat(),
+               reason=reason[:300])
+            save_state(final_state)
+            gha("error", reason)
+            log.error(reason)
+            ok = False
+        else:
+            log.info("Scheduled slot delivery verified: clip %s (Instagram media %s).",
+                     confirmed.get("id"), confirmed.get("media_id", "unknown"))
     return ok
 
 
