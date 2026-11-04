@@ -12,7 +12,7 @@ import yaml
 from db import connect
 from scheduler.store import JsonFileStateStore, PostgresStateStore
 
-BASE = Path(__file__).resolve().parent
+BASE = Path(__file__).resolve().parents[1]
 JSON_STORE = JsonFileStateStore(BASE / "state" / "state.json")
 
 
