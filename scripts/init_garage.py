@@ -51,6 +51,7 @@ s3_region = "garage"
 api_bind_addr = "[::]:3900"
 """)
     CONFIG_FILE.chmod(0o600)
+    ENV_FILE.chmod(0o600)
     print(f"Garage config written to {CONFIG_FILE}; .env updated with local S3 credentials.")
 
 
