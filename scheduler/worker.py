@@ -92,7 +92,7 @@ def run_worker(poll_seconds=2):
                     try:
                         with connect() as fail_conn,fail_conn.transaction():
                             with fail_conn.cursor() as cur:
-                                cur.execute("UPDATE slots SET state='failed',last_error=%s,updated_at=now() WHERE id=%s AND state IN ('assigned','container_uploading')",
+                                cur.execute("UPDATE slots SET state='failed',last_error=%s,updated_at=now() WHERE id=%s AND state IN ('assigned','preparing','container_uploading')",
                                             (error,str(payload["slot_id"])))
                                 cur.execute("INSERT INTO events(user_id,slot_id,type,detail) VALUES (%s,%s,'job_exhausted',%s::jsonb)",
                                             (user_id,payload["slot_id"],json.dumps({"kind":kind,"error":error})))
