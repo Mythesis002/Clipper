@@ -1,17 +1,17 @@
 timezone: Asia/Kolkata
-post_times: ["06:00", "18:00"]        # Legacy fallback; weekly_post_times overrides every weekday.
+post_times: ["06:00", "18:00"]        # Fallback; weekly_post_times is the active schedule.
 weekly_post_times:
-  Monday: ["19:00"]
-  Tuesday: ["19:00"]
-  Wednesday: ["19:00"]
-  Thursday: ["19:00"]
-  Friday: ["20:00"]
-  Saturday: ["12:00"]
-  Sunday: ["19:00"]
+  Monday: ["06:00", "18:00"]
+  Tuesday: ["06:00", "18:00"]
+  Wednesday: ["06:00", "18:00"]
+  Thursday: ["06:00", "18:00"]
+  Friday: ["06:00", "18:00"]
+  Saturday: ["06:00", "18:00"]
+  Sunday: ["06:00", "18:00"]
 
 schedule:
-  max_wait_min: 25                    # runner starts early and waits up to this long for the exact slot
-  catchup_hours: 6                    # a slot missed by up to this long is still posted (heals dropped/late cron runs)
+  max_wait_min: 25                    # runner starts shortly after the slot; wait only for small early triggers
+  catchup_hours: 6                    # tolerate delayed/dropped GitHub schedule runs
 
 queue:
   clips_per_episode: 3
