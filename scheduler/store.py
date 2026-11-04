@@ -52,7 +52,17 @@ class PostgresStateStore(StateStore):
                 cur.execute("SELECT set_config('app.user_id', %s, true)", (self.user_id,))
                 cur.execute("SELECT payload FROM state_meta WHERE user_id = %s", (self.user_id,))
                 row = cur.fetchone()
-                return row[0] if row else {"episodes": {}, "clips": [], "next_id": 1}
+                state = row[0] if row else {"episodes": {}, "clips": [], "next_id": 1}
+                # Scheduler writes are authoritative for publish status. Merge the
+                # normalized clip rows back into the legacy view so manual legacy
+                # commands cannot republish a clip after the dispatcher posted it.
+                cur.execute("SELECT id,payload FROM clips WHERE user_id=%s",(self.user_id,))
+                normalized={int(cid):payload for cid,payload in cur.fetchall()}
+                for clip in state.get("clips",[]):
+                    latest=normalized.get(int(clip.get("id",-1)))
+                    if isinstance(latest,dict):
+                        clip.update(latest)
+                return state
 
     def save(self, state: dict[str, Any]) -> None:
         with self.connection_factory() as conn:
