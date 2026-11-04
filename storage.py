@@ -6,11 +6,13 @@ from pathlib import Path
 def _client():
     try:
         import boto3
+    from botocore.config import Config
     except ImportError as exc:
         raise RuntimeError("Install boto3 for S3-compatible storage") from exc
     endpoint=os.environ.get("S3_ENDPOINT_URL","").strip() or None
+    config=Config(signature_version="s3v4",s3={"addressing_style":"path"}) if endpoint else None
     return boto3.client(
-        "s3",endpoint_url=endpoint,
+        "s3",endpoint_url=endpoint,config=config,
         aws_access_key_id=os.environ.get("S3_ACCESS_KEY_ID"),
         aws_secret_access_key=os.environ.get("S3_SECRET_ACCESS_KEY"),
         region_name=os.environ.get("S3_REGION","auto"),
