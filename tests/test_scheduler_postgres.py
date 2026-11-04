@@ -86,6 +86,33 @@ class PostgreSQLSchedulerTests(unittest.TestCase):
         self.assertEqual(len(set(claimed)),500)
 
 
+
+    def test_dispatcher_crash_mid_claim_releases_after_lease_expiry(self):
+        user,account=self._tenant("UTC")
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO slots(user_id,account_id,local_date,local_time,tz_snapshot,run_at_utc,state)
+                   VALUES (%s,%s,'2026-11-04','19:00','UTC',now(),'container_ready') RETURNING id""",
+                (user,account))
+            slot_id=cur.fetchone()[0]
+        self.conn.commit()
+        with psycopg.connect(DSN) as first,first.transaction():
+            first_claim=claim_slots_near_due(first,"dispatcher-crashed",seconds_ahead=1,limit=1,lease_seconds=1)
+        self.assertEqual(first_claim[0][0],slot_id)
+        # Simulate process death: its connection is gone, lease expires in DB.
+        with self.conn.transaction():
+            with self.conn.cursor() as cur:
+                cur.execute("UPDATE slots SET lease_until=now()-interval '1 second' WHERE id=%s",(slot_id,))
+        with psycopg.connect(DSN) as second,second.transaction():
+            second_claim=claim_slots_near_due(second,"dispatcher-recovery",seconds_ahead=1,limit=1,lease_seconds=30)
+        self.assertEqual(second_claim[0][0],slot_id)
+        with self.conn.transaction():
+            stale=transition_slot(self.conn,slot_id,"container_ready","publishing","dispatcher-crashed")
+        self.assertFalse(stale)
+        with self.conn.transaction():
+            recovered=transition_slot(self.conn,slot_id,"container_ready","publishing","dispatcher-recovery")
+        self.assertTrue(recovered)
+
     def test_global_provider_bucket_and_circuit_are_database_shared(self):
         os.environ["GEMINI_RATE_CAPACITY"]="3"
         os.environ["GEMINI_REQUESTS_PER_SECOND"]="10"
