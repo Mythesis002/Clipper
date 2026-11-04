@@ -28,7 +28,6 @@ import logging
 import os
 import random
 import re
-import random
 import shutil
 import subprocess
 import sys
