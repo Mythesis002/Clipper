@@ -18,6 +18,7 @@ import requests
 from contextlib import contextmanager
 
 from db import connect
+from clock import DatabaseClock
 from scheduler.crypto import decrypt_token
 from scheduler.provider_limits import provider_request, ProviderCircuitOpen
 from scheduler.instagram_limits import assert_publish_quota_available
@@ -34,9 +35,7 @@ def _publish_url(graph_version: str, account_external_id: str) -> str:
 
 def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) -> None:
     slot_id,user_id,account_id,clip_id,container_id,run_at,max_late,attempts=slot
-    with db_conn.cursor() as cur:
-        cur.execute("SELECT now()")
-        now=cur.fetchone()[0]
+    now=DatabaseClock.now_on(db_conn)
     late_limit=run_at+__import__("datetime").timedelta(minutes=max_late)
     if now>late_limit:
         with db_conn.transaction():
@@ -121,9 +120,7 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) ->
         return
 
     with db_conn.transaction():
-        with db_conn.cursor() as cur:
-            cur.execute("SELECT now()")
-            published_at=cur.fetchone()[0]
+        published_at=DatabaseClock.now_on(db_conn)
         transition_slot(db_conn,slot_id,"publishing","published",
                         media_id=str(media_id),published_at=published_at,
                         lease_owner=None,lease_until=None,last_error=None)
@@ -203,10 +200,7 @@ def _account_publish_lock(account_id):
 
 def _dispatch_claimed_slot(slot, dispatcher_id, stop_event=None):
     slot_id,user_id,account_id,clip_id,container_id,run_at,max_late,attempts=slot
-    with connect() as clock_conn:
-        with clock_conn.cursor() as cur:
-            cur.execute("SELECT now()")
-            db_now=cur.fetchone()[0]
+    db_now=DatabaseClock(connect).now()
     delay=(run_at-db_now).total_seconds()
     if delay>0:
         # Claimed slots are at most seconds_ahead into the future and carry a
