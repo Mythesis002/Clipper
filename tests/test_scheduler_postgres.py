@@ -25,6 +25,34 @@ class PostgreSQLSchedulerTests(unittest.TestCase):
     def setUpClass(cls):
         cls.conn=psycopg.connect(DSN)
         cls.created_users=[]
+        # Keep integration-test failures bounded: a leaked row lock or blocked
+        # query should fail with a useful traceback instead of consuming the
+        # entire GitHub Actions job timeout.
+        with cls.conn.cursor() as cur:
+            cur.execute("SET statement_timeout = '30s'")
+            cur.execute("SET lock_timeout = '5s'")
+        cls.conn.commit()
+
+    def setUp(self):
+        # psycopg starts implicit transactions for cursor operations. Reset any
+        # transaction left by a previous test before opening a new test case.
+        if not self.conn.closed:
+            self.conn.rollback()
+            with self.conn.cursor() as cur:
+                cur.execute("SET statement_timeout = '30s'")
+                cur.execute("SET lock_timeout = '5s'")
+            self.conn.commit()
+
+    def tearDown(self):
+        # Do not let one failed test poison the shared connection or retain
+        # locks that make later provider/dispatcher tests hang.
+        if not self.conn.closed:
+            self.conn.rollback()
+
+    @classmethod
+    def tearDownClass(cls):
+        if getattr(cls, "conn", None) is not None and not cls.conn.closed:
+            cls.conn.close()
 
     # Test rows intentionally remain in the ephemeral CI database. The audit
     # events table is append-only, so cascading cleanup would violate its trigger.
