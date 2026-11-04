@@ -270,10 +270,10 @@ def run_dispatcher(poll_seconds=0.5, claim_limit=None, stop_event=None):
     dispatcher_id=os.environ.get("DISPATCHER_ID") or f"{socket.gethostname()}-{os.getpid()}"
     max_workers=max(1,int(os.environ.get("PUBLISH_CONCURRENCY","300")))
     claim_limit=int(claim_limit or max_workers)
+    stop_event=stop_event or threading.Event()
     log.info("dispatcher online id=%s concurrency=%d",dispatcher_id,max_workers)
     with ThreadPoolExecutor(max_workers=max_workers,thread_name_prefix="ig-publish") as pool:
         inflight=set()
-        stop_event=stop_event or threading.Event()
         while not stop_event.is_set():
             try:
                 completed={f for f in inflight if f.done()}
@@ -282,6 +282,7 @@ def run_dispatcher(poll_seconds=0.5, claim_limit=None, stop_event=None):
                     try: future.result()
                     except Exception: log.exception("slot dispatcher task failed")
                 free=max(0,max_workers-len(inflight))
+                slots=[]
                 with connect() as conn,conn.transaction():
                     with conn.cursor() as cur:
                         cur.execute(
@@ -289,7 +290,6 @@ def run_dispatcher(poll_seconds=0.5, claim_limit=None, stop_event=None):
                             "ON CONFLICT(dispatcher_id) DO UPDATE SET ts=now(),detail=EXCLUDED.detail",
                             (dispatcher_id,json.dumps({"inflight":len(inflight),"capacity":max_workers})),
                         )
-                    slots=[]
                     if free:
                         slots=claim_slots_near_due(conn,dispatcher_id,seconds_ahead=3,
                                                    limit=min(free,claim_limit),lease_seconds=45)
@@ -298,10 +298,13 @@ def run_dispatcher(poll_seconds=0.5, claim_limit=None, stop_event=None):
                 if inflight:
                     wait(inflight,timeout=poll_seconds,return_when=FIRST_COMPLETED)
                 else:
-                    time.sleep(poll_seconds)
+                    stop_event.wait(poll_seconds)
             except Exception:
                 log.exception("dispatcher loop error; retrying next poll")
-                time.sleep(poll_seconds)
+                stop_event.wait(poll_seconds)
+
+
+
 
 
 if __name__ == "__main__":
