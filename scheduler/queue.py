@@ -11,7 +11,7 @@ def claim_jobs(conn, worker_id: str, limit: int = 1, lease_seconds: int = 120):
                  WHERE (state IN ('pending','retry') OR (state='leased' AND lease_until < now()))
                    AND run_after <= now()
                  ORDER BY priority ASC, run_after ASC, created_at ASC
-                 FOR UPDATE SKIP LOCKED LIMIT %s
+                 LIMIT %s FOR UPDATE SKIP LOCKED
                )
                UPDATE jobs j SET state='leased', lease_owner=%s,
                    lease_until=now() + (%s * interval '1 second'),
@@ -55,7 +55,7 @@ def claim_due_slots(conn, dispatcher_id: str, limit: int = 100, lease_seconds: i
                  WHERE state='container_ready' AND run_at_utc <= now()
                    AND (lease_until IS NULL OR lease_until < now())
                  ORDER BY run_at_utc ASC
-                 FOR UPDATE SKIP LOCKED LIMIT %s
+                 LIMIT %s FOR UPDATE SKIP LOCKED
                )
                UPDATE slots s SET lease_owner=%s,
                    lease_until=now() + (%s * interval '1 second'), updated_at=now()
@@ -83,7 +83,7 @@ def claim_slots_near_due(conn, dispatcher_id: str, seconds_ahead: int = 8,
                    AND run_at_utc + (max_late_minutes * interval '1 minute') >= now()
                    AND (lease_until IS NULL OR lease_until < now())
                  ORDER BY run_at_utc ASC
-                 FOR UPDATE SKIP LOCKED LIMIT %s
+                 LIMIT %s FOR UPDATE SKIP LOCKED
                )
                UPDATE slots s SET lease_owner=%s,
                    lease_until=now() + (%s * interval '1 second'), updated_at=now()
