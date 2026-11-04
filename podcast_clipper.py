@@ -2778,9 +2778,15 @@ def tick(cfg, force=False):
     state = load_state()
     if retry_transient_promotion_reviews(state):
         save_state(state)
-    if not queued_for_authorized_channels(load_state(), cfg):
+    state = load_state()
+    active_queue = queued_for_authorized_channels(state, cfg)
+    allowed_names = {c["name"] for c in authorized_channels(cfg)}
+    review_backlog = [c for c in state.get("clips", [])
+                      if c.get("status") == "needs_review" and c.get("channel") in allowed_names]
+    pending_count = len(active_queue) + len(review_backlog)
+    if pending_count == 0:
         try:
-            produce(cfg)                          # no eligible clips: analyse first
+            produce(cfg)                          # nothing queued or held: analyse first
         except Exception:
             log.exception("initial produce failed")
     if not publish_next(cfg, wait=True, force=force):
