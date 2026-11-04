@@ -27,7 +27,7 @@ Requirements: Docker Compose, Git, Python 3.12 for bootstrap scripts.
 9. Apply migrations (fresh Postgres volume applies them via container entrypoint; for an existing DB, apply both):
    - psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/001_scheduler.sql
    - psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/002_scheduler_seed.sql
-10. Bootstrap tenant, source attestations, Instagram account row, and local config schedule: python scripts/bootstrap_user.py
+10. Bootstrap tenant, source attestations, Instagram account row, and local config schedule: python scripts/bootstrap_user.py. After success, remove IG_ACCESS_TOKEN and YT_TOKEN_JSON from the host .env (they are bootstrap-only) and keep the encryption key file safely backed up.
 11. Back up JSON state and import into Postgres:
    - cp state/state.json state/state.json.pre-scheduler.bak
    - python scripts/import_legacy_state.py
