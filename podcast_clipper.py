@@ -1333,6 +1333,46 @@ def queued_for_authorized_channels(state, cfg):
     return [clip for clip in queued(state) if clip.get("channel") in allowed_names]
 
 
+def retry_transient_promotion_reviews(state, max_retries=2, now=None):
+    """Requeue only transient promotion-screen API failures after a cooldown.
+
+    Uncertain classifications, possible promotions, final-video QA failures, and
+    technical failures remain held for human review. Retries are bounded.
+    """
+    now = now or datetime.now(timezone.utc)
+    changed = 0
+    for clip in state.get("clips", []):
+        if clip.get("status") != "needs_review":
+            continue
+        if not clip.get("promotion_screen_error"):
+            continue
+        if clip.get("editorial_review_required") or clip.get("editorial_gate_reason"):
+            continue
+        retries = int(clip.get("promotion_retry_count", 0))
+        if retries >= max_retries:
+            continue
+        retry_after = clip.get("promotion_retry_after")
+        if not retry_after:
+            continue
+        try:
+            due = datetime.fromisoformat(retry_after)
+            if due.tzinfo is None:
+                due = due.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            continue
+        if due > now:
+            continue
+        clip.update(status="queued", promotion_retry_count=retries + 1,
+                    promotion_retry_after=None, error=None)
+        clip.pop("qa", None)
+        jr(state, "promotion_screen_retry_queued", clip=clip.get("id"),
+           retry=clip["promotion_retry_count"])
+        log.info("Requeued clip %s for bounded promotion-screen retry (%d/%d).",
+                 clip.get("id"), clip["promotion_retry_count"], max_retries)
+        changed += 1
+    return changed
+
+
 # =============================================================================
 # 4. RENDER (happens at post time)
 # =============================================================================
@@ -2728,6 +2768,9 @@ def tick(cfg, force=False):
         return True
 
     ok = True
+    state = load_state()
+    if retry_transient_promotion_reviews(state):
+        save_state(state)
     if not queued_for_authorized_channels(load_state(), cfg):
         try:
             produce(cfg)                          # no eligible clips: analyse first
