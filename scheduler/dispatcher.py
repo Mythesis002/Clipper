@@ -279,7 +279,7 @@ def _dispatch_claimed_slot(slot, dispatcher_id, stop_event=None):
 
 def run_dispatcher(poll_seconds=0.5, claim_limit=None, stop_event=None):
     dispatcher_id=os.environ.get("DISPATCHER_ID") or f"{socket.gethostname()}-{os.getpid()}"
-    max_workers=max(1,int(os.environ.get("PUBLISH_CONCURRENCY","300")))
+    max_workers=max(1,int(os.environ.get("PUBLISH_CONCURRENCY","32")))
     claim_limit=int(claim_limit or max_workers)
     stop_event=stop_event or threading.Event()
     log.info("dispatcher online id=%s concurrency=%d",dispatcher_id,max_workers)
