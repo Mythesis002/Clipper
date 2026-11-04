@@ -13,6 +13,7 @@ except ImportError:
 from scheduler.materializer import materialize_user
 from scheduler.queue import claim_slots_near_due, transition_slot
 from scheduler.provider_limits import provider_request,ProviderCircuitOpen
+from scheduler.dispatcher import _publish_one
 
 
 DSN=os.environ.get("TEST_DATABASE_URL","").strip()
@@ -86,6 +87,29 @@ class PostgreSQLSchedulerTests(unittest.TestCase):
         self.assertEqual(len(set(claimed)),500)
 
 
+
+
+    def test_media_publish_timeout_is_uncertain_and_never_auto_retried(self):
+        user,account=self._tenant("UTC")
+        dispatcher_id="timeout-chaos-dispatcher"
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO slots(user_id,account_id,local_date,local_time,tz_snapshot,run_at_utc,
+                   state,container_id,quota_checked_at,lease_owner,lease_until)
+                   VALUES (%s,%s,'2026-11-04','20:00','UTC',now(),'container_ready','container-timeout',
+                   now(),%s,now()+interval '60 seconds') RETURNING id,run_at_utc,max_late_minutes,attempts""",
+                (user,account,dispatcher_id))
+            row=cur.fetchone()
+        self.conn.commit()
+        slot=(str(row[0]),user,account,None,"container-timeout",row[1],row[2],row[3])
+        with patch("scheduler.dispatcher.requests.post",side_effect=requests.Timeout("simulated lost response")) as post:
+            _publish_one(slot,dispatcher_id,{"external_id":"ig-test","access_token":"test-token"},
+                         {"graph_version":"v25.0"},db_conn=self.conn)
+        self.assertEqual(post.call_count,1)
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT state FROM slots WHERE id=%s",(row[0],))
+            self.assertEqual(cur.fetchone()[0],"publish_uncertain")
+        self.conn.commit()
 
     def test_dispatcher_crash_mid_claim_releases_after_lease_expiry(self):
         user,account=self._tenant("UTC")
