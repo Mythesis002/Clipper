@@ -31,8 +31,8 @@ Requirements: Docker Compose, Git, Python 3.12 for bootstrap scripts.
 11. Back up JSON state and import into Postgres:
    - cp state/state.json state/state.json.pre-scheduler.bak
    - python scripts/import_legacy_state.py
-12. Start services: docker compose up -d --build --scale worker=2 --scale dispatcher=2
-   Compose defaults to 150 publishing threads per dispatcher (300 across two replicas). Tune only after API/DB load testing. Some Compose versions ignore deploy.replicas; use explicit --scale flags.
+12. Start services: docker compose up -d --build --scale worker=4 --scale dispatcher=2
+   Four worker replicas are a starting point for 1,000 scheduled posts/day; benchmark actual render/QA duration and scale workers before enabling that volume. Compose defaults to 150 publishing threads per dispatcher (300 across two replicas). Tune only after API/DB load testing. Some Compose versions ignore deploy.replicas; use explicit --scale flags.
 
 ## Phase 1 environment
 
