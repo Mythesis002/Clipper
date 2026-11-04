@@ -12,6 +12,22 @@ permissions:
 jobs:
   regression-tests:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: clipper_test
+          POSTGRES_USER: clipper
+          POSTGRES_PASSWORD: clipper_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U clipper -d clipper_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://clipper:clipper_test@localhost:5432/clipper_test
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -19,7 +35,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - name: Install application dependencies
-        run: python -m pip install --upgrade -r requirements.txt
-      - name: Run offline regression tests
+      - name: Install application and scheduler dependencies
+        run: python -m pip install --upgrade -r requirements.txt -r requirements-scheduler.txt
+      - name: Apply scheduler schema
+        run: psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/001_scheduler.sql
+      - name: Run regression and PostgreSQL scheduler tests
         run: python -m unittest discover -s tests -v
