@@ -2132,6 +2132,56 @@ def due_slot(cfg, state, now=None):
     return min(due, key=lambda x: x[0]) if due else None
 
 
+def confirmed_post_for_slot(cfg, state, slot):
+    """Return a confirmed Instagram post for a slot; queued/publishing/uncertain is not delivery."""
+    tz = ZoneInfo(cfg["timezone"])
+    sch = cfg["schedule"]
+    lower = slot - timedelta(seconds=sch["max_wait_min"] * 60 + 300)
+    upper = slot + timedelta(seconds=sch["catchup_hours"] * 3600)
+    for clip in state.get("clips", []):
+        if clip.get("status") != "posted" or not clip.get("posted_at"):
+            continue
+        try:
+            stamp = datetime.fromisoformat(clip["posted_at"])
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=tz)
+            stamp = stamp.astimezone(tz)
+        except (TypeError, ValueError):
+            continue
+        if lower <= stamp <= upper:
+            return clip
+    return None
+
+
+def quarantine_stale_publish_intents(state, timeout_minutes=15, now=None):
+    """Turn abandoned 'publishing' intents into an explicit uncertain state, never auto-repost."""
+    now = now or now_utc()
+    changed = False
+    unresolved = []
+    for clip in state.get("clips", []):
+        status = clip.get("status")
+        if status == "publishing":
+            try:
+                started = datetime.fromisoformat(clip["publish_started_at"])
+                if started.tzinfo is None:
+                    started = started.replace(tzinfo=timezone.utc)
+                age = (now - started.astimezone(timezone.utc)).total_seconds()
+            except (KeyError, TypeError, ValueError):
+                age = timeout_minutes * 60 + 1
+            if age >= timeout_minutes * 60:
+                clip.update(
+                    status="publish_uncertain",
+                    error="Publishing intent is stale; check Instagram before retrying.",
+                )
+                jr(state, "publish_intent_quarantined", clip=clip.get("id"),
+                   age_minutes=round(age / 60))
+                changed = True
+                status = "publish_uncertain"
+        if status == "publish_uncertain":
+            unresolved.append(clip)
+    return changed, unresolved
+
+
 def _fail(state, clip, ex, stage):
     clip["attempts"] += 1
     clip["error"] = f"{stage}: {str(ex)[:350]}"
@@ -2776,6 +2826,20 @@ def tick(cfg, force=False):
 
     ok = True
     state = load_state()
+    # An interrupted process may have persisted "publishing" before Instagram replied.
+    # Quarantine it after a bounded timeout; never blindly retry a possibly live Reel.
+    stale_changed, unresolved_publishes = quarantine_stale_publish_intents(state)
+    if stale_changed:
+        save_state(state)
+    if unresolved_publishes:
+        ok = False
+        ids = [str(c.get("id", "?")) for c in unresolved_publishes]
+        gha("error", "Instagram publish outcome unresolved for clip(s) "
+            + ", ".join(ids) + ". Check Instagram, then use confirm-post or retry-uncertain.")
+        log.error("Unresolved Instagram publish outcome(s): %s", ", ".join(ids))
+    # A scheduled slot is a delivery obligation: warning-only no-post outcomes are
+    # visible as a failed workflow run so the operator can intervene.
+    scheduled_slot = due_slot(cfg, state) if not force else None
     if retry_transient_promotion_reviews(state):
         save_state(state)
     state = load_state()
@@ -2808,6 +2872,24 @@ def tick(cfg, force=False):
     except Exception:
         log.exception("metrics update failed")
     write_summary()
+    if scheduled_slot:
+        final_state = load_state()
+        confirmed = confirmed_post_for_slot(cfg, final_state, scheduled_slot[0])
+        if confirmed is None:
+            reason = (
+                "No confirmed Instagram post for scheduled slot "
+                + scheduled_slot[0].strftime("%Y-%m-%d %H:%M %Z")
+                + ". Check the Actions run and clip status; do not manually retry an uncertain publish."
+            )
+            jr(final_state, "slot_delivery_failed", slot=scheduled_slot[0].isoformat(),
+               reason=reason[:300])
+            save_state(final_state)
+            gha("error", reason)
+            log.error(reason)
+            ok = False
+        else:
+            log.info("Scheduled slot delivery verified: clip %s (Instagram media %s).",
+                     confirmed.get("id"), confirmed.get("media_id", "unknown"))
     return ok
 
 
