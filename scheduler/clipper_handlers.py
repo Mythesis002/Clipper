@@ -18,6 +18,7 @@ from scheduler.queue import append_event
 from scheduler.planner import _enqueue,swap_failed_clip
 from storage import upload_file,download_file
 from scheduler.instagram_limits import assert_publish_quota_available
+from scheduler.crypto import decrypt_token
 
 log=logging.getLogger("clipper.handlers")
 BASE=Path(__file__).resolve().parents[1]
@@ -92,11 +93,17 @@ def upload_container(user_id,payload):
             row=cur.fetchone()
     if not row or not row[0]: raise RuntimeError("rendered clip storage key missing")
     storage_key,clip=row
-    ig_id=os.environ.get("IG_USER_ID","").strip()
-    token=os.environ.get("IG_ACCESS_TOKEN","").strip()
-    quota=assert_publish_quota_available(
-        os.environ.get("IG_GRAPH_VERSION","v25.0"),ig_id,token
-    )
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT a.external_id,a.token_ciphertext,a.status FROM slots s
+                   JOIN connected_accounts a ON a.id=s.account_id AND a.user_id=s.user_id
+                   WHERE s.id=%s AND s.user_id=%s""",(slot_id,user_id))
+            account=cur.fetchone()
+    if not account or account[2]!="active" or not account[1]:
+        raise RuntimeError("Instagram account inactive or missing encrypted token")
+    ig_id,token=account[0],decrypt_token(account[1])
+    quota=assert_publish_quota_available(os.environ.get("IG_GRAPH_VERSION","v25.0"),ig_id,token)
     with tempfile.TemporaryDirectory(prefix="clipper-container-") as temp:
         path=download_file(storage_key,Path(temp)/"clip.mp4")
         cfg=_cfg()
