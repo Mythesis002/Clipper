@@ -10,7 +10,7 @@ import time
 from datetime import timedelta
 
 from db import connect
-from scheduler.queue import append_event
+from scheduler.queue import append_event\nfrom scheduler.materializer import materialize_active_users
 
 log=logging.getLogger("clipper.planner")
 
@@ -44,6 +44,12 @@ def assign_due_slots(conn, lead_minutes=360, limit=100):
                 cur.execute(
                     """SELECT c.id,c.payload FROM clips c
                        WHERE c.user_id=%s AND c.status IN ('queued','ready')
+                         AND EXISTS (
+                           SELECT 1 FROM sources src
+                           WHERE src.user_id=c.user_id
+                             AND src.youtube_handle=c.payload->>'source_handle'
+                             AND src.permission_attested=true AND src.status='active'
+                         )
                          AND NOT EXISTS (
                            SELECT 1 FROM slots x WHERE x.user_id=c.user_id
                              AND x.clip_id=c.id AND x.state NOT IN ('published','missed','failed','cancelled')
@@ -115,14 +121,36 @@ def enqueue_container_uploads(conn, lead_minutes=10, limit=200):
     return count
 
 
+def mark_expired_slots(conn, limit=500):
+    """Mark unpublishable slots missed after the user's late deadline; never touch publishing."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """WITH expired AS (
+                 SELECT id,user_id FROM slots
+                 WHERE state IN ('scheduled','assigned','verified','container_uploading','container_ready')
+                   AND run_at_utc + (max_late_minutes * interval '1 minute') < now()
+                 ORDER BY run_at_utc FOR UPDATE SKIP LOCKED LIMIT %s
+               )
+               UPDATE slots s SET state='missed',last_error='max_late_minutes exceeded',
+                 lease_owner=NULL,lease_until=NULL,updated_at=now()
+               FROM expired e WHERE s.id=e.id RETURNING s.id,s.user_id""",(limit,))
+        rows=cur.fetchall()
+        for slot_id,user_id in rows:
+            append_event(conn,user_id,slot_id,"slot_missed",{"reason":"max_late_minutes exceeded"})
+        return len(rows)
+
+
 def run_planner(poll_seconds=5):
     while True:
         try:
             with connect() as conn,conn.transaction():
+                materialized=materialize_active_users(conn,horizon_days=7)
                 assigned=assign_due_slots(conn)
                 containers=enqueue_container_uploads(conn)
-            if assigned or containers:
-                log.info("planner assigned=%d container_jobs=%d",assigned,containers)
+                missed=mark_expired_slots(conn)
+            if materialized or assigned or containers or missed:
+                log.info("planner materialized=%d assigned=%d container_jobs=%d missed=%d",
+                         materialized,assigned,containers,missed)
         except Exception:
             log.exception("planner failed this iteration")
         time.sleep(poll_seconds)
