@@ -2791,8 +2791,14 @@ def tick(cfg, force=False):
             log.exception("initial produce failed")
     if not publish_next(cfg, wait=True, force=force):
         ok = False
-    if len(queued_for_authorized_channels(load_state(), cfg)) < cfg["queue"]["refill_when_below"]:
-        log.info("queue is low -> finding the next episode")
+    state = load_state()
+    active_queue = queued_for_authorized_channels(state, cfg)
+    review_backlog = [c for c in state.get("clips", [])
+                      if c.get("status") == "needs_review" and c.get("channel") in allowed_names]
+    pending_count = len(active_queue) + len(review_backlog)
+    if pending_count < cfg["queue"]["refill_when_below"]:
+        log.info("pending clips low (%d queued + %d awaiting review) -> finding next episode",
+                 len(active_queue), len(review_backlog))
         try:
             produce(cfg)
         except Exception:
