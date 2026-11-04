@@ -70,7 +70,7 @@ services:
       postgres: {condition: service_healthy}
       minio-init: {condition: service_completed_successfully}
     deploy:
-      replicas: 2
+      replicas: 4
 
   dispatcher:
     build: .
