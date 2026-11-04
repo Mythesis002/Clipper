@@ -6,6 +6,10 @@ on:
   push:
     branches: [fix/publish-pipeline-reliability]
 
+concurrency:
+  group: scheduler-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
