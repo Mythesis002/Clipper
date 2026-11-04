@@ -1,14 +1,44 @@
 """Postgres jobs and slot lease primitives using SKIP LOCKED."""
+import json
 from datetime import timedelta
+
+
+def _mark_exhausted_job_slots(conn, rows):
+    """Fail slots whose job lease expired after exhausting its retry budget."""
+    for job_id,user_id,payload,kind in rows:
+        if not isinstance(payload,dict) or not payload.get("slot_id"):
+            continue
+        slot_id=str(payload["slot_id"])
+        with conn.cursor() as cur:
+            cur.execute(
+                """UPDATE slots SET state='failed',last_error=%s,lease_owner=NULL,lease_until=NULL,updated_at=now()
+                   WHERE id=%s AND user_id=%s
+                     AND state IN ('scheduled','assigned','preparing','verified','container_uploading')
+                   RETURNING id""",
+                (f"job {kind} exhausted retries after lease expiry",slot_id,user_id))
+            if cur.fetchone():
+                cur.execute(
+                    """INSERT INTO events(user_id,slot_id,type,detail)
+                       VALUES (%s,%s,'job_exhausted',%s::jsonb)""",
+                    (user_id,slot_id,json.dumps({"job_id":str(job_id),"kind":kind,
+                                               "reason":"worker lease expired at retry limit"})))
 
 
 def claim_jobs(conn, worker_id: str, limit: int = 1, lease_seconds: int = 120):
     """Claim ready jobs in priority order; expired leases are eligible for reclaim."""
     with conn.cursor() as cur:
         cur.execute(
+            """UPDATE jobs SET state='failed',lease_owner=NULL,lease_until=NULL,
+                   last_error='worker lease expired after max_attempts',updated_at=now()
+               WHERE state='leased' AND lease_until < now() AND attempts >= max_attempts
+               RETURNING id,user_id,payload,kind"""
+        )
+        _mark_exhausted_job_slots(conn,cur.fetchall())
+        cur.execute(
             """WITH picked AS (
                  SELECT id FROM jobs
                  WHERE (state IN ('pending','retry') OR (state='leased' AND lease_until < now()))
+                   AND attempts < max_attempts
                    AND run_after <= now()
                  ORDER BY priority ASC, run_after ASC, created_at ASC
                  LIMIT %s FOR UPDATE SKIP LOCKED
