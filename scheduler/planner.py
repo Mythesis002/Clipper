@@ -1,0 +1,133 @@
+"""Slot planner: assigns clips early and enqueues preparation/container jobs.
+
+This process does no rendering, Gemini work, downloads, or publishing. It only
+uses PostgreSQL transactions to advance slots and enqueue idempotent jobs.
+"""
+import json
+import logging
+import os
+import time
+from datetime import timedelta
+
+from db import connect
+from scheduler.queue import append_event
+
+log=logging.getLogger("clipper.planner")
+
+
+def _enqueue(cur, user_id, kind, payload, priority, dedupe_key, run_after=None):
+    cur.execute(
+        """INSERT INTO jobs(user_id,kind,payload,priority,run_after,dedupe_key)
+           VALUES (%s,%s,%s::jsonb,%s,coalesce(%s,now()),%s)
+           ON CONFLICT(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING""",
+        (user_id,kind,json.dumps(payload),priority,run_after,dedupe_key),
+    )
+
+
+def assign_due_slots(conn, lead_minutes=360, limit=100):
+    """CAS scheduled slots to assigned and reserve the best eligible ready clip."""
+    assigned=0
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT s.id,s.user_id,s.account_id,s.run_at_utc
+               FROM slots s JOIN users u ON u.id=s.user_id
+               WHERE s.state='scheduled' AND u.status='active'
+                 AND s.run_at_utc <= now() + (%s * interval '1 minute')
+                 AND s.run_at_utc > now() - (s.max_late_minutes * interval '1 minute')
+               ORDER BY s.run_at_utc FOR UPDATE OF s SKIP LOCKED LIMIT %s""",
+            (lead_minutes,limit),
+        )
+        slots=cur.fetchall()
+    for slot_id,user_id,account_id,run_at in slots:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT c.id,c.payload FROM clips c
+                       WHERE c.user_id=%s AND c.status IN ('queued','ready')
+                         AND NOT EXISTS (
+                           SELECT 1 FROM slots x WHERE x.user_id=c.user_id
+                             AND x.clip_id=c.id AND x.state NOT IN ('published','missed','failed','cancelled')
+                         )
+                       ORDER BY c.score DESC NULLS LAST,c.created_at,c.id
+                       FOR UPDATE SKIP LOCKED LIMIT 1""",
+                    (user_id,),
+                )
+                clip=cur.fetchone()
+                if not clip:
+                    cur.execute(
+                        """UPDATE slots SET state='assigned',last_error='no ready clip; production requested',
+                           updated_at=now() WHERE id=%s AND state='scheduled' RETURNING id""",
+                        (slot_id,),
+                    )
+                    if cur.fetchone():
+                        _enqueue(cur,user_id,"produce",{"slot_id":str(slot_id)},0,
+                                 f"slot:{slot_id}:produce",run_after=None)
+                        append_event(conn,user_id,slot_id,"buffer_empty_produce_enqueued",{})
+                    continue
+                clip_id,payload=clip
+                cur.execute(
+                    """UPDATE slots SET state='assigned',clip_id=%s,updated_at=now()
+                       WHERE id=%s AND state='scheduled' RETURNING id""",
+                    (clip_id,slot_id),
+                )
+                if not cur.fetchone():
+                    continue
+                cur.execute("UPDATE clips SET status='assigned',updated_at=now() WHERE user_id=%s AND id=%s",
+                            (user_id,clip_id))
+                _enqueue(cur,user_id,"prepare_clip",
+                         {"slot_id":str(slot_id),"clip_id":int(clip_id),"clip":payload},
+                         10,f"slot:{slot_id}:prepare")
+                append_event(conn,user_id,slot_id,"slot_assigned",{"clip_id":int(clip_id)})
+                assigned+=1
+    return assigned
+
+
+def enqueue_container_uploads(conn, lead_minutes=10, limit=200):
+    count=0
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT id,user_id,clip_id FROM slots
+               WHERE state='verified' AND run_at_utc <= now() + (%s * interval '1 minute')
+                 AND run_at_utc > now() - (max_late_minutes * interval '1 minute')
+               ORDER BY run_at_utc FOR UPDATE SKIP LOCKED LIMIT %s""",
+            (lead_minutes,limit),
+        )
+        slots=cur.fetchall()
+    for slot_id,user_id,clip_id in slots:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute("SELECT payload FROM clips WHERE user_id=%s AND id=%s",
+                            (user_id,clip_id))
+                row=cur.fetchone()
+                if not row:
+                    cur.execute("UPDATE slots SET state='failed',last_error='clip row missing' WHERE id=%s AND state='verified'",(slot_id,))
+                    continue
+                cur.execute(
+                    """UPDATE slots SET state='container_uploading',updated_at=now()
+                       WHERE id=%s AND state='verified' RETURNING id""",(slot_id,))
+                if not cur.fetchone():
+                    continue
+                _enqueue(cur,user_id,"upload_container",
+                         {"slot_id":str(slot_id),"clip_id":int(clip_id),"clip":row[0]},
+                         5,f"slot:{slot_id}:container")
+                append_event(conn,user_id,slot_id,"container_upload_enqueued",{})
+                count+=1
+    return count
+
+
+def run_planner(poll_seconds=5):
+    while True:
+        try:
+            with connect() as conn,conn.transaction():
+                assigned=assign_due_slots(conn)
+                containers=enqueue_container_uploads(conn)
+            if assigned or containers:
+                log.info("planner assigned=%d container_jobs=%d",assigned,containers)
+        except Exception:
+            log.exception("planner failed this iteration")
+        time.sleep(poll_seconds)
+
+
+if __name__=="__main__":
+    logging.basicConfig(level=logging.INFO)
+    run_planner()
