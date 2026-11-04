@@ -82,7 +82,7 @@ def assign_due_slots(conn, lead_minutes=360, limit=100):
                             (user_id,clip_id))
                 _enqueue(cur,user_id,"prepare_clip",
                          {"slot_id":str(slot_id),"clip_id":int(clip_id),"clip":payload},
-                         10,f"slot:{slot_id}:prepare")
+                         10,f"slot:{slot_id}:prepare:{int(clip_id)}")
                 append_event(conn,user_id,slot_id,"slot_assigned",{"clip_id":int(clip_id)})
                 assigned+=1
     return assigned
