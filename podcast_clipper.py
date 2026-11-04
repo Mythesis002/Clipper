@@ -2049,37 +2049,41 @@ def post_reel(cfg, video_path, caption):
 
 
 def due_slot(cfg, state, now=None):
-    """The posting slot that still needs a post -> (slot_datetime, seconds_until_slot), or None.
-    Looks `max_wait_min` ahead (the runner starts early and waits) and `catchup_hours` back, so a late,
-    skipped or failed GitHub cron run is healed by the next one. A post near a slot counts as that slot's post."""
+    """Return the next unposted daily slot as (slot_datetime, seconds_until_slot).
+
+    Slots come only from config.post_times and repeat every day in the configured
+    timezone. A recent post/publish attempt accounts for that slot; catch-up
+    handles delayed or skipped GitHub schedule events.
+    """
     tz = ZoneInfo(cfg["timezone"])
     now = now or datetime.now(tz)
     sch = cfg["schedule"]
     wait_s, catch_s = sch["max_wait_min"] * 60, sch["catchup_hours"] * 3600
     posted = []
-    for c in state["clips"]:
-        stamp = c.get("posted_at") or c.get("publish_started_at")
-        if c.get("status") in ("posted", "publishing", "publish_uncertain") and stamp:
-            posted.append(datetime.fromisoformat(stamp))
+    for clip in state["clips"]:
+        stamp = clip.get("posted_at") or clip.get("publish_started_at")
+        if clip.get("status") in ("posted", "publishing", "publish_uncertain") and stamp:
+            try:
+                posted.append(datetime.fromisoformat(stamp))
+            except (TypeError, ValueError):
+                continue
+
     due = []
-    weekly = cfg.get("weekly_post_times") or {}
-    for day in (-1, 0, 1):
-        date = (now + timedelta(days=day)).date()
-        weekday_name = date.strftime("%A")
-        slots = weekly.get(weekday_name, cfg.get("post_times", []))
-        for hhmm in slots:
-            h, m = map(int, hhmm.split(":"))
+    for day_offset in (-1, 0, 1):
+        date = (now + timedelta(days=day_offset)).date()
+        for hhmm in cfg.get("post_times", []):
+            hour, minute = map(int, hhmm.split(":"))
             slot = datetime.combine(date, datetime.min.time(), tzinfo=tz).replace(
-                hour=h, minute=m, second=0, microsecond=0)
+                hour=hour, minute=minute, second=0, microsecond=0)
             ahead = (slot - now).total_seconds()
             if not -catch_s <= ahead <= wait_s:
                 continue
-            lo, hi = slot - timedelta(seconds=wait_s + 300), slot + timedelta(seconds=catch_s)
-            if any(lo <= p <= hi for p in posted):
+            lo = slot - timedelta(seconds=wait_s + 300)
+            hi = slot + timedelta(seconds=catch_s)
+            if any(lo <= stamp <= hi for stamp in posted):
                 continue
             due.append((slot, ahead))
-    return min(due, key=lambda x: x[0]) if due else None
-
+    return min(due, key=lambda item: item[0]) if due else None
 
 def _fail(state, clip, ex, stage):
     clip["attempts"] += 1
@@ -2399,7 +2403,7 @@ def screen_queued_clip_for_promotion(cfg, clip):
 
 
 def posting_slot_diagnostic(cfg, state, now=None):
-    """Explain why no posting slot is currently eligible, using the same slot windows as due_slot."""
+    """Explain the daily posting slots and why none is currently eligible."""
     tz = ZoneInfo(cfg["timezone"])
     now = now or datetime.now(tz)
     sch = cfg["schedule"]
@@ -2415,13 +2419,10 @@ def posting_slot_diagnostic(cfg, state, now=None):
             except (TypeError, ValueError):
                 continue
 
-    candidates = []
-    accounted = []
-    weekly = cfg.get("weekly_post_times") or {}
+    candidates, accounted = [], []
     for day_offset in (-1, 0, 1):
         date = (now + timedelta(days=day_offset)).date()
-        slots = weekly.get(date.strftime("%A"), cfg.get("post_times", []))
-        for hhmm in slots:
+        for hhmm in cfg.get("post_times", []):
             hour, minute = map(int, hhmm.split(":"))
             slot = datetime.combine(date, datetime.min.time(), tzinfo=tz).replace(
                 hour=hour, minute=minute, second=0, microsecond=0)
@@ -2434,7 +2435,8 @@ def posting_slot_diagnostic(cfg, state, now=None):
                 for clip, stamp in posted if lo <= stamp <= hi
             ]
             if matches:
-                accounted.append(f"{slot.strftime('%Y-%m-%d %H:%M')} {date.strftime('%A')} IST: {', '.join(matches)}")
+                accounted.append(
+                    f"{slot.strftime('%Y-%m-%d %H:%M')} IST: {', '.join(matches)}")
 
     nearest = min(candidates, key=lambda item: item[0]) if candidates else None
     nearest_text = "none"
@@ -2445,17 +2447,12 @@ def posting_slot_diagnostic(cfg, state, now=None):
         nearest_text = f"{slot.strftime('%Y-%m-%d %H:%M')} IST ({minutes:.0f} min {direction})"
 
     accounted_text = "; ".join(accounted) if accounted else "none in the eligible slot windows"
-    if weekly:
-        slot_summary = f"weekly_slots={weekly}"
-    else:
-        slot_summary = f"configured_slots={','.join(cfg.get('post_times', []))} IST"
     return (
         f"posting-slot diagnostic: local_now={now.strftime('%Y-%m-%d %H:%M:%S %Z')} "
-        f"timezone={cfg['timezone']} {slot_summary}; "
+        f"timezone={cfg['timezone']} configured_slots={','.join(cfg.get('post_times', []))} IST; "
         f"eligible_window=-{sch['catchup_hours']}h/+{sch['max_wait_min']}m; "
         f"nearest_slot={nearest_text}; already_accounted={accounted_text}"
     )
-
 
 def publish_next(cfg, wait=True, force=False):
     """Render, inspect, and publish one eligible clip; ambiguous outcomes are never auto-retried."""
