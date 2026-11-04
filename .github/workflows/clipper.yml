@@ -1,15 +1,8 @@
 name: podcast-clipper
 
 on:
-  schedule:
-    # GitHub scheduled events are best-effort and may be delayed or dropped.
-    # Primary: 06:17/18:17 IST. Retry: 07:17/19:17 IST (one hour later).
-    # UTC: 00:47, 01:47, 12:47, 13:47. tick's 6-hour catch-up window makes retries safe:
-    # state records a post against its slot, so a retry won't publish a second clip for that slot.
-    - cron: "47 0 * * *"
-    - cron: "47 1 * * *"
-    - cron: "47 12 * * *"
-    - cron: "47 13 * * *"
+  # Production scheduling is owned by PostgreSQL dispatcher services.
+  # GitHub Actions is intentionally manual-only for diagnostics and legacy tasks.
   workflow_dispatch:
     inputs:
       command:
