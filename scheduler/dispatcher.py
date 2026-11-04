@@ -266,14 +266,14 @@ def _dispatch_claimed_slot(slot, dispatcher_id, stop_event=None):
         heartbeat.join(timeout=2)
 
 
-def run_dispatcher(poll_seconds=0.5, claim_limit=None):
+def run_dispatcher(poll_seconds=0.5, claim_limit=None, stop_event=None):
     dispatcher_id=os.environ.get("DISPATCHER_ID") or f"{socket.gethostname()}-{os.getpid()}"
     max_workers=max(1,int(os.environ.get("PUBLISH_CONCURRENCY","300")))
     claim_limit=int(claim_limit or max_workers)
     log.info("dispatcher online id=%s concurrency=%d",dispatcher_id,max_workers)
     with ThreadPoolExecutor(max_workers=max_workers,thread_name_prefix="ig-publish") as pool:
         inflight=set()
-        stop_event=threading.Event()
+        stop_event=stop_event or threading.Event()
         while not stop_event.is_set():
             try:
                 completed={f for f in inflight if f.done()}
@@ -314,4 +314,4 @@ if __name__ == "__main__":
         shutdown.set()
     signal.signal(signal.SIGTERM,_signal_handler)
     signal.signal(signal.SIGINT,_signal_handler)
-    run_dispatcher()
+    run_dispatcher(stop_event=shutdown)
