@@ -218,20 +218,7 @@ def _dispatch_claimed_slot(slot, dispatcher_id, stop_event=None):
                 cur.execute("UPDATE slots SET lease_owner=NULL,lease_until=NULL,updated_at=now() WHERE id=%s AND state='container_ready' AND lease_owner=%s",
                             (slot_id,dispatcher_id))
         return
-    # Account lock may block. Heartbeat the lease while waiting so a second
-    # dispatcher cannot steal this slot and issue the same provider request.
-    lock_stop=threading.Event()
-    def lock_heartbeat():
-        while not lock_stop.wait(10):
-            try:
-                with connect() as conn,conn.transaction():
-                    if not heartbeat_slot(conn,slot_id,dispatcher_id,lease_seconds=45):
-                        log.error("slot lease lost waiting account lock id=%s",slot_id)
-                        return
-            except Exception:
-                log.exception("account-lock lease heartbeat failed slot=%s",slot_id)
-    heartbeat=threading.Thread(target=lock_heartbeat,daemon=True)
-    heartbeat.start()
+    # Account lock may block. Heartbeat the slot lease while waiting.
     lock_stop=threading.Event()
     def lock_heartbeat():
         while not lock_stop.wait(10):
