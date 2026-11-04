@@ -155,6 +155,24 @@ CREATE TABLE IF NOT EXISTS scheduler_control (
     last_run_at timestamptz NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS provider_rate_limits (
+    provider text PRIMARY KEY CHECK (provider IN ('meta','gemini','youtube')),
+    capacity numeric NOT NULL CHECK (capacity >= 1),
+    tokens numeric NOT NULL CHECK (tokens >= 0),
+    refill_per_second numeric NOT NULL CHECK (refill_per_second > 0),
+    last_refill_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS provider_circuits (
+    provider text PRIMARY KEY REFERENCES provider_rate_limits(provider) ON DELETE CASCADE,
+    state text NOT NULL DEFAULT 'closed' CHECK (state IN ('closed','open','half_open')),
+    failure_count integer NOT NULL DEFAULT 0,
+    opened_until timestamptz,
+    last_error text,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS dispatcher_heartbeats (
     dispatcher_id text PRIMARY KEY,
     ts timestamptz NOT NULL DEFAULT now(),
