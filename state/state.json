@@ -63,6 +63,14 @@
    "views": 334260,
    "processed_at": "2026-11-04T14:37:14+00:00",
    "clips": 2
+  },
+  "r5LF5kp8wLI": {
+   "channel": "Jay Shetty",
+   "title": "Money Expert: Passive Income Is a Lie, Do THIS Instead | Nischa Shah",
+   "url": "https://www.youtube.com/watch?v=r5LF5kp8wLI",
+   "views": 285889,
+   "processed_at": "2026-11-04T20:08:07+00:00",
+   "clips": 3
   }
  },
  "clips": [
@@ -3212,7 +3220,48 @@
      "uploaded_at": "2026-11-03T17:09:40+00:00",
      "error": null
     }
-   }
+   },
+   "metrics": {
+    "views": 155,
+    "reach": 118,
+    "likes": 2,
+    "comments": 0,
+    "shares": 0,
+    "saved": 1,
+    "ig_reels_avg_watch_time": 7997,
+    "ig_reels_video_view_total_time": 975704,
+    "reels_skip_rate": 41
+   },
+   "metrics_at": "2026-11-04T20:08:41+00:00",
+   "metric_snapshots": [
+    {
+     "band": "24h",
+     "age_hours": 27.0,
+     "sampled_at": "2026-11-04T20:08:41+00:00",
+     "metrics": {
+      "views": 155,
+      "reach": 118,
+      "likes": 2,
+      "comments": 0,
+      "shares": 0,
+      "saved": 1,
+      "ig_reels_avg_watch_time": 7997,
+      "ig_reels_video_view_total_time": 975704,
+      "reels_skip_rate": 41
+     }
+    }
+   ],
+   "performance_detail": {
+    "score": 0.3835,
+    "avg_watch_s": 7.997,
+    "retention_pct": 41.72,
+    "share_rate": 0.0,
+    "save_rate": 0.00847,
+    "like_rate": 0.01695,
+    "skip_rate": 0.41,
+    "evidence_count": 5
+   },
+   "performance_score": 0.3835
   },
   {
    "id": 13,
@@ -6234,9 +6283,1243 @@
    "status": "queued",
    "attempts": 0,
    "created_at": "2026-11-04T14:37:43+00:00"
+  },
+  {
+   "id": 20,
+   "video_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 357.33,
+   "end": 386.77,
+   "score": 0.7092,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.66,
+    "density": 1.0,
+    "editorial_score": 0.71,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "vid": 0.84,
+    "hook_type": "question",
+    "duration_bucket": "20-29s"
+   },
+   "title": "",
+   "caption": "Money Expert: Passive Income Is a Lie, Do THIS Instead | Nischa Shah\n\n🎙️ Jay Shetty (@jayshetty)\nFull episode on YouTube: https://www.youtube.com/watch?v=r5LF5kp8wLI\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
+   "content_type": "other",
+   "promotion_type": "none",
+   "promotion_confidence": 1.0,
+   "promotion_evidence": "",
+   "editorial_review_required": true,
+   "editorial_gate_reason": "low_classification_confidence",
+   "editorial_scores": {},
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v2",
+    "format": "general",
+    "caption_style": "minimal",
+    "caption_group_words": 4,
+    "caption_font_size": 68,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "off",
+    "caption_emphasis": "meaningful",
+    "title_duration_s": 2.8,
+    "caption_animation": "pop",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Use the safe default conversational treatment."
+   },
+   "polished": false,
+   "words": [
+    [
+     357.33,
+     ">> Why"
+    ],
+    [
+     357.57,
+     "do"
+    ],
+    [
+     357.69,
+     "people"
+    ],
+    [
+     357.93,
+     "avoid"
+    ],
+    [
+     358.25,
+     "looking"
+    ],
+    [
+     358.53,
+     "at"
+    ],
+    [
+     358.65,
+     "their"
+    ],
+    [
+     358.81,
+     "bank"
+    ],
+    [
+     359.05,
+     "account?"
+    ],
+    [
+     359.61,
+     ">> Cuz"
+    ],
+    [
+     359.85,
+     "it"
+    ],
+    [
+     360.61,
+     "almost"
+    ],
+    [
+     361.01,
+     "shows"
+    ],
+    [
+     361.37,
+     "them"
+    ],
+    [
+     362.01,
+     "sometimes"
+    ],
+    [
+     362.85,
+     "what"
+    ],
+    [
+     363.05,
+     "their"
+    ],
+    [
+     363.21,
+     "priorities"
+    ],
+    [
+     363.77,
+     "are"
+    ],
+    [
+     363.89,
+     "and"
+    ],
+    [
+     363.97,
+     "what"
+    ],
+    [
+     364.13,
+     "their"
+    ],
+    [
+     364.77,
+     "what"
+    ],
+    [
+     364.98,
+     "their"
+    ],
+    [
+     365.1,
+     "focus"
+    ],
+    [
+     365.54,
+     "is."
+    ],
+    [
+     365.98,
+     ">>"
+    ],
+    [
+     366.69,
+     ">> And"
+    ],
+    [
+     366.81,
+     "that"
+    ],
+    [
+     366.98,
+     "might"
+    ],
+    [
+     367.1,
+     "Mhm."
+    ],
+    [
+     367.13,
+     "be"
+    ],
+    [
+     367.21,
+     "completely"
+    ],
+    [
+     367.94,
+     "out"
+    ],
+    [
+     368.1,
+     "of"
+    ],
+    [
+     368.21,
+     "alignment"
+    ],
+    [
+     368.77,
+     "of"
+    ],
+    [
+     369.3,
+     "what"
+    ],
+    [
+     369.45,
+     "their"
+    ],
+    [
+     369.62,
+     "core"
+    ],
+    [
+     369.81,
+     "values"
+    ],
+    [
+     370.77,
+     "actually"
+    ],
+    [
+     371.18,
+     "are."
+    ],
+    [
+     372.18,
+     "And"
+    ],
+    [
+     372.25,
+     "they"
+    ],
+    [
+     372.38,
+     "might"
+    ],
+    [
+     373.06,
+     "impulse"
+    ],
+    [
+     373.5,
+     "purchase,"
+    ],
+    [
+     374.13,
+     "or"
+    ],
+    [
+     374.21,
+     "they"
+    ],
+    [
+     374.33,
+     "might"
+    ],
+    [
+     374.94,
+     "buy"
+    ],
+    [
+     375.13,
+     "things"
+    ],
+    [
+     375.38,
+     "that"
+    ],
+    [
+     375.5,
+     "they"
+    ],
+    [
+     375.57,
+     "didn't"
+    ],
+    [
+     375.77,
+     "actually"
+    ],
+    [
+     375.98,
+     "think"
+    ],
+    [
+     376.13,
+     "about"
+    ],
+    [
+     376.33,
+     "the"
+    ],
+    [
+     376.42,
+     "time."
+    ],
+    [
+     376.89,
+     "And"
+    ],
+    [
+     377.01,
+     "then"
+    ],
+    [
+     377.21,
+     "looking"
+    ],
+    [
+     377.54,
+     "at"
+    ],
+    [
+     377.65,
+     "it,"
+    ],
+    [
+     378.18,
+     "and"
+    ],
+    [
+     378.33,
+     "seeing"
+    ],
+    [
+     378.86,
+     "actually"
+    ],
+    [
+     379.21,
+     "these"
+    ],
+    [
+     379.42,
+     "are"
+    ],
+    [
+     379.5,
+     "all"
+    ],
+    [
+     379.62,
+     "the"
+    ],
+    [
+     379.69,
+     "things"
+    ],
+    [
+     380.06,
+     "that"
+    ],
+    [
+     380.45,
+     "I've"
+    ],
+    [
+     380.65,
+     "bought,"
+    ],
+    [
+     381.13,
+     "but"
+    ],
+    [
+     381.65,
+     "all"
+    ],
+    [
+     381.81,
+     "of"
+    ],
+    [
+     381.89,
+     "the"
+    ],
+    [
+     381.98,
+     "things"
+    ],
+    [
+     382.21,
+     "I"
+    ],
+    [
+     382.3,
+     "wanted"
+    ],
+    [
+     382.54,
+     "to"
+    ],
+    [
+     382.62,
+     "do"
+    ],
+    [
+     382.74,
+     "for"
+    ],
+    [
+     382.86,
+     "myself,"
+    ],
+    [
+     383.65,
+     "for"
+    ],
+    [
+     383.77,
+     "my"
+    ],
+    [
+     383.89,
+     "future"
+    ],
+    [
+     384.3,
+     "self,"
+    ],
+    [
+     385.13,
+     "have"
+    ],
+    [
+     385.5,
+     "taken"
+    ],
+    [
+     385.74,
+     "the"
+    ],
+    [
+     385.81,
+     "backseat."
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-11-04T20:08:37+00:00"
+  },
+  {
+   "id": 21,
+   "video_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 0.0,
+   "end": 25.43,
+   "score": 0.7013,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.66,
+    "density": 1.0,
+    "editorial_score": 0.71,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "vid": 0.81,
+    "hook_type": "question",
+    "duration_bucket": "20-29s"
+   },
+   "title": "",
+   "caption": "Money Expert: Passive Income Is a Lie, Do THIS Instead | Nischa Shah\n\n🎙️ Jay Shetty (@jayshetty)\nFull episode on YouTube: https://www.youtube.com/watch?v=r5LF5kp8wLI\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
+   "content_type": "other",
+   "promotion_type": "self_promotion",
+   "promotion_confidence": 0.9,
+   "promotion_evidence": "SUBSCRIBE button overlayed on screen.",
+   "editorial_review_required": true,
+   "editorial_gate_reason": "promotional_content",
+   "editorial_scores": {},
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v2",
+    "format": "general",
+    "caption_style": "minimal",
+    "caption_group_words": 4,
+    "caption_font_size": 68,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "off",
+    "caption_emphasis": "meaningful",
+    "title_duration_s": 2.8,
+    "caption_animation": "pop",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Use the safe default conversational treatment."
+   },
+   "polished": false,
+   "words": [
+    [
+     0.0,
+     "Why"
+    ],
+    [
+     0.32,
+     "would"
+    ],
+    [
+     0.48,
+     "you"
+    ],
+    [
+     0.56,
+     "leave"
+    ],
+    [
+     0.76,
+     "behind"
+    ],
+    [
+     1.04,
+     "a"
+    ],
+    [
+     1.08,
+     "great"
+    ],
+    [
+     1.36,
+     "job"
+    ],
+    [
+     1.56,
+     "with"
+    ],
+    [
+     1.64,
+     "a"
+    ],
+    [
+     1.72,
+     "great"
+    ],
+    [
+     1.92,
+     "salary?"
+    ],
+    [
+     2.68,
+     ">> There's"
+    ],
+    [
+     2.92,
+     "so"
+    ],
+    [
+     3.04,
+     "much"
+    ],
+    [
+     3.28,
+     "more"
+    ],
+    [
+     3.52,
+     "to"
+    ],
+    [
+     3.68,
+     "life"
+    ],
+    [
+     4.48,
+     "than"
+    ],
+    [
+     5.2,
+     "following"
+    ],
+    [
+     5.68,
+     "the"
+    ],
+    [
+     5.76,
+     "traditional"
+    ],
+    [
+     6.2,
+     "path"
+    ],
+    [
+     6.76,
+     "where"
+    ],
+    [
+     6.96,
+     "you"
+    ],
+    [
+     7.12,
+     "get"
+    ],
+    [
+     7.32,
+     "a"
+    ],
+    [
+     7.36,
+     "job,"
+    ],
+    [
+     7.96,
+     "qualify,"
+    ],
+    [
+     8.84,
+     "keep"
+    ],
+    [
+     9.0,
+     "going,"
+    ],
+    [
+     9.28,
+     "climbing"
+    ],
+    [
+     9.56,
+     "up"
+    ],
+    [
+     9.64,
+     "the"
+    ],
+    [
+     9.72,
+     "corporate"
+    ],
+    [
+     10.0,
+     "ladder."
+    ],
+    [
+     10.76,
+     "And"
+    ],
+    [
+     10.96,
+     "there"
+    ],
+    [
+     11.04,
+     "was"
+    ],
+    [
+     11.16,
+     "a"
+    ],
+    [
+     11.24,
+     "point"
+    ],
+    [
+     11.48,
+     "in"
+    ],
+    [
+     11.56,
+     "my"
+    ],
+    [
+     11.68,
+     "life"
+    ],
+    [
+     12.0,
+     "where"
+    ],
+    [
+     12.12,
+     "I"
+    ],
+    [
+     12.2,
+     "felt"
+    ],
+    [
+     12.6,
+     "like"
+    ],
+    [
+     13.32,
+     "I"
+    ],
+    [
+     13.4,
+     "had"
+    ],
+    [
+     13.56,
+     "to"
+    ],
+    [
+     13.68,
+     "really"
+    ],
+    [
+     13.88,
+     "look"
+    ],
+    [
+     14.12,
+     "inwards"
+    ],
+    [
+     14.76,
+     "and"
+    ],
+    [
+     14.88,
+     "ask"
+    ],
+    [
+     15.04,
+     "myself,"
+    ],
+    [
+     15.52,
+     "\"What"
+    ],
+    [
+     15.72,
+     "am"
+    ],
+    [
+     15.8,
+     "I"
+    ],
+    [
+     15.92,
+     "actually"
+    ],
+    [
+     16.24,
+     "doing?\""
+    ],
+    [
+     17.08,
+     "For"
+    ],
+    [
+     17.24,
+     "a"
+    ],
+    [
+     17.28,
+     "look"
+    ],
+    [
+     17.48,
+     "good"
+    ],
+    [
+     17.64,
+     "part"
+    ],
+    [
+     17.88,
+     "of"
+    ],
+    [
+     18.0,
+     "it,"
+    ],
+    [
+     18.48,
+     "I"
+    ],
+    [
+     18.68,
+     "was"
+    ],
+    [
+     19.48,
+     "really"
+    ],
+    [
+     19.72,
+     "enjoying"
+    ],
+    [
+     20.48,
+     "the"
+    ],
+    [
+     20.6,
+     "banking"
+    ],
+    [
+     20.92,
+     "lifestyle."
+    ],
+    [
+     21.36,
+     "There"
+    ],
+    [
+     21.48,
+     "was"
+    ],
+    [
+     21.6,
+     "the"
+    ],
+    [
+     21.64,
+     "glitz"
+    ],
+    [
+     21.88,
+     "and"
+    ],
+    [
+     21.96,
+     "glam"
+    ],
+    [
+     22.2,
+     "to"
+    ],
+    [
+     22.4,
+     "it."
+    ],
+    [
+     22.72,
+     "There"
+    ],
+    [
+     22.88,
+     "was"
+    ],
+    [
+     23.16,
+     "the"
+    ],
+    [
+     23.32,
+     "business"
+    ],
+    [
+     23.68,
+     "trips."
+    ],
+    [
+     24.16,
+     "There"
+    ],
+    [
+     24.28,
+     "was"
+    ],
+    [
+     24.4,
+     "the"
+    ],
+    [
+     24.48,
+     "status."
+    ],
+    [
+     25.56,
+     "And"
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-11-04T20:08:37+00:00"
+  },
+  {
+   "id": 22,
+   "video_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 126.73,
+   "end": 150.45,
+   "score": 0.6555,
+   "features": {
+    "heat": 0.5,
+    "hook": 0.59,
+    "density": 1.0,
+    "editorial_score": 0.71,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "hook_type": "question",
+    "duration_bucket": "20-29s"
+   },
+   "title": "",
+   "caption": "Money Expert: Passive Income Is a Lie, Do THIS Instead | Nischa Shah\n\n🎙️ Jay Shetty (@jayshetty)\nFull episode on YouTube: https://www.youtube.com/watch?v=r5LF5kp8wLI\n\nFollow for daily podcast clips\n\n#podcast #reels #business",
+   "content_type": "other",
+   "promotion_type": "none",
+   "promotion_confidence": 0.0,
+   "promotion_evidence": "",
+   "editorial_review_required": true,
+   "editorial_gate_reason": "low_classification_confidence",
+   "editorial_scores": {},
+   "semantic_topic": "",
+   "semantic_summary": "",
+   "edit_plan": {
+    "version": "edit-plan-v2",
+    "format": "general",
+    "caption_style": "minimal",
+    "caption_group_words": 4,
+    "caption_font_size": 68,
+    "caption_margin_v": 420,
+    "crop_strategy": "face_track",
+    "motion": "off",
+    "caption_emphasis": "meaningful",
+    "title_duration_s": 2.8,
+    "caption_animation": "pop",
+    "broll": false,
+    "camera_cutting": false,
+    "rationale": "Use the safe default conversational treatment."
+   },
+   "polished": false,
+   "words": [
+    [
+     126.73,
+     "How"
+    ],
+    [
+     126.89,
+     "could"
+    ],
+    [
+     127.09,
+     "I"
+    ],
+    [
+     127.21,
+     "possibly"
+    ],
+    [
+     127.93,
+     "dream"
+    ],
+    [
+     128.69,
+     "about"
+    ],
+    [
+     128.97,
+     "doing"
+    ],
+    [
+     129.17,
+     "anything"
+    ],
+    [
+     129.45,
+     "different?"
+    ],
+    [
+     130.13,
+     ">> I mean,"
+    ],
+    [
+     130.37,
+     "it's"
+    ],
+    [
+     130.53,
+     "the"
+    ],
+    [
+     130.61,
+     "hardest"
+    ],
+    [
+     130.97,
+     "thing"
+    ],
+    [
+     131.13,
+     "to"
+    ],
+    [
+     131.25,
+     "do,"
+    ],
+    [
+     131.57,
+     "living"
+    ],
+    [
+     131.89,
+     "life"
+    ],
+    [
+     132.17,
+     "cuz"
+    ],
+    [
+     132.53,
+     "what"
+    ],
+    [
+     132.73,
+     "everyone"
+    ],
+    [
+     132.97,
+     "else"
+    ],
+    [
+     133.13,
+     "has"
+    ],
+    [
+     133.25,
+     "told"
+    ],
+    [
+     133.45,
+     "you"
+    ],
+    [
+     133.53,
+     "to"
+    ],
+    [
+     133.65,
+     "do."
+    ],
+    [
+     134.45,
+     "But,"
+    ],
+    [
+     134.53,
+     "if"
+    ],
+    [
+     134.69,
+     "you"
+    ],
+    [
+     134.81,
+     "don't"
+    ],
+    [
+     135.09,
+     "have"
+    ],
+    [
+     135.77,
+     "the"
+    ],
+    [
+     135.89,
+     "courage"
+    ],
+    [
+     136.29,
+     "to"
+    ],
+    [
+     136.41,
+     "write"
+    ],
+    [
+     136.61,
+     "your"
+    ],
+    [
+     136.77,
+     "own"
+    ],
+    [
+     136.93,
+     "story,"
+    ],
+    [
+     137.73,
+     "someone"
+    ],
+    [
+     138.09,
+     "else"
+    ],
+    [
+     138.37,
+     "will"
+    ],
+    [
+     139.05,
+     "always"
+    ],
+    [
+     139.41,
+     "write"
+    ],
+    [
+     139.61,
+     "it"
+    ],
+    [
+     139.73,
+     "for"
+    ],
+    [
+     139.93,
+     "you."
+    ],
+    [
+     140.73,
+     "And"
+    ],
+    [
+     140.97,
+     "I"
+    ],
+    [
+     141.05,
+     "think"
+    ],
+    [
+     141.29,
+     "what"
+    ],
+    [
+     141.41,
+     "most"
+    ],
+    [
+     141.65,
+     "people"
+    ],
+    [
+     141.89,
+     "think"
+    ],
+    [
+     142.25,
+     "of"
+    ],
+    [
+     142.45,
+     "as"
+    ],
+    [
+     142.65,
+     "bravery"
+    ],
+    [
+     143.05,
+     "or"
+    ],
+    [
+     143.17,
+     "courage"
+    ],
+    [
+     143.61,
+     "or"
+    ],
+    [
+     144.37,
+     "doing"
+    ],
+    [
+     144.69,
+     "something"
+    ],
+    [
+     145.13,
+     "new"
+    ],
+    [
+     146.01,
+     "and"
+    ],
+    [
+     146.33,
+     "leaving"
+    ],
+    [
+     146.57,
+     "behind"
+    ],
+    [
+     146.93,
+     "what"
+    ],
+    [
+     147.05,
+     "you've"
+    ],
+    [
+     147.17,
+     "created"
+    ],
+    [
+     147.77,
+     "is"
+    ],
+    [
+     147.89,
+     "actually"
+    ],
+    [
+     148.21,
+     "just"
+    ],
+    [
+     148.37,
+     "having"
+    ],
+    [
+     148.61,
+     "a"
+    ],
+    [
+     148.65,
+     "financial"
+    ],
+    [
+     149.09,
+     "cushion"
+    ],
+    [
+     149.45,
+     "in"
+    ],
+    [
+     149.53,
+     "place."
+    ],
+    [
+     150.61,
+     "And"
+    ]
+   ],
+   "status": "queued",
+   "attempts": 0,
+   "created_at": "2026-11-04T20:08:37+00:00"
   }
  ],
- "next_id": 20,
+ "next_id": 23,
  "journal": [
   {
    "t": "2026-10-30T17:57:06+00:00",
@@ -6554,6 +7837,13 @@
    "video": "nebunAmduIM",
    "channel": "Jay Shetty",
    "clips": 2
+  },
+  {
+   "t": "2026-11-04T20:08:37+00:00",
+   "event": "episode_queued",
+   "video": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "clips": 3
   }
  ],
  "candidate_decisions": [
@@ -7920,6 +9210,396 @@
     "editorial_gate_reason": "low_classification_confidence",
     "learned_score": null,
     "transcript_excerpt": "how happy we are in our life and our relationships, and it all comes down to these four things. And I could not believe it when I came across it. So let me tell you what these four things are because essentially these four things drive our self-image, which then drives our self-doubt when they're weak."
+   }
+  },
+  {
+   "episode_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 357.33,
+   "end": 386.77,
+   "rank": 1,
+   "selected": true,
+   "recorded_at": "2026-11-04T20:08:07+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 357.334,
+    "end": 386.76500000000004,
+    "heat": 0.5,
+    "hook": 0.66,
+    "density": 1.0,
+    "pre": 0.671792,
+    "final": 0.7092060800000001,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.8400000000000001,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": 1.0,
+    "classification_confidence": null,
+    "hook_type": "question",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": ">> Why do people avoid looking at their bank account? >> Cuz it almost shows them sometimes what their priorities are and what their what their focus is. >> >> And that might Mhm. be completely out of alignment of what their core values actually are. And they might impulse purchase, or they might buy things that they didn't actually think about the"
+   }
+  },
+  {
+   "episode_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 0.0,
+   "end": 25.43,
+   "rank": 2,
+   "selected": true,
+   "recorded_at": "2026-11-04T20:08:07+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 0.0,
+    "end": 25.430000000000003,
+    "heat": 0.5,
+    "hook": 0.66,
+    "density": 1.0,
+    "pre": 0.671792,
+    "final": 0.7013203657142858,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.8099999999999999,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": "self_promotion",
+    "promotion_confidence": 0.9,
+    "classification_confidence": null,
+    "hook_type": "question",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "promotional_content",
+    "learned_score": null,
+    "transcript_excerpt": "Why would you leave behind a great job with a great salary? >> There's so much more to life than following the traditional path where you get a job, qualify, keep going, climbing up the corporate ladder. And there was a point in my life where I felt like I had to really look inwards and ask myself, \"What am I actually doing?\" For a look good part o"
+   }
+  },
+  {
+   "episode_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 100.4,
+   "end": 134.36,
+   "rank": 3,
+   "selected": false,
+   "recorded_at": "2026-11-04T20:08:07+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 100.4,
+    "end": 134.362,
+    "heat": 0.5,
+    "hook": 0.54,
+    "density": 1.0,
+    "pre": 0.6391520000000002,
+    "final": 0.7007154285714287,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.7949999999999999,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": 0.0,
+    "classification_confidence": null,
+    "hook_type": "number_or_stat",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "Maybe they're 5 years in, 10 years in, and they're thinking, \"I'm not in the right place.\" But you've got all this sunk cost bias, this idea that I spent all those years studying for that. All my friends thought this is what I was going to do. Maybe I've even got a partner. Maybe I've got children. This isn't the right time to rock the boat.\" Like,"
+   }
+  },
+  {
+   "episode_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 407.06,
+   "end": 424.65,
+   "rank": 4,
+   "selected": false,
+   "recorded_at": "2026-11-04T20:08:07+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 407.055,
+    "end": 424.655,
+    "heat": 0.5,
+    "hook": 0.54,
+    "density": 1.0,
+    "pre": 0.6467680000000001,
+    "final": 0.6736674285714286,
+    "editorial_score": 0.7334,
+    "standalone_heuristic": 0.902,
+    "payoff_heuristic": 0.65,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.67,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": 1.0,
+    "classification_confidence": null,
+    "hook_type": "number_or_stat",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "It's a $100. It's $50.\" Whatever it is. Then we had cards, and so now you can't see money anymore. >> >> And so, it's so No. much easier to tap your card, and put your card into a machine, than it is to actually count the dollars. And now, you just do an online transaction, so you don't have to give anything. You"
+   }
+  },
+  {
+   "episode_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 273.73,
+   "end": 304.39,
+   "rank": 5,
+   "selected": false,
+   "recorded_at": "2026-11-04T20:08:07+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 273.734,
+    "end": 304.394,
+    "heat": 0.5,
+    "hook": 0.5899999999999999,
+    "density": 1.0,
+    "pre": 0.652752,
+    "final": 0.6555310720000002,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": null,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": null,
+    "classification_confidence": null,
+    "hook_type": "question",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "what a financial cushion should be for someone? >> Typically, you'd recommend 3 to 6 months of your living expenses. So, you calculate what it costs to for your basic living expenses in a month and you times it by three if you're feeling a bit comfortable with a low cushion or six if you're if you want to be a bit more safe. I went all the way for "
+   }
+  },
+  {
+   "episode_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 126.73,
+   "end": 150.45,
+   "rank": 6,
+   "selected": true,
+   "recorded_at": "2026-11-04T20:08:07+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 126.732,
+    "end": 150.452,
+    "heat": 0.5,
+    "hook": 0.59,
+    "density": 1.0,
+    "pre": 0.652752,
+    "final": 0.6555310720000002,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": null,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": null,
+    "classification_confidence": null,
+    "hook_type": "question",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "How could I possibly dream about doing anything different? >> I mean, it's the hardest thing to do, living life cuz what everyone else has told you to do. But, if you don't have the courage to write your own story, someone else will always write it for you. And I think what most people think of as bravery or courage or doing something new and leavi"
+   }
+  },
+  {
+   "episode_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 130.13,
+   "end": 150.45,
+   "rank": 7,
+   "selected": false,
+   "recorded_at": "2026-11-04T20:08:07+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 130.132,
+    "end": 150.452,
+    "heat": 0.5,
+    "hook": 0.5,
+    "density": 1.0,
+    "pre": 0.628272,
+    "final": 0.6542976000000001,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": null,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": null,
+    "classification_confidence": null,
+    "hook_type": "strong_statement",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": ">> I mean, it's the hardest thing to do, living life cuz what everyone else has told you to do. But, if you don't have the courage to write your own story, someone else will always write it for you. And I think what most people think of as bravery or courage or doing something new and leaving behind what you've created is actually just having a fin"
+   }
+  },
+  {
+   "episode_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 205.29,
+   "end": 222.76,
+   "rank": 8,
+   "selected": false,
+   "recorded_at": "2026-11-04T20:08:07+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 205.292,
+    "end": 222.762,
+    "heat": 0.5,
+    "hook": 0.46,
+    "density": 1.0,
+    "pre": 0.617392,
+    "final": 0.6455936000000001,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": null,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": null,
+    "classification_confidence": null,
+    "hook_type": "strong_statement",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": ">> I fully agree with you. I That was the same path for me. I was working my day job and then doing this on the evenings and weekends. I at the time making videos. And I don't think I would have been as creative if I had been financially crippled."
+   }
+  },
+  {
+   "episode_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 96.6,
+   "end": 134.36,
+   "rank": 9,
+   "selected": false,
+   "recorded_at": "2026-11-04T20:08:07+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 96.6,
+    "end": 134.362,
+    "heat": 0.5,
+    "hook": 0.54,
+    "density": 1.0,
+    "pre": 0.6391520000000002,
+    "final": 0.6035725714285716,
+    "editorial_score": 0.7096,
+    "standalone_heuristic": 0.888,
+    "payoff_heuristic": 0.6,
+    "context_dependency": 0.0,
+    "llm": null,
+    "vid": 0.45499999999999996,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": 1.0,
+    "classification_confidence": null,
+    "hook_type": "number_or_stat",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "They've got the traditional degree that they were expected to do. They've got the job. Maybe they're 5 years in, 10 years in, and they're thinking, \"I'm not in the right place.\" But you've got all this sunk cost bias, this idea that I spent all those years studying for that. All my friends thought this is what I was going to do. Maybe I've even got"
+   }
+  },
+  {
+   "episode_id": "r5LF5kp8wLI",
+   "channel": "Jay Shetty",
+   "start": 241.93,
+   "end": 263.01,
+   "rank": 10,
+   "selected": false,
+   "recorded_at": "2026-11-04T20:08:07+00:00",
+   "model_version": "learning-v1",
+   "features": {
+    "start": 241.932,
+    "end": 263.014,
+    "heat": 0.5,
+    "hook": 0.15000000000000002,
+    "density": 1.0,
+    "pre": 0.372528,
+    "final": 0.33784240000000004,
+    "editorial_score": 0.2079,
+    "standalone_heuristic": 0.362,
+    "payoff_heuristic": 0.0,
+    "context_dependency": 0.55,
+    "llm": null,
+    "vid": null,
+    "content_type": null,
+    "semantic_kind": null,
+    "semantic_topic": null,
+    "semantic_confidence": null,
+    "promotion_type": null,
+    "promotion_confidence": null,
+    "classification_confidence": null,
+    "hook_type": "strong_statement",
+    "title": null,
+    "reject": null,
+    "editorial_review_required": true,
+    "editorial_gate_reason": "low_classification_confidence",
+    "learned_score": null,
+    "transcript_excerpt": "And I think people put themselves into these positions where you take this big leap and now the dream has to pay the bills and now the dream doesn't feel like a dream anymore, it feels like pressure. >> Absolutely. It turns into a chore when you don't have that money coming in. And so, I always like to think of different things that you're doing th"
    }
   }
  ]
