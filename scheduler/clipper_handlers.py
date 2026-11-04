@@ -147,6 +147,12 @@ def verify_slot(user_id,payload):
     if expired:
         _mark_missed(user_id,slot_id,"deadline exceeded before media verification")
         return {"missed":True}
+    with connect() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT clip_id FROM slots WHERE id=%s AND user_id=%s AND state='verified'",(slot_id,user_id))
+            slot_clip=cur.fetchone()
+    if not slot_clip or slot_clip[0]!=clip_id:
+        return {"stale_worker_result":True}
     key=payload.get("storage_key")
     if not key:
         with connect() as conn:
@@ -185,6 +191,8 @@ def upload_container(user_id,payload):
     if expired:
         _mark_missed(user_id,slot_id,"deadline exceeded before container upload")
         return {"missed":True}
+    if state!="container_uploading":
+        return {"stale_worker_result":True}
     with connect() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT storage_key,payload FROM clips WHERE user_id=%s AND id=%s",(user_id,clip_id))
@@ -241,6 +249,10 @@ def produce_for_slot(user_id,payload):
         pipeline.produce(_cfg())
     with connect() as conn,conn.transaction():
         with conn.cursor() as cur:
+            cur.execute("SELECT state,clip_id FROM slots WHERE id=%s AND user_id=%s FOR UPDATE",(slot_id,user_id))
+            slot_state=cur.fetchone()
+            if not slot_state or slot_state[0]!="assigned" or slot_state[1] is not None:
+                return {"slot_state_changed":True}
             cur.execute(
                 """SELECT c.id,c.payload FROM clips c
                    WHERE c.user_id=%s AND c.status='queued'
