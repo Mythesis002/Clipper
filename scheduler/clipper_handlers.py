@@ -91,7 +91,7 @@ def _load_clip(user_id,clip_id,provided=None):
     return row[0]
 
 
-def prepare_clip(user_id,payload):
+def _prepare_clip_locked(user_id,payload):
     """T-6h worker: render, run existing QA, store MP4, then mark verified."""
     slot_id=str(payload["slot_id"]); clip_id=int(payload["clip_id"])
     expired,state=_slot_deadline(user_id,slot_id)
@@ -103,7 +103,14 @@ def prepare_clip(user_id,payload):
             cur.execute("UPDATE slots SET state='preparing',updated_at=now() WHERE id=%s AND user_id=%s AND state='assigned' AND clip_id=%s RETURNING id",
                         (slot_id,user_id,clip_id))
             if not cur.fetchone():
-                return {"slot_state_changed":True}
+                # A worker may crash after the slot enters preparing but before
+                # the job is acknowledged. A retry is allowed to resume only the
+                # same slot/clip pair; all other state/clip combinations fail closed.
+                cur.execute("SELECT state,clip_id FROM slots WHERE id=%s AND user_id=%s",
+                            (slot_id,user_id))
+                current=cur.fetchone()
+                if not current or current[0]!="preparing" or current[1]!=clip_id:
+                    return {"slot_state_changed":True}
     clip=_load_clip(user_id,clip_id,payload.get("clip"))
     cfg=_cfg()
     path=None
@@ -138,6 +145,24 @@ def prepare_clip(user_id,payload):
     finally:
         if path: Path(path).unlink(missing_ok=True)
         pipeline.shutil.rmtree(pipeline.WORK,ignore_errors=True)
+
+
+def prepare_clip(user_id,payload):
+    """Serialize duplicate/reclaimed prepare jobs for the same slot."""
+    slot_id=str(payload["slot_id"])
+    conn=connect()
+    conn.autocommit=True
+    lock_key=f"clipper:prepare-slot:{slot_id}"
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_lock(hashtextextended(%s,0))",(lock_key,))
+        return _prepare_clip_locked(user_id,payload)
+    finally:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT pg_advisory_unlock(hashtextextended(%s,0))",(lock_key,))
+        finally:
+            conn.close()
 
 
 def verify_slot(user_id,payload):
