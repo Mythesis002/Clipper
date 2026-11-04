@@ -11,7 +11,7 @@ from datetime import timedelta
 
 from db import connect
 from scheduler.queue import append_event
-from scheduler.materializer import materialize_active_users
+from scheduler.materializer import materialize_active_users_if_due
 
 log=logging.getLogger("clipper.planner")
 
@@ -181,7 +181,7 @@ def run_planner(poll_seconds=5):
     while True:
         try:
             with connect() as conn,conn.transaction():
-                materialized=materialize_active_users(conn,horizon_days=7)
+                materialized=materialize_active_users_if_due(conn,interval_minutes=60,horizon_days=7)
                 assigned=assign_due_slots(conn)
                 verified=enqueue_verification_jobs(conn)
                 containers=enqueue_container_uploads(conn)
