@@ -12,6 +12,7 @@ from pathlib import Path
 
 import podcast_clipper as pipeline
 from db import connect
+from clock import DatabaseClock
 from scheduler.crypto import decrypt_token
 from scheduler.instagram_limits import assert_publish_quota_available
 from scheduler.planner import _enqueue,swap_failed_clip
@@ -53,8 +54,9 @@ def _slot_deadline(user_id,slot_id):
             row=cur.fetchone()
     if not row: raise RuntimeError("slot not found for tenant")
     run_at,max_late,state=row
-    from datetime import datetime,timezone,timedelta
-    expired=datetime.now(timezone.utc)>run_at+timedelta(minutes=max_late)
+    from datetime import timedelta
+    now=DatabaseClock(connect).now()
+    expired=now>run_at+timedelta(minutes=max_late)
     return expired,state
 
 
