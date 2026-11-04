@@ -16,10 +16,10 @@ Phase 1 replaces best-effort GitHub cron publishing with PostgreSQL slot schedul
 
 Requirements: Docker Compose, Git, Python 3.12 for bootstrap scripts.
 
-1. Copy env.example to .env and set secure secrets. Do not commit .env.
+1. Copy env.example to .env and set secure secrets. Do not commit .env. Create the key file with the command in env.example; keep it chmod 600 and outside version control. For production, use a secret manager or mounted secret file.
 2. Create a UUID for the Phase 1 user and set CLIPPER_USER_ID.
 3. Set CLIPPER_USER_EMAIL, IG_USER_ID, IG_ACCESS_TOKEN, GEMINI_API_KEY, and optional YT_TOKEN_JSON/YT_CHANNEL_ID. These platform tokens are bootstrap-only inputs; they are encrypted before database storage and are not passed to long-running containers.
-4. Generate TOKEN_ENCRYPTION_KEY using the command in env.example. Keep the key in a secret manager for production; losing it means tokens must be reconnected.
+4. The generated token key file is required for bootstrap and mounted as a Docker secret for worker/dispatcher. Losing it means stored tokens cannot be decrypted and accounts must reconnect.
 5. Set SOURCE_RIGHTS_ATTESTATION to a truthful statement that you own, licensed, or have explicit permission to repost each enabled source. Bootstrap intentionally refuses to attest on your behalf.
 6. Install Python dependencies: python -m pip install -r requirements.txt -r requirements-scheduler.txt
 7. Start PostgreSQL and MinIO only: docker compose up -d postgres minio
@@ -37,7 +37,7 @@ Requirements: Docker Compose, Git, Python 3.12 for bootstrap scripts.
 
 - CLIPPER_STATE_BACKEND=postgres: opt-in legacy pipeline state adapter. JSON remains default for existing unit tests and rollback.
 - CLIPPER_USER_ID: UUID created during bootstrap.
-- IG_ACCESS_TOKEN and YT_TOKEN_JSON are bootstrap-only. Bootstrap encrypts them with AES-256-GCM into connected_accounts.token_ciphertext. Runtime services decrypt only in memory. TOKEN_ENCRYPTION_KEY is the master key; keep it in a secret manager, rotate with a planned re-encryption procedure, and never log or commit it.
+- IG_ACCESS_TOKEN and YT_TOKEN_JSON are bootstrap-only. Bootstrap encrypts them with AES-256-GCM into connected_accounts.token_ciphertext. Runtime services decrypt only in memory. The master key is mounted as a secret file; keep it in a secret manager, rotate with a planned re-encryption procedure, and never log or commit it.
 - S3_ENDPOINT_URL, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_BUCKET: MinIO locally or S3-compatible storage (Cloudflare R2/AWS) in deployment.
 - PUBLISH_CONCURRENCY: per dispatcher process. 150 x 2 replicas = 300 maximum in-flight slots.
 - MAX_LATE_MINUTES: default 20 in bootstrap; per schedule rule in PostgreSQL.
