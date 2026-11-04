@@ -220,7 +220,6 @@ def _dispatch_claimed_slot(slot, dispatcher_id, stop_event=None):
         return
     # Account lock may block. Heartbeat the lease while waiting so a second
     # dispatcher cannot steal this slot and issue the same provider request.
-    acquired=threading.Event()
     lock_stop=threading.Event()
     def lock_heartbeat():
         while not lock_stop.wait(10):
