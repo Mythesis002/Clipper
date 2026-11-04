@@ -6,6 +6,7 @@ are persisted as publish_uncertain and never retried automatically.
 """
 import argparse
 import json
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 import logging
 import os
 import socket
@@ -149,63 +150,69 @@ def _account_publish_lock(account_id):
             conn.close()
 
 
-def run_dispatcher(poll_seconds=1.0, claim_limit=50):
-    dispatcher_id = os.environ.get("DISPATCHER_ID") or f"{socket.gethostname()}-{os.getpid()}"
-    log.info("dispatcher online id=%s", dispatcher_id)
-    while True:
-        try:
-            with connect() as conn, conn.transaction():
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "INSERT INTO dispatcher_heartbeats(dispatcher_id,ts,detail) VALUES (%s,now(),'{}'::jsonb) "
-                        "ON CONFLICT(dispatcher_id) DO UPDATE SET ts=now(),detail='{}'::jsonb",
-                        (dispatcher_id,),
-                    )
-                slots = claim_slots_near_due(conn, dispatcher_id, seconds_ahead=3,
-                                             limit=claim_limit, lease_seconds=30)
-            for slot in slots:
-                slot_id, user_id, account_id, clip_id, container_id, run_at, max_late, attempts = slot
-                delay = (run_at - datetime.now(timezone.utc)).total_seconds()
-                if delay > 0:
-                    # Never sleep beyond lease. If the slot is >20s away, release it
-                    # instead of holding a lease while waiting.
-                    if delay > 20:
-                        with connect() as conn, conn.transaction():
-                            transition_slot(conn, slot_id, "container_ready", "container_ready",
-                                            dispatcher_id, lease_owner=None, lease_until=None)
-                        continue
-                    deadline = time.monotonic() + delay
-                    lease_ok = True
-                    while time.monotonic() < deadline:
-                        with connect() as conn, conn.transaction():
-                            lease_ok = heartbeat_slot(conn, slot_id, dispatcher_id, lease_seconds=30)
-                        if not lease_ok:
-                            break
-                        time.sleep(min(0.5, max(0.01, deadline - time.monotonic())))
-                    if not lease_ok:
-                        log.warning("slot lease lost during wait; skip slot=%s", slot_id)
-                        continue
-                # Re-read account and use KMS decrypt adapter in deployment.
-                with connect() as conn:
-                    account_row = _load_slot_account(conn, slot_id, user_id)
-                if account_row["status"] != "active":
-                    with connect() as conn, conn.transaction():
-                        transition_slot(conn, slot_id, "container_ready", "failed", dispatcher_id,
-                                       last_error="connected account is not active",
-                                       lease_owner=None, lease_until=None)
-                    continue
-                # Phase 1 local/dev secret adapter: account token may be stored as bytea.
-                # TODO(verify): replace with KMS envelope decrypt in Phase 2 before production.
-                token = os.environ.get("IG_ACCESS_TOKEN", "").strip()
-                if not token:
-                    raise RuntimeError("IG_ACCESS_TOKEN is not configured for Phase 1 dispatcher")
-                with _account_publish_lock(account_id):
-                    _publish_one(slot, dispatcher_id,
-                                 {"external_id": account_row["external_id"], "access_token": token},
-                                 {"graph_version": os.environ.get("IG_GRAPH_VERSION", "v25.0")})
-        except Exception:
-            log.exception("dispatcher loop error; retrying next poll")
-        time.sleep(poll_seconds)
+def _dispatch_claimed_slot(slot, dispatcher_id):
+    slot_id, user_id, account_id, clip_id, container_id, run_at, max_late, attempts = slot
+    delay=(run_at-datetime.now(timezone.utc)).total_seconds()
+    if delay>0:
+        deadline=time.monotonic()+delay
+        while time.monotonic()<deadline:
+            with connect() as conn,conn.transaction():
+                lease_ok=heartbeat_slot(conn,slot_id,dispatcher_id,lease_seconds=45)
+            if not lease_ok:
+                log.warning("slot lease lost during wait; skip slot=%s",slot_id)
+                return
+            time.sleep(min(0.25,max(0.01,deadline-time.monotonic())))
+    with connect() as conn:
+        account_row=_load_slot_account(conn,slot_id,user_id)
+    if account_row["status"]!="active":
+        with connect() as conn,conn.transaction():
+            transition_slot(conn,slot_id,"container_ready","failed",dispatcher_id,
+                            last_error="connected account is not active",
+                            lease_owner=None,lease_until=None)
+        return
+    token=os.environ.get("IG_ACCESS_TOKEN","").strip()
+    if not token:
+        raise RuntimeError("IG_ACCESS_TOKEN is not configured for Phase 1 dispatcher")
+    with _account_publish_lock(account_id):
+        _publish_one(slot,dispatcher_id,
+                     {"external_id":account_row["external_id"],"access_token":token},
+                     {"graph_version":os.environ.get("IG_GRAPH_VERSION","v25.0")})
+
+
+def run_dispatcher(poll_seconds=0.5, claim_limit=None):
+    dispatcher_id=os.environ.get("DISPATCHER_ID") or f"{socket.gethostname()}-{os.getpid()}"
+    max_workers=max(1,int(os.environ.get("PUBLISH_CONCURRENCY","300")))
+    claim_limit=int(claim_limit or max_workers)
+    log.info("dispatcher online id=%s concurrency=%d",dispatcher_id,max_workers)
+    with ThreadPoolExecutor(max_workers=max_workers,thread_name_prefix="ig-publish") as pool:
+        inflight=set()
+        while True:
+            try:
+                completed={f for f in inflight if f.done()}
+                for future in completed:
+                    inflight.remove(future)
+                    try: future.result()
+                    except Exception: log.exception("slot dispatcher task failed")
+                free=max(0,max_workers-len(inflight))
+                if free:
+                    with connect() as conn,conn.transaction():
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                "INSERT INTO dispatcher_heartbeats(dispatcher_id,ts,detail) VALUES (%s,now(),%s::jsonb) "
+                                "ON CONFLICT(dispatcher_id) DO UPDATE SET ts=now(),detail=EXCLUDED.detail",
+                                (dispatcher_id,json.dumps({"inflight":len(inflight),"capacity":max_workers})),
+                            )
+                        slots=claim_slots_near_due(conn,dispatcher_id,seconds_ahead=3,
+                                                   limit=min(free,claim_limit),lease_seconds=45)
+                    for slot in slots:
+                        inflight.add(pool.submit(_dispatch_claimed_slot,slot,dispatcher_id))
+                if inflight:
+                    wait(inflight,timeout=poll_seconds,return_when=FIRST_COMPLETED)
+                else:
+                    time.sleep(poll_seconds)
+            except Exception:
+                log.exception("dispatcher loop error; retrying next poll")
+                time.sleep(poll_seconds)
 
 
 if __name__ == "__main__":
