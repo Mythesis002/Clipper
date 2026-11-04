@@ -8,6 +8,7 @@ from pathlib import Path
 from db import connect
 from storage import download_file
 from scheduler.crypto import decrypt_token
+from scheduler.provider_limits import provider_request
 
 log=logging.getLogger("clipper.youtube_job")
 
@@ -54,14 +55,15 @@ def upload_youtube(user_id,payload):
             original=f"https://www.youtube.com/watch?v={clip.get('video_id')}" if clip.get("video_id") else ""
             source_line=f"Original podcast: {original}" if original else f"Source: {clip.get('channel','podcast')}"
             description="\n\n".join(x for x in [str(clip.get("caption") or "").strip(),"#Shorts",source_line] if x)
-            result=upload_to_youtube(
-                video=video,title=clip.get("title") or "Podcast Short",description=description,
-                category=os.environ.get("YT_CATEGORY","22"),
-                keywords=["podcast","shorts","clips"],
-                privacy_status=os.environ.get("YT_PRIVACY_STATUS","public"),
-                notify_subscribers=False,
-                token_json=youtube_token_json,
-            )
+            with provider_request("youtube"):
+                result=upload_to_youtube(
+                    video=video,title=clip.get("title") or "Podcast Short",description=description,
+                    category=os.environ.get("YT_CATEGORY","22"),
+                    keywords=["podcast","shorts","clips"],
+                    privacy_status=os.environ.get("YT_PRIVACY_STATUS","public"),
+                    notify_subscribers=False,
+                    token_json=youtube_token_json,
+                )
         except YouTubeUploadUncertainError as exc:
             with connect() as conn,conn.transaction():
                 with conn.cursor() as cur:
