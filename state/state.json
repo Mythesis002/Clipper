@@ -110,7 +110,7 @@
    "posted_at": "2026-10-30T17:59:24+00:00",
    "metrics": {
     "views": 233,
-    "reach": 177,
+    "reach": 178,
     "likes": 3,
     "comments": 0,
     "shares": 0,
@@ -119,18 +119,18 @@
     "ig_reels_video_view_total_time": 2463657,
     "reels_skip_rate": 43.2
    },
-   "metrics_at": "2026-11-02T22:25:20+00:00",
+   "metrics_at": "2026-11-04T07:02:11+00:00",
    "performance_detail": {
-    "score": 0.3244,
+    "score": 0.3242,
     "avg_watch_s": 13.918,
     "retention_pct": 41.82,
     "share_rate": 0.0,
     "save_rate": 0.0,
-    "like_rate": 0.01695,
+    "like_rate": 0.01685,
     "skip_rate": 0.432,
     "evidence_count": 5
    },
-   "performance_score": 0.3244,
+   "performance_score": 0.3242,
    "metric_snapshots": [
     {
      "band": "24h",
@@ -792,17 +792,17 @@
    "media_id": "17986722747092884",
    "posted_at": "2026-10-31T14:59:11+00:00",
    "metrics": {
-    "views": 898,
-    "reach": 749,
+    "views": 899,
+    "reach": 750,
     "likes": 4,
     "comments": 2,
     "shares": 0,
     "saved": 0,
-    "ig_reels_avg_watch_time": 8346,
-    "ig_reels_video_view_total_time": 6551629,
-    "reels_skip_rate": 33
+    "ig_reels_avg_watch_time": 8338,
+    "ig_reels_video_view_total_time": 6554327,
+    "reels_skip_rate": 33.1
    },
-   "metrics_at": "2026-11-02T22:25:23+00:00",
+   "metrics_at": "2026-11-04T07:02:15+00:00",
    "metric_snapshots": [
     {
      "band": "24h",
@@ -819,19 +819,35 @@
       "ig_reels_video_view_total_time": 6527744,
       "reels_skip_rate": 33
      }
+    },
+    {
+     "band": "72h",
+     "age_hours": 88.1,
+     "sampled_at": "2026-11-04T07:02:15+00:00",
+     "metrics": {
+      "views": 899,
+      "reach": 750,
+      "likes": 4,
+      "comments": 2,
+      "shares": 0,
+      "saved": 0,
+      "ig_reels_avg_watch_time": 8338,
+      "ig_reels_video_view_total_time": 6554327,
+      "reels_skip_rate": 33.1
+     }
     }
    ],
    "performance_detail": {
-    "score": 0.2636,
-    "avg_watch_s": 8.346,
-    "retention_pct": 32.45,
+    "score": 0.2634,
+    "avg_watch_s": 8.338,
+    "retention_pct": 32.42,
     "share_rate": 0.0,
     "save_rate": 0.0,
-    "like_rate": 0.00534,
-    "skip_rate": 0.33,
+    "like_rate": 0.00533,
+    "skip_rate": 0.331,
     "evidence_count": 5
    },
-   "performance_score": 0.2636
+   "performance_score": 0.2634
   },
   {
    "id": 5,
@@ -2476,7 +2492,7 @@
     "ig_reels_video_view_total_time": 1124969,
     "reels_skip_rate": 42.5
    },
-   "metrics_at": "2026-11-02T22:25:27+00:00",
+   "metrics_at": "2026-11-04T07:02:18+00:00",
    "metric_snapshots": [
     {
      "band": "24h",
