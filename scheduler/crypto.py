@@ -14,8 +14,12 @@ _NONCE_BYTES=12
 
 
 def _key():
+    key_file=os.environ.get("TOKEN_ENCRYPTION_KEY_FILE","").strip()
     raw=os.environ.get("TOKEN_ENCRYPTION_KEY","").strip()
-    if not raw: raise RuntimeError("TOKEN_ENCRYPTION_KEY is required to encrypt/decrypt account tokens")
+    if key_file:
+        from pathlib import Path
+        raw=Path(key_file).read_text(encoding="utf-8").strip()
+    if not raw: raise RuntimeError("TOKEN_ENCRYPTION_KEY or TOKEN_ENCRYPTION_KEY_FILE is required")
     try:
         key=base64.urlsafe_b64decode(raw + "="*((4-len(raw)%4)%4))
     except Exception as exc:
