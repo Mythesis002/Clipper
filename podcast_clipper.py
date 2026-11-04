@@ -2558,6 +2558,7 @@ def publish_next(cfg, wait=True, force=False):
         jr(state, "slot_due", slot=slot[0].isoformat(timespec="minutes"))
 
     needs_review = False
+    quality_blocked = False
     candidate_limit = int(cfg.get("queue", {}).get("publish_candidate_limit", 10))
     candidates_to_check = q[:candidate_limit]
     if len(q) > len(candidates_to_check):
@@ -2588,6 +2589,7 @@ def publish_next(cfg, wait=True, force=False):
             promotion_screen = screen_queued_clip_for_promotion(cfg, clip)
             if promotion_screen["excluded"]:
                 clip.update(status="rejected", error="Editorial policy: promotional content")
+                quality_blocked = True
                 clip["qa"] = {"verdict": "hard_fail", "score": None,
                               "issues": promotion_screen["issues"]}
                 jr(state, "clip_rejected", clip=clip["id"], issues=promotion_screen["issues"])
@@ -2620,6 +2622,7 @@ def publish_next(cfg, wait=True, force=False):
                 save_state(state)
                 gha("warning", f"Clip {clip['id']} needs editorial review; it will not be auto-published.")
                 needs_review = True
+                quality_blocked = True
                 continue
             # Persist the clean publication screen before proceeding to the normal quality gate.
             save_state(state)
@@ -2643,6 +2646,7 @@ def publish_next(cfg, wait=True, force=False):
                score=review["score"], issues=review["issues"])
         if review["verdict"] == "hard_fail":
             clip.update(status="rejected", error="QA: " + "; ".join(review["issues"])[:300])
+            quality_blocked = True
             jr(state, "clip_rejected", clip=clip["id"], issues=review["issues"])
             save_state(state)
             gha("warning", f"Clip {clip['id']} rejected by QA: {review['issues']}")
@@ -2658,6 +2662,7 @@ def publish_next(cfg, wait=True, force=False):
             save_state(state)
             gha("warning", f"Clip {clip['id']} needs manual review; it will not be auto-published.")
             needs_review = True
+            quality_blocked = True
             continue
         post_result = _post_clip(cfg, state, clip, path)
         if post_result is True:
@@ -2668,18 +2673,18 @@ def publish_next(cfg, wait=True, force=False):
         # Definite create/upload/API failure: continue to the next queued clip.
         continue
 
-    if needs_review:
+    if needs_review or quality_blocked:
         remaining = max(0, len(q) - len(candidates_to_check))
         reason = (
-            "no Reel published; candidate(s) moved to manual review"
+            "no Reel published; best available candidates were held/rejected by editorial or QA gates"
             + (f"; {remaining} queued candidate(s) not scanned due to publish_candidate_limit"
                if remaining else "")
         )
         jr(state, "slot_deferred", reason=reason,
            checked_candidates=len(candidates_to_check), queued_remaining=remaining)
         save_state(state)
-        gha("error", "No Reel was published: checked candidates require manual review.")
-        return False
+        gha("warning", "No Reel published this slot: all checked candidates failed or were held by quality gates. This is an expected no-post outcome, not a runner failure.")
+        return True
     jr(state, "slot_missed", reason="no clip could be posted")
     save_state(state)
     return False
