@@ -1,4 +1,5 @@
--- Optional bootstrap for a local single-account migration.
--- No creator/channel permissions are copied or enabled by this script.
--- Use only after manually verifying source rights and account credentials.
--- Set user/account IDs in application code; do not seed tokens in SQL or git.
+-- Phase 1 forward-compatible additions. Safe to run after 001 on both fresh
+-- and previously migrated scheduler databases.
+ALTER TABLE slots ADD COLUMN IF NOT EXISTS quota_checked_at timestamptz;
+ALTER TABLE slots ADD COLUMN IF NOT EXISTS quota_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb;
+INSERT INTO schema_migrations(version) VALUES ('002_quota_snapshot') ON CONFLICT DO NOTHING;
