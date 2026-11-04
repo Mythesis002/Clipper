@@ -2,12 +2,10 @@ name: podcast-clipper
 
 on:
   schedule:
-    # GitHub now supports IANA timezones for schedule entries.
-    # Run twice daily in India: 06:17 and 18:17 IST (staggered away from :00 load peaks).
-    - cron: "17 6 * * *"
-      timezone: "Asia/Kolkata"
-    - cron: "17 18 * * *"
-      timezone: "Asia/Kolkata"
+    # GitHub Actions cron is UTC (timezone keys are not supported by the workflow schedule schema).
+    # 06:17 and 18:17 IST = 00:47 and 12:47 UTC. Runs are best-effort; tick has a 6-hour catch-up window.
+    - cron: "47 0 * * *"
+    - cron: "47 12 * * *"
   workflow_dispatch:
     inputs:
       command:
