@@ -64,7 +64,7 @@ def _mark_missed(user_id,slot_id,reason):
             cur.execute(
                 """UPDATE slots SET state='missed',last_error=%s,lease_owner=NULL,lease_until=NULL,
                    updated_at=now() WHERE id=%s AND user_id=%s
-                   AND state NOT IN ('published','publish_uncertain','missed','failed','cancelled')
+                   AND state NOT IN ('publishing','published','publish_uncertain','missed','failed','cancelled')
                    RETURNING id""",(reason[:500],slot_id,user_id))
             if cur.fetchone(): append_event(conn,user_id,slot_id,"slot_missed",{"reason":reason})
 
