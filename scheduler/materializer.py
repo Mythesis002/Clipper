@@ -21,8 +21,10 @@ def materialize_user(conn, user_id: str, now_utc: datetime | None = None, horizo
         tz_name = row[0]
         ZoneInfo(tz_name)  # fail early for invalid timezone
         cur.execute(
-            """SELECT account_id, weekday, local_time, max_late_minutes
-               FROM schedule_rules WHERE user_id=%s AND active=true""",
+            """SELECT r.account_id,r.weekday,r.local_time,r.max_late_minutes
+               FROM schedule_rules r JOIN connected_accounts a
+                 ON a.id=r.account_id AND a.user_id=r.user_id AND a.status='active'
+               WHERE r.user_id=%s AND r.active=true""",
             (user_id,),
         )
         rules = cur.fetchall()
