@@ -3,6 +3,7 @@
 .env
 .env.*
 secrets/
+garage/garage.toml
 __pycache__/
 *.py[cod]
 .venv/
