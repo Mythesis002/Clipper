@@ -32,6 +32,7 @@ jobs:
           --health-retries 20
     env:
       TEST_DATABASE_URL: postgresql://clipper:clipper_test@localhost:5432/clipper_test
+      DATABASE_URL: postgresql://clipper:clipper_test@localhost:5432/clipper_test
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
