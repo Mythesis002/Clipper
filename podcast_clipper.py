@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-podcast_clipper.py - automated podcast -> Instagram Reels pipeline, built for GitHub Actions.
+podcast_clipper.py - legacy media pipeline and compatibility CLI for Clipper.
 
-Design: the repo stores only a small JSON state file (state/state.json). Videos are NOT stored.
-A clip is just {video_id, start, end, words, title, caption}. It is downloaded + rendered at the
-moment it is posted, so every run can start on a clean, stateless runner.
+Production scheduling uses the PostgreSQL scheduler package: clips are rendered and QA'd in worker
+jobs before their slot, persisted in object storage, and published by the dispatcher at T-0.
+The legacy JSON StateStore remains available for existing tests and rollback. When
+CLIPPER_STATE_BACKEND=postgres, legacy tick/publish/publish-now commands are blocked to prevent
+a second publisher from racing the database dispatcher.
 
-Commands
-  tick      the one Actions runs: (refill if empty) -> wait for slot -> post -> (refill) -> metrics
+Commands below are retained for legacy JSON mode and diagnostics only:
   produce   analyse one new episode and queue its best 3 segments   (--dry-run to only print)
-  publish   post the next queued clip                              (--force: no slot wait/guard)
   metrics   pull Instagram insights for posted reels (feeds the learning loop)
   status    show queue + results
   check     verify tokens / tools / YouTube access / Gemini
