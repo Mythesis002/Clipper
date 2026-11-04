@@ -89,7 +89,7 @@ def swap_failed_clip(conn,user_id,slot_id,failed_clip_id,reason):
         if not cur.fetchone():
             return False
         _enqueue(cur,user_id,"produce",{"slot_id":str(slot_id)},0,
-                 f"slot:{slot_id}:produce",run_after=None)
+                 f"slot:{slot_id}:produce:after:{failed_clip_id}",run_after=None)
         append_event(conn,user_id,slot_id,"clip_replacement_unavailable",
                      {"failed_clip_id":int(failed_clip_id),"reason":reason[:400]})
         return False
