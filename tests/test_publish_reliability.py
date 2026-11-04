@@ -134,8 +134,11 @@ class PublishQueueTests(unittest.TestCase):
             "journal": [],
         }
 
-    def _run_with_screens(self, screens):
+    def _run_with_screens(self, screens, scores=None):
         state = self._state()
+        if scores:
+            for clip, score in zip(state['clips'], scores):
+                clip['editorial_score'] = score
         cfg = {
             "queue": {"publish_candidate_limit": 10},
             "intelligence": {"promotion_policy": "manual_review"},
@@ -173,14 +176,24 @@ class PublishQueueTests(unittest.TestCase):
         self.assertEqual(post.call_count, 1)
         self.assertEqual(post.call_args.args[2]["id"], 4)
 
-    def test_review_only_slot_returns_failure_instead_of_green_success(self):
+    def test_review_only_slot_is_expected_no_post_not_runner_failure(self):
         held = {"review_required": True, "excluded": False,
                 "issues": ["human review"], "already_screened": False}
         result, state, screen, post = self._run_with_screens([held] * 4)
-        self.assertFalse(result)
+        self.assertTrue(result)
         self.assertEqual(screen.call_count, 4)
         self.assertTrue(all(c["status"] == "needs_review" for c in state["clips"]))
         post.assert_not_called()
+
+    def test_best_editorial_score_is_checked_first(self):
+        held = {"review_required": True, "excluded": False,
+                "issues": ["human review"], "already_screened": False}
+        clean = {"review_required": False, "excluded": False,
+                 "issues": [], "already_screened": False}
+        result, state, screen, post = self._run_with_screens(
+            [clean, held, held, held], scores=[0.3, 0.95, 0.6, 0.4])
+        self.assertTrue(result)
+        self.assertEqual(post.call_args.args[2]["id"], 2)
 
     def test_transient_promotion_screen_failure_requeues_after_cooldown_only(self):
         from datetime import timedelta, timezone
