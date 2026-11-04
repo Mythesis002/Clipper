@@ -62,15 +62,15 @@ The intelligence layers improve the decision process; they cannot guarantee a pe
 
 ## Automatic publishing
 
-The scheduled workflow is configured for:
+The intended posting slots (Asia/Kolkata) are:
 
 <p align="center">
   <strong>Mon–Thu: 7:00 PM IST</strong> &nbsp; · &nbsp; <strong>Fri: 8:00 PM IST</strong> &nbsp; · &nbsp; <strong>Sat: 12:00 PM IST</strong> &nbsp; · &nbsp; <strong>Sun: 7:00 PM IST</strong>
 </p>
 
-GitHub Actions starts the scheduled runs shortly before each slot. Each run uses the normal pipeline, fills the queue when needed, applies quality and manual-review safeguards, and attempts at most one Reel per slot.
+GitHub Actions cron starts 10 minutes before each slot, with a retry one hour later. The config file defines slot eligibility; cron only wakes the pipeline. Each run uses the normal tick pipeline, queue refill, quality checks and manual-review safeguards, and attempts at most one Reel per slot.
 
-**A scheduled run is an attempt, not a guarantee of a post.** A slot may not publish if no eligible clip is ready, a clip needs review, or an external service such as YouTube or Instagram is unavailable.
+GitHub scheduled events are best-effort and may be delayed or skipped. The retry and catch-up window help recover, but cannot guarantee exact-time publishing. A slot may not publish if no eligible clip is ready, review is required, or Instagram/YouTube is unavailable.
 
 ## Get it running
 
