@@ -100,7 +100,7 @@ def assign_due_slots(conn, lead_minutes=360, limit=100):
     assigned=0
     with conn.cursor() as cur:
         cur.execute(
-            """SELECT s.id,s.user_id,s.account_id,s.run_at_utc,r.assignment_lead_minutes
+            """SELECT s.id,s.user_id,s.account_id,s.run_at_utc,s.assignment_lead_minutes
                FROM slots s JOIN users u ON u.id=s.user_id
                WHERE s.state='scheduled' AND u.status='active'
                  AND s.run_at_utc <= now() + (s.assignment_lead_minutes * interval '1 minute')
