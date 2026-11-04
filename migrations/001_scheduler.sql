@@ -179,7 +179,7 @@ ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE state_meta ENABLE ROW LEVEL SECURITY;
 
-DO $
+DO $policy$
 DECLARE t text;
 BEGIN
   DROP POLICY IF EXISTS tenant_isolation ON users;
@@ -192,6 +192,6 @@ BEGIN
       t
     );
   END LOOP;
-END $$;
+END $policy$;
 
 INSERT INTO schema_migrations(version) VALUES ('001_scheduler') ON CONFLICT DO NOTHING;
