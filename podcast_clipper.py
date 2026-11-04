@@ -1852,11 +1852,22 @@ def qa_review(cfg, path, clip=None):
                 "issues": ["AI final review unavailable; manual review required"]}
     if g["unsafe"]:
         return {"verdict": "hard_fail", "score": g["score"], "issues": ["unsafe content"] + g["issues"]}
-    min_score = cfg.get("qa", {}).get("min_ai_score", 6.5)
-    if not g["approve"] or g["score"] < min_score:
+    min_score = float(cfg.get("qa", {}).get("min_ai_score", 6.5))
+    fallback_score = float(cfg.get("qa", {}).get("fallback_min_ai_score", 5.5))
+    # Best-available fallback is ONLY for Gemini-approved, non-unsafe clips.
+    # Gemini approve=false, technical failures, unsafe content, and missing QA remain blocked.
+    if not g["approve"]:
         return {"verdict": "soft_fail", "score": g["score"],
-                "issues": g["issues"] or [f"AI quality score below {min_score:.1f}/10"]}
-    return {"verdict": "pass", "score": g["score"], "issues": g["issues"]}
+                "issues": g["issues"] or ["Gemini did not approve this clip"]}
+    if g["score"] < fallback_score:
+        return {"verdict": "soft_fail", "score": g["score"],
+                "issues": g["issues"] or [f"AI quality score below fallback floor {fallback_score:.1f}/10"]}
+    if g["score"] < min_score:
+        return {"verdict": "pass", "score": g["score"],
+                "issues": g["issues"] or [f"Best-available fallback: score {g['score']:.1f}/10 "
+                                          f"is below preferred threshold {min_score:.1f}/10"],
+                "fallback": True}
+    return {"verdict": "pass", "score": g["score"], "issues": g["issues"], "fallback": False}
 
 
 # =============================================================================
@@ -2476,6 +2487,18 @@ def publish_next(cfg, wait=True, force=False):
             return True
     all_queued = queued(state)
     q = [clip for clip in all_queued if clip.get("channel") in allowed_names]
+    # Prefer clips with stronger editorial signals over FIFO order. Stable sorting
+    # preserves queue order for ties and older state entries with missing scores.
+    def queue_quality(clip):
+        for key in ("editorial_score", "pre", "learned_score", "heat"):
+            try:
+                value = float(clip.get(key))
+                if np.isfinite(value):
+                    return value
+            except (TypeError, ValueError):
+                pass
+        return 0.0
+    q.sort(key=queue_quality, reverse=True)
     held = len(all_queued) - len(q)
     if held:
         log.warning("Holding %d queued clip(s) from channels without current permission: true; they will not be published.", held)
@@ -2542,6 +2565,15 @@ def publish_next(cfg, wait=True, force=False):
                 clip["editorial_review_required"] = True
                 clip.update(status="needs_review", review_artifact_file=review_path.name,
                             error="Manual editorial review required: " + "; ".join(issues)[:300])
+                # API/response failures can be transient. Schedule a bounded retry; low-confidence
+                # classifications and suspected promotions remain human-review-only.
+                if clip.get("promotion_screen_error"):
+                    retry_count = int(clip.get("promotion_retry_count", 0))
+                    if retry_count < 2:
+                        clip["promotion_retry_after"] = (
+                            datetime.now(timezone.utc) + timedelta(hours=24)
+                        ).isoformat()
+
                 clip["qa"] = {"verdict": "soft_fail", "score": None, "issues": issues}
                 jr(state, "clip_needs_review", clip=clip["id"], artifact=review_path.name,
                    issues=issues, review_stage="promotion_screen")
@@ -2561,7 +2593,14 @@ def publish_next(cfg, wait=True, force=False):
                            + str(clip.get("editorial_gate_reason") or "editorial review"),
                            "Candidate has a high-confidence promotional or uncertain content classification"],
             }
-        clip["qa"] = {"verdict": review["verdict"], "score": review["score"], "issues": review["issues"]}
+        clip["qa"] = {"verdict": review["verdict"], "score": review["score"], "issues": review["issues"],
+                      "fallback": bool(review.get("fallback", False))}
+        if review.get("fallback"):
+            log.warning("Clip %s accepted as best-available fallback (QA %.1f/10; preferred %.1f/10).",
+                        clip["id"], review["score"],
+                        float(cfg.get("qa", {}).get("min_ai_score", 6.5)))
+            jr(state, "clip_best_available_fallback", clip=clip["id"],
+               score=review["score"], issues=review["issues"])
         if review["verdict"] == "hard_fail":
             clip.update(status="rejected", error="QA: " + "; ".join(review["issues"])[:300])
             jr(state, "clip_rejected", clip=clip["id"], issues=review["issues"])
