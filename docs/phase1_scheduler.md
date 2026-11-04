@@ -22,15 +22,16 @@ Requirements: Docker Compose, Git, Python 3.12 for bootstrap scripts.
 4. The generated token key file is required for bootstrap and mounted as a Docker secret for worker/dispatcher. Losing it means stored tokens cannot be decrypted and accounts must reconnect.
 5. Set SOURCE_RIGHTS_ATTESTATION to a truthful statement that you own, licensed, or have explicit permission to repost each enabled source. Bootstrap intentionally refuses to attest on your behalf.
 6. Install Python dependencies: python -m pip install -r requirements.txt -r requirements-scheduler.txt
-7. Start PostgreSQL and MinIO only: docker compose up -d postgres minio
-8. Apply migrations (fresh Postgres volume applies them via container entrypoint; for an existing DB, apply both):
+7. Load bootstrap variables in the shell: set -a && source .env && set +a
+8. Start PostgreSQL and MinIO only: docker compose up -d postgres minio
+9. Apply migrations (fresh Postgres volume applies them via container entrypoint; for an existing DB, apply both):
    - psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/001_scheduler.sql
    - psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/002_scheduler_seed.sql
-9. Bootstrap tenant, source attestations, Instagram account row, and local config schedule: python scripts/bootstrap_user.py
-10. Back up JSON state and import into Postgres:
+10. Bootstrap tenant, source attestations, Instagram account row, and local config schedule: python scripts/bootstrap_user.py
+11. Back up JSON state and import into Postgres:
    - cp state/state.json state/state.json.pre-scheduler.bak
    - python scripts/import_legacy_state.py
-11. Start services: docker compose up -d --build --scale worker=2 --scale dispatcher=2
+12. Start services: docker compose up -d --build --scale worker=2 --scale dispatcher=2
    Compose defaults to 150 publishing threads per dispatcher (300 across two replicas). Tune only after API/DB load testing. Some Compose versions ignore deploy.replicas; use explicit --scale flags.
 
 ## Phase 1 environment
