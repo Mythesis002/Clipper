@@ -12,6 +12,21 @@ class SystemClock(Clock):
         return datetime.now(timezone.utc)
 
 
+class DatabaseClock(Clock):
+    """Clock backed by PostgreSQL now(), used by runtime deadline checks."""
+    def __init__(self, connection_factory):
+        self.connection_factory=connection_factory
+
+    def now(self) -> datetime:
+        with self.connection_factory() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT now()")
+                value=cur.fetchone()[0]
+        if value.tzinfo is None:
+            raise RuntimeError("PostgreSQL now() returned a naive timestamp")
+        return value.astimezone(timezone.utc)
+
+
 class FrozenClock(Clock):
     def __init__(self, value: datetime):
         if value.tzinfo is None:
