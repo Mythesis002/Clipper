@@ -108,7 +108,8 @@ def run_worker(poll_seconds=2):
                         cur.execute(
                             """UPDATE jobs SET state=%s,run_after=now()+(%s * interval '1 second'),
                                lease_owner=NULL,lease_until=NULL,last_error=%s,updated_at=now()
-                               WHERE id=%s AND lease_owner=%s""",
+                               WHERE id=%s AND state='leased' AND lease_owner=%s AND lease_until > now()
+                               RETURNING id""",
                             (state,int(delay),error,job_id,worker_id))
                 if state=="failed":
                     _record_exhausted(user_id,job_id,kind,payload,error)
