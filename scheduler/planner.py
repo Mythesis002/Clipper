@@ -159,7 +159,7 @@ def enqueue_verification_jobs(conn, lead_minutes=30, limit=200):
                WHERE s.state='verified' AND s.verification_checked_at IS NULL
                  AND s.run_at_utc <= now() + (r.verify_lead_minutes * interval '1 minute')
                  AND s.run_at_utc > now() - (s.max_late_minutes * interval '1 minute')
-               ORDER BY run_at_utc FOR UPDATE SKIP LOCKED LIMIT %s""",
+               ORDER BY s.run_at_utc FOR UPDATE OF s SKIP LOCKED LIMIT %s""",
             (limit,))
         slots=cur.fetchall()
     for slot_id,user_id,clip_id in slots:
