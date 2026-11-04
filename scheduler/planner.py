@@ -17,11 +17,12 @@ log=logging.getLogger("clipper.planner")
 
 
 def _enqueue(cur, user_id, kind, payload, priority, dedupe_key, run_after=None):
+    max_attempts=100 if kind=="produce" else 5
     cur.execute(
-        """INSERT INTO jobs(user_id,kind,payload,priority,run_after,dedupe_key)
-           VALUES (%s,%s,%s::jsonb,%s,coalesce(%s,now()),%s)
+        """INSERT INTO jobs(user_id,kind,payload,priority,run_after,dedupe_key,max_attempts)
+           VALUES (%s,%s,%s::jsonb,%s,coalesce(%s,now()),%s,%s)
            ON CONFLICT(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING""",
-        (user_id,kind,json.dumps(payload),priority,run_after,dedupe_key),
+        (user_id,kind,json.dumps(payload),priority,run_after,dedupe_key,max_attempts),
     )
 
 
