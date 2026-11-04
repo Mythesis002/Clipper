@@ -20,6 +20,7 @@ from contextlib import contextmanager
 from db import connect
 from scheduler.crypto import decrypt_token
 from scheduler.provider_limits import provider_request
+from scheduler.provider_limits import provider_request
 from scheduler.instagram_limits import assert_publish_quota_available
 from scheduler.queue import (
     append_event, claim_slots_near_due, heartbeat_slot, transition_slot,
