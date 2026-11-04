@@ -104,7 +104,7 @@ def enqueue_container_uploads(conn, lead_minutes=10, limit=200):
                  AND s.run_at_utc <= now() + (r.container_lead_minutes * interval '1 minute')
                  AND s.run_at_utc > now() - (s.max_late_minutes * interval '1 minute')
                ORDER BY s.run_at_utc FOR UPDATE OF s SKIP LOCKED LIMIT %s""",
-            (lead_minutes,limit),
+            (limit,),
         )
         slots=cur.fetchall()
     for slot_id,user_id,clip_id in slots:
@@ -160,7 +160,7 @@ def enqueue_verification_jobs(conn, lead_minutes=30, limit=200):
                  AND s.run_at_utc <= now() + (r.verify_lead_minutes * interval '1 minute')
                  AND run_at_utc > now() - (max_late_minutes * interval '1 minute')
                ORDER BY run_at_utc FOR UPDATE SKIP LOCKED LIMIT %s""",
-            (lead_minutes,limit))
+            (limit,))
         slots=cur.fetchall()
     for slot_id,user_id,clip_id in slots:
         with conn.transaction():
