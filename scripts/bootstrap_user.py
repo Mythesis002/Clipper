@@ -22,8 +22,8 @@ def main():
     encryption_key=os.environ.get("TOKEN_ENCRYPTION_KEY","").strip()
     attestation=os.environ.get("SOURCE_RIGHTS_ATTESTATION","").strip()
 
-    if not all([user_id,email,ig_id,ig_token,encryption_key]):
-        raise SystemExit("Set CLIPPER_USER_ID, CLIPPER_USER_EMAIL, IG_USER_ID, IG_ACCESS_TOKEN, and TOKEN_ENCRYPTION_KEY")
+    if not all([user_id,email,ig_id,ig_token]) or not (encryption_key or os.environ.get("TOKEN_ENCRYPTION_KEY_FILE","").strip()):
+        raise SystemExit("Set CLIPPER_USER_ID, CLIPPER_USER_EMAIL, IG_USER_ID, IG_ACCESS_TOKEN, and TOKEN_ENCRYPTION_KEY_FILE (or TOKEN_ENCRYPTION_KEY)")
     if len(attestation)<30:
         raise SystemExit("Set SOURCE_RIGHTS_ATTESTATION with a truthful statement of rights for enabled sources.")
     uuid.UUID(user_id)
