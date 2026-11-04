@@ -135,9 +135,19 @@ def _publish_one(slot, dispatcher_id: str, account: dict, cfg: dict, db_conn) ->
 
     with db_conn.transaction():
         published_at=DatabaseClock.now_on(db_conn)
-        transition_slot(db_conn,slot_id,"publishing","published",
-                        media_id=str(media_id),published_at=published_at,
-                        lease_owner=None,lease_until=None,last_error=None)
+        with db_conn.cursor() as cur:
+            cur.execute(
+                """UPDATE slots SET state='published',media_id=%s,published_at=now(),
+                   lease_owner=NULL,lease_until=NULL,last_error=NULL,updated_at=now()
+                   WHERE id=%s AND user_id=%s AND state IN ('publishing','publish_uncertain')
+                     AND publish_started_at=%s RETURNING id""",
+                (str(media_id),slot_id,user_id,now))
+            resolved=cur.fetchone()
+        if not resolved:
+            log.error("provider returned media id but slot CAS failed; reconcile slot=%s media=%s",slot_id,media_id)
+            append_event(db_conn,user_id,slot_id,"publish_response_uncommitted",
+                         {"media_id":str(media_id),"publish_started_at":now.isoformat()})
+            return
         append_event(db_conn,user_id,slot_id,"published",{"media_id":str(media_id)})
         if clip_id is not None:
             with db_conn.cursor() as cur:
