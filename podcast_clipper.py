@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-podcast_clipper.py - automated podcast -> Instagram Reels pipeline, built for GitHub Actions.
+podcast_clipper.py - legacy media pipeline and compatibility CLI for Clipper.
 
-Design: the repo stores only a small JSON state file (state/state.json). Videos are NOT stored.
-A clip is just {video_id, start, end, words, title, caption}. It is downloaded + rendered at the
-moment it is posted, so every run can start on a clean, stateless runner.
+Production scheduling uses the PostgreSQL scheduler package: clips are rendered and QA'd in worker
+jobs before their slot, persisted in object storage, and published by the dispatcher at T-0.
+The legacy JSON StateStore remains available for existing tests and rollback. When
+CLIPPER_STATE_BACKEND=postgres, legacy tick/publish/publish-now commands are blocked to prevent
+a second publisher from racing the database dispatcher.
 
-Commands
-  tick      the one Actions runs: (refill if empty) -> wait for slot -> post -> (refill) -> metrics
+Commands below are retained for legacy JSON mode and diagnostics only:
   produce   analyse one new episode and queue its best 3 segments   (--dry-run to only print)
-  publish   post the next queued clip                              (--force: no slot wait/guard)
   metrics   pull Instagram insights for posted reels (feeds the learning loop)
   status    show queue + results
   check     verify tokens / tools / YouTube access / Gemini
@@ -195,16 +195,21 @@ def load_config(path=None):
     return cfg
 
 def load_state():
-    if STATE_FILE.exists():
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    return {"episodes": {}, "clips": [], "next_id": 1}
+    """Load legacy pipeline state via JSON or opt-in Postgres adapter."""
+    if os.environ.get("CLIPPER_STATE_BACKEND", "json").strip().lower() == "postgres":
+        from scheduler.legacy_adapter import load_state as load_postgres_state
+        return load_postgres_state()
+    from scheduler.store import JsonFileStateStore
+    return JsonFileStateStore(STATE_FILE).load()
 
 
 def save_state(st):
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = STATE_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")
-    tmp.replace(STATE_FILE)
+    if os.environ.get("CLIPPER_STATE_BACKEND", "json").strip().lower() == "postgres":
+        from scheduler.legacy_adapter import save_state as save_postgres_state
+        save_postgres_state(st)
+        return
+    from scheduler.store import JsonFileStateStore
+    JsonFileStateStore(STATE_FILE).save(st)
 
 
 def now_utc():
@@ -679,7 +684,7 @@ def _gemini_post(model, body, key, timeout=(GEMINI_CONNECT_TIMEOUT, GEMINI_TEXT_
                     f"{model} request timed out or lost its connection after "
                     f"{max_attempts} attempts: {ex}"
                 ) from ex
-            wait = min(2 ** (attempt + 1), 10)
+            wait = min(2 ** (attempt + 1), 10) * random.uniform(0.75, 1.25)
             log.warning(
                 "Gemini %s network attempt %d/%d failed (%s); retrying in %ds",
                 model, attempt + 1, max_attempts, type(ex).__name__, wait,
@@ -693,6 +698,7 @@ def _gemini_post(model, body, key, timeout=(GEMINI_CONNECT_TIMEOUT, GEMINI_TEXT_
             except (TypeError, ValueError):
                 retry_after = 0
             wait = min(retry_after or 2 ** (attempt + 1), 30)
+            wait += random.uniform(0, min(2.0, wait * 0.2))
             log.warning(
                 "Gemini %s returned HTTP %d on attempt %d/%d; retrying in %ds",
                 model, response.status_code, attempt + 1, max_attempts, wait,
@@ -735,7 +741,14 @@ def gemini_text(cfg, parts, temperature=0.2, max_tokens=8192, response_schema=No
         GEMINI_MULTIMODAL_READ_TIMEOUT if multimodal else GEMINI_TEXT_READ_TIMEOUT
     )
     timeout = (GEMINI_CONNECT_TIMEOUT, read_timeout)
-    response = _gemini_post(GEMINI_MODEL, body, key, timeout=timeout)
+    if os.environ.get("CLIPPER_STATE_BACKEND","json").strip().lower()=="postgres":
+        from scheduler.provider_limits import provider_request
+        with provider_request("gemini"):
+            response = _gemini_post(GEMINI_MODEL, body, key, timeout=timeout)
+            if response.status_code in (408,429,500,502,503,504):
+                raise GeminiError(f"Gemini transient HTTP {response.status_code} after retries")
+    else:
+        response = _gemini_post(GEMINI_MODEL, body, key, timeout=timeout)
 
     if response.status_code == 404:
         raise GeminiError(
@@ -1935,13 +1948,14 @@ def normalize_reel_for_instagram(video_path):
     return output
 
 
-def upload_reel_container(cfg, video_path, caption):
+def upload_reel_container(cfg, video_path, caption, access_token=None, ig_user_id=None):
     """Upload and process a Reel container, but do NOT publish it.
 
     Shared by the production publisher and the check-live smoke test. A FINISHED
     container is still unpublished until media_publish is explicitly called.
     """
-    ig_id, token = env_value("IG_USER_ID"), env_value("IG_ACCESS_TOKEN")
+    ig_id = ig_user_id or env_value("IG_USER_ID")
+    token = access_token or env_value("IG_ACCESS_TOKEN")
     if not ig_id or not token:
         raise RuntimeError("Instagram upload requires non-empty IG_USER_ID and IG_ACCESS_TOKEN secrets")
     path = Path(video_path)
@@ -3076,6 +3090,11 @@ def main():
                         handlers=[logging.StreamHandler(sys.stdout)])
     cfg = load_config(args.config)
     ok = True
+    postgres_scheduler_mode = os.environ.get("CLIPPER_STATE_BACKEND", "json").strip().lower() == "postgres"
+    if postgres_scheduler_mode and args.command in {"tick", "publish-now", "publish"}:
+        ap.error("Legacy publish commands are disabled in Postgres scheduler mode. Start scheduler/dispatcher services.")
+    if postgres_scheduler_mode and args.command == "approve" and args.force:
+        ap.error("Legacy approve --force is disabled in Postgres scheduler mode.")
     if args.command in {"tick", "publish-now"}:
         # publish-now is the unambiguous manual path: fill the queue if needed, then
         # run the normal QA and publishing pipeline immediately, bypassing slot wait.

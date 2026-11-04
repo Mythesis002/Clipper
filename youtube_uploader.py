@@ -14,6 +14,10 @@ SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
 RETRIABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 MAX_RETRIES = 8
 CHUNK_SIZE = 8 * 1024 * 1024
+class YouTubeUploadUncertainError(RuntimeError):
+    """Upload may have reached YouTube; never create a second video automatically."""
+
+
 DEFAULT_TAGS = ["podcast", "shorts", "clips", "india"]
 
 
@@ -27,8 +31,8 @@ def sanitize_youtube_title(text, max_length=100):
     return text if len(text) >= 3 else "Podcast Short"
 
 
-def _credentials_from_environment():
-    raw = os.getenv("YT_TOKEN_JSON", "").strip()
+def _credentials_from_environment(token_json=None):
+    raw = (token_json if token_json is not None else os.getenv("YT_TOKEN_JSON", "")).strip()
     if not raw:
         raise RuntimeError("YT_TOKEN_JSON is not configured (Google OAuth token JSON secret).")
     try:
@@ -77,7 +81,8 @@ def check_youtube_account():
 
 
 def upload_to_youtube(video, title, description="", category="22",
-                      keywords=None, privacy_status="public", notify_subscribers=False):
+                      keywords=None, privacy_status="public", notify_subscribers=False,
+                      token_json=None):
     """Upload a local MP4 and return {video_id, url}. Does not download remote URLs."""
     path = Path(video)
     if not path.is_file():
@@ -87,7 +92,7 @@ def upload_to_youtube(video, title, description="", category="22",
     if privacy_status not in {"public", "unlisted", "private"}:
         raise ValueError("privacy_status must be public, unlisted, or private")
 
-    credentials = _credentials_from_environment()
+    credentials = _credentials_from_environment(token_json)
     tags = keywords or DEFAULT_TAGS
     if isinstance(tags, str):
         tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
@@ -131,14 +136,14 @@ def upload_to_youtube(video, title, description="", category="22",
             if exc.resp.status not in RETRIABLE_STATUS_CODES:
                 raise
             if retry >= MAX_RETRIES:
-                raise RuntimeError(f"YouTube upload retry limit reached (HTTP {exc.resp.status}).") from exc
+                raise YouTubeUploadUncertainError(f"YouTube upload outcome uncertain after HTTP {exc.resp.status}; reconcile before retry.") from exc
             retry += 1
             delay = min(60.0, random.uniform(0, 2 ** min(retry, 6)))
             print(f"Retryable YouTube HTTP {exc.resp.status}; retry {retry}/{MAX_RETRIES} in {delay:.1f}s")
             time.sleep(delay)
         except (OSError, TimeoutError) as exc:
             if retry >= MAX_RETRIES:
-                raise RuntimeError("YouTube upload retry limit reached after network errors.") from exc
+                raise YouTubeUploadUncertainError("YouTube upload outcome uncertain after network retries; reconcile before retry.") from exc
             retry += 1
             delay = min(60.0, random.uniform(0, 2 ** min(retry, 6)))
             print(f"Retryable YouTube network error; retry {retry}/{MAX_RETRIES} in {delay:.1f}s")

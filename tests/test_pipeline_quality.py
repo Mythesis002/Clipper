@@ -428,7 +428,11 @@ class PipelineQualityTests(unittest.TestCase):
             )
         self.assertIs(result, response)
         self.assertEqual(post_mock.call_count, 2)
-        sleep_mock.assert_called_once_with(2)
+        sleep_mock.assert_called_once()
+        # Network retry delay intentionally uses +/-25% jitter around 2s.
+        delay = sleep_mock.call_args.args[0]
+        self.assertGreaterEqual(delay, 1.5)
+        self.assertLessEqual(delay, 2.5)
 
     def test_gemini_post_reports_timeout_after_bounded_retries(self):
         with patch.object(

@@ -62,33 +62,24 @@ The intelligence layers improve the decision process; they cannot guarantee a pe
 
 ## Automatic publishing
 
-The scheduled workflow is configured for:
+Production scheduling is owned by the PostgreSQL scheduler, not GitHub Actions cron. Each slot stores a UTC instant; schedule rules use the user's IANA timezone and local wall-clock times. Planner and worker services prepare and QA clips before the publish window. The dispatcher performs only the final Instagram media_publish call.
 
-<p align="center">
-  <strong>Mon–Thu: 7:00 PM IST</strong> &nbsp; · &nbsp; <strong>Fri: 8:00 PM IST</strong> &nbsp; · &nbsp; <strong>Sat: 12:00 PM IST</strong> &nbsp; · &nbsp; <strong>Sun: 7:00 PM IST</strong>
-</p>
+GitHub Actions is manual/CI only. Do not cut over production until the scheduler has been deployed, bootstrapped, and verified with a test account. See [Phase 1 scheduler runbook](docs/phase1_scheduler.md).
 
-GitHub Actions starts the scheduled runs shortly before each slot. Each run uses the normal pipeline, fills the queue when needed, applies quality and manual-review safeguards, and attempts at most one Reel per slot.
-
-**A scheduled run is an attempt, not a guarantee of a post.** A slot may not publish if no eligible clip is ready, a clip needs review, or an external service such as YouTube or Instagram is unavailable.
+**A slot is not silently posted late:** if it exceeds max_late_minutes (default 20), it is marked missed. An ambiguous Instagram publish response becomes publish_uncertain and is never automatically retried.
 
 ## Get it running
 
-1. Fork or clone this repository.
-2. Add the required GitHub Actions secrets:
-   - **IG_USER_ID** and **IG_ACCESS_TOKEN** — your Instagram Business or Creator publishing credentials.
-   - **GEMINI_API_KEY** — for AI-based candidate ranking and final clip review.
-   - **YT_COOKIES** and **YT_PROXY** — only if YouTube blocks downloads from your runner.
-   - **YT_TOKEN_JSON** — Google OAuth authorized-user token JSON for uploading Shorts (see below).
-   - **HF_TOKEN** — optional; used for speaker diarization after accepting the pyannote model conditions.
-3. In **Settings → Actions → General**, enable read and write workflow permissions so the workflow can persist its state.
-4. In **config.yaml**, enable only podcast sources you own, license or have explicit permission to republish. The repository's configured source list is Raj Shamani, Ranveer Allahbadia, Jay Shetty and Prakhar Gupta (Prakhar Ke Pravachan); source permissions are the operator's responsibility and must be verified before enabling each channel.
-5. Run **check-live** first. It checks integrations and rendering, but is diagnostic only — it does not publish a Reel.
-6. When setup is ready, use **publish-now** for a manual publishing attempt. Scheduled runs use the normal **tick** pipeline.
+**For the new production scheduler:** follow [the Phase 1 runbook](docs/phase1_scheduler.md). It covers Postgres/Garage local setup and managed S3 production setup, source-rights attestation, importing the old JSON state, running planner/workers/dispatchers, and the manual cutover checklist.
+
+- GitHub Actions no longer runs scheduled publishing. It remains available for CI and manual diagnostics.
+- Set enabled sources in config.yaml only when you own, license, or have explicit permission to repost them. The bootstrap script requires a source-rights attestation and records it in PostgreSQL.
+- Do not run legacy tick/publish/publish-now commands with CLIPPER_STATE_BACKEND=postgres; those commands are blocked to prevent a second publisher racing the dispatcher.
+- For the legacy JSON workflow only, check-live is diagnostic and publish-now is manual. Keep that mode separate from the Postgres scheduler.
 
 ## YouTube Shorts publishing
 
-Clipper can upload the same final, QA-approved MP4 to YouTube Shorts after Instagram publishing succeeds. The platforms are tracked separately in `state/state.json`: a YouTube failure does not undo an Instagram post or trigger an Instagram repost.
+Clipper queues a separate YouTube Shorts job only after Instagram publishing succeeds. The platform outcomes are stored separately in PostgreSQL: a YouTube failure does not undo an Instagram post or trigger an Instagram repost.
 
 1. In Google Cloud Console, enable **YouTube Data API v3** and complete OAuth consent setup for your Google account.
 2. On the trusted machine where your existing `token.pickle` is located, install the Google auth packages and convert it locally:
@@ -97,7 +88,7 @@ Clipper can upload the same final, QA-approved MP4 to YouTube Shorts after Insta
    python -c 'import pickle; from pathlib import Path; c=pickle.load(open("token.pickle", "rb")); Path("youtube-token.json").write_text(c.to_json(), encoding="utf-8")'
    ```
    This conversion assumes the pickle came from your own OAuth login. Never unpickle files from untrusted sources. Do not upload the pickle or client-secret file to GitHub or commit them.
-3. Add the resulting authorized-user JSON as the GitHub Actions secret **YT_TOKEN_JSON**. Keep it private; it contains a refresh token.
+3. Add the resulting authorized-user JSON as the deployment environment secret **YT_TOKEN_JSON** (for local setup, in your untracked .env). Keep it private; it contains a refresh token.
 4. Leave `youtube.enabled: true` in `config.yaml`. Set `privacy_status: unlisted` for a private validation run, or `public` for normal Shorts publishing.
 
 The YouTube upload uses the rendered local MP4, the clip title, the caption/description, and source attribution. YouTube may classify vertical videos under three minutes as Shorts; upload success does not guarantee recommendation or views. Instagram and YouTube publishing outcomes are stored independently.

@@ -1,0 +1,5 @@
+# Phase 1 scheduler runtime (install in addition to requirements.txt)
+psycopg[binary]>=3.2,<4
+boto3>=1.35,<2
+
+cryptography>=42,<47

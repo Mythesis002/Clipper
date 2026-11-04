@@ -1,22 +1,15 @@
 name: podcast-clipper
 
 on:
-  schedule:
-    # GitHub scheduled events are best-effort and may be delayed or dropped.
-    # Primary: 06:17/18:17 IST. Retry: 07:17/19:17 IST (one hour later).
-    # UTC: 00:47, 01:47, 12:47, 13:47. tick's 6-hour catch-up window makes retries safe:
-    # state records a post against its slot, so a retry won't publish a second clip for that slot.
-    - cron: "47 0 * * *"
-    - cron: "47 1 * * *"
-    - cron: "47 12 * * *"
-    - cron: "47 13 * * *"
+  # Production scheduling is owned by PostgreSQL dispatcher services.
+  # GitHub Actions is intentionally manual-only for diagnostics and legacy tasks.
   workflow_dispatch:
     inputs:
       command:
-        description: "Default publishes one Reel now. Scheduled runs use the weekday-specific slots in config.yaml."
+        description: "Diagnostics and clip production only. Production publishing is handled by PostgreSQL dispatcher services."
         type: choice
-        default: publish-now
-        options: [check-live, check, produce, publish-now, tick, publish, metrics, status, approve, reject, feedback, confirm-post, retry-uncertain]
+        default: check-live
+        options: [check-live, check, produce, metrics, status, reject, feedback, confirm-post]
       dry_run:
         description: "produce: analyse only, queue nothing"
         type: boolean
@@ -44,7 +37,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write            # to commit state/state.json
+  contents: read             # manual diagnostics only; Postgres is production state
 
 jobs:
   run:
@@ -80,9 +73,6 @@ jobs:
           print(f"bgutil-ytdlp-pot-provider: {version('bgutil-ytdlp-pot-provider')}")
           PY
           deno --version
-
-      - name: Regression tests
-        run: python -m unittest discover -s tests -v
 
       - name: Optional pyannote speaker diarization dependency
         env:
@@ -140,7 +130,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           YT_PROXY: ${{ secrets.YT_PROXY }}
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
-          CMD: ${{ inputs.command || 'tick' }}      # scheduled runs have no input -> tick
+          CMD: ${{ inputs.command || 'check-live' }}
           DRY: ${{ inputs.dry_run }}
           FORCE: ${{ inputs.force }}
           CLIP_ID: ${{ inputs.clip_id }}
@@ -179,18 +169,3 @@ jobs:
           path: review/*.mp4
           if-no-files-found: ignore
           retention-days: 14
-
-      - name: Save state (queue + results)
-        if: always()
-        run: |
-          git config user.name "clipper-bot"
-          git config user.email "clipper-bot@users.noreply.github.com"
-          # The state directory may not exist on a fresh checkout or on an idle run.
-          mkdir -p state
-          touch state/.gitkeep
-          git add -A -- state/
-          if ! git diff --cached --quiet; then
-            git commit -m "state: $(date -u +%Y-%m-%dT%H:%MZ)"
-            git pull --rebase -q
-            git push
-          fi

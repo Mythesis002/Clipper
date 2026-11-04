@@ -1,0 +1,19 @@
+# Local secrets and environment
+.env
+.env.*
+secrets/
+garage/garage.toml
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local media and scheduler artifacts
+work/
+review/
+*.mp4
+*.wav

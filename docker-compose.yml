@@ -1,0 +1,97 @@
+services:
+  postgres:
+    image: postgres:16
+    command: ["postgres", "-c", "max_connections=500"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: clipper
+      POSTGRES_USER: clipper
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clipper-local-dev}
+    ports: ["5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clipper -d clipper"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  garage:
+    image: dxflrs/garage:v2.5.0
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    restart: unless-stopped
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
+      GARAGE_DEFAULT_ACCESS_KEY: ${S3_ACCESS_KEY_ID}
+      GARAGE_DEFAULT_SECRET_KEY: ${S3_SECRET_ACCESS_KEY}
+      GARAGE_DEFAULT_BUCKET: ${S3_BUCKET:-clipper-media}
+    ports: ["127.0.0.1:3900:3900"]
+    volumes:
+      - ./garage/garage.toml:/etc/garage.toml:ro
+      - garage_data:/var/lib/garage
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  planner:
+    build: .
+    command: python -m scheduler.planner
+    restart: unless-stopped
+    environment: &clipper_env
+      DATABASE_URL: postgresql://clipper:${POSTGRES_PASSWORD:-clipper-local-dev}@postgres:5432/clipper
+      S3_ENDPOINT_URL: http://garage:3900
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-clipper-local}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-clipper-local-secret}
+      S3_BUCKET: ${S3_BUCKET:-clipper-media}
+      S3_REGION: ${S3_REGION:-garage}
+      CLIPPER_STATE_BACKEND: postgres
+      CLIPPER_USER_ID: ${CLIPPER_USER_ID}
+      IG_GRAPH_VERSION: ${IG_GRAPH_VERSION:-v25.0}
+      TOKEN_ENCRYPTION_KEY_FILE: /run/secrets/token_encryption_key
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      YOUTUBE_ENABLED: ${YOUTUBE_ENABLED:-true}
+      PUBLISH_CONCURRENCY: ${PUBLISH_CONCURRENCY:-150}
+      META_RATE_CAPACITY: ${META_RATE_CAPACITY:-300}
+      META_REQUESTS_PER_SECOND: ${META_REQUESTS_PER_SECOND:-100}
+      GEMINI_RATE_CAPACITY: ${GEMINI_RATE_CAPACITY:-10}
+      GEMINI_REQUESTS_PER_SECOND: ${GEMINI_REQUESTS_PER_SECOND:-5}
+      YOUTUBE_RATE_CAPACITY: ${YOUTUBE_RATE_CAPACITY:-10}
+      YOUTUBE_REQUESTS_PER_SECOND: ${YOUTUBE_REQUESTS_PER_SECOND:-1}
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  worker:
+    build: .
+    command: python -m scheduler.worker
+    restart: unless-stopped
+    environment:
+      <<: *clipper_env
+      CLIPPER_JOB_HANDLER_MODULE: scheduler.clipper_handlers
+    secrets: [token_encryption_key]
+    depends_on:
+      postgres: {condition: service_healthy}
+      garage: {condition: service_healthy}
+    deploy:
+      replicas: 4
+
+  dispatcher:
+    build: .
+    command: python -m scheduler.dispatcher
+    restart: unless-stopped
+    environment: *clipper_env
+    secrets: [token_encryption_key]
+    depends_on:
+      postgres: {condition: service_healthy}
+    deploy:
+      replicas: 2
+
+secrets:
+  token_encryption_key:
+    file: ${TOKEN_ENCRYPTION_KEY_FILE_PATH:-./secrets/token_encryption_key}
+
+volumes:
+  postgres_data:
+  garage_data:
