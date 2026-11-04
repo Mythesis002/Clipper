@@ -70,7 +70,7 @@ GitHub Actions is manual/CI only. Do not cut over production until the scheduler
 
 ## Get it running
 
-**For the new production scheduler:** follow [the Phase 1 runbook](docs/phase1_scheduler.md). It covers Postgres/MinIO setup, source-rights attestation, importing the old JSON state, running planner/workers/dispatchers, and the manual cutover checklist.
+**For the new production scheduler:** follow [the Phase 1 runbook](docs/phase1_scheduler.md). It covers Postgres/Garage local setup and managed S3 production setup, source-rights attestation, importing the old JSON state, running planner/workers/dispatchers, and the manual cutover checklist.
 
 - GitHub Actions no longer runs scheduled publishing. It remains available for CI and manual diagnostics.
 - Set enabled sources in config.yaml only when you own, license, or have explicit permission to repost them. The bootstrap script requires a source-rights attestation and records it in PostgreSQL.
