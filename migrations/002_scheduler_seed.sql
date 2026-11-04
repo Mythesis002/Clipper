@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS provider_circuits (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS scheduler_control (key text PRIMARY KEY, last_run_at timestamptz NOT NULL);
+ALTER TABLE slots ADD COLUMN IF NOT EXISTS assignment_lead_minutes integer NOT NULL DEFAULT 360;
+ALTER TABLE slots ADD COLUMN IF NOT EXISTS verify_lead_minutes integer NOT NULL DEFAULT 30;
+ALTER TABLE slots ADD COLUMN IF NOT EXISTS container_lead_minutes integer NOT NULL DEFAULT 10;
 ALTER TABLE slots ADD COLUMN IF NOT EXISTS verification_checked_at timestamptz;
 ALTER TABLE slots ADD COLUMN IF NOT EXISTS quota_checked_at timestamptz;
 ALTER TABLE slots ADD COLUMN IF NOT EXISTS quota_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb;
