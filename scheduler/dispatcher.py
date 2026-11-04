@@ -11,6 +11,7 @@ import logging
 import os
 import socket
 import time
+import threading
 from datetime import datetime, timezone
 
 import requests
@@ -188,8 +189,8 @@ def _account_publish_lock(account_id):
             conn.close()
 
 
-def _dispatch_claimed_slot(slot, dispatcher_id):
-    slot_id, user_id, account_id, clip_id, container_id, run_at, max_late, attempts = slot
+def _dispatch_claimed_slot(slot, dispatcher_id, stop_event=None):
+    slot_id,user_id,account_id,clip_id,container_id,run_at,max_late,attempts=slot
     with connect() as clock_conn:
         with clock_conn.cursor() as cur:
             cur.execute("SELECT now()")
@@ -198,28 +199,71 @@ def _dispatch_claimed_slot(slot, dispatcher_id):
     if delay>0:
         deadline=time.monotonic()+delay
         while time.monotonic()<deadline:
+            if stop_event is not None and stop_event.is_set():
+                log.warning("shutdown requested while waiting; release slot lease id=%s",slot_id)
+                with connect() as conn,conn.transaction():
+                    with conn.cursor() as cur:
+                        cur.execute("UPDATE slots SET lease_owner=NULL,lease_until=NULL,updated_at=now() WHERE id=%s AND state='container_ready' AND lease_owner=%s",
+                                    (slot_id,dispatcher_id))
+                return
             with connect() as conn,conn.transaction():
                 lease_ok=heartbeat_slot(conn,slot_id,dispatcher_id,lease_seconds=45)
             if not lease_ok:
                 log.warning("slot lease lost during wait; skip slot=%s",slot_id)
                 return
             time.sleep(min(0.25,max(0.01,deadline-time.monotonic())))
-    with connect() as conn:
-        account_row=_load_slot_account(conn,slot_id,user_id)
-    if account_row["status"]!="active":
+    if stop_event is not None and stop_event.is_set():
         with connect() as conn,conn.transaction():
-            transition_slot(conn,slot_id,"container_ready","failed",dispatcher_id,
-                            last_error="connected account is not active",
-                            lease_owner=None,lease_until=None)
+            with conn.cursor() as cur:
+                cur.execute("UPDATE slots SET lease_owner=NULL,lease_until=NULL,updated_at=now() WHERE id=%s AND state='container_ready' AND lease_owner=%s",
+                            (slot_id,dispatcher_id))
         return
-    if not account_row.get("token_ciphertext"):
-        raise RuntimeError("Instagram account has no encrypted access token; run bootstrap_user.py")
-    token=decrypt_token(account_row["token_ciphertext"])
-    with _account_publish_lock(account_id) as lock_conn:
-        _publish_one(slot,dispatcher_id,
-                     {"external_id":account_row["external_id"],"access_token":token},
-                     {"graph_version":os.environ.get("IG_GRAPH_VERSION","v25.0")},
-                     db_conn=lock_conn)
+    # Account lock may block. Heartbeat the lease while waiting so a second
+    # dispatcher cannot steal this slot and issue the same provider request.
+    acquired=threading.Event()
+    lock_stop=threading.Event()
+    def lock_heartbeat():
+        while not lock_stop.wait(10):
+            try:
+                with connect() as conn,conn.transaction():
+                    if not heartbeat_slot(conn,slot_id,dispatcher_id,lease_seconds=45):
+                        log.error("slot lease lost waiting account lock id=%s",slot_id)
+                        return
+            except Exception:
+                log.exception("account-lock lease heartbeat failed slot=%s",slot_id)
+    heartbeat=threading.Thread(target=lock_heartbeat,daemon=True)
+    heartbeat.start()
+    try:
+        with _account_publish_lock(account_id) as lock_conn:
+            lock_stop.set(); heartbeat.join(timeout=2)
+            with lock_conn.cursor() as cur:
+                cur.execute("SELECT now()")
+                account_lock_now=cur.fetchone()[0]
+            if account_lock_now>run_at+__import__("datetime").timedelta(minutes=max_late):
+                with lock_conn.transaction():
+                    transition_slot(lock_conn,slot_id,"container_ready","missed",dispatcher_id,
+                                    last_error="slot deadline passed while waiting for account serialization",
+                                    lease_owner=None,lease_until=None)
+                    append_event(lock_conn,user_id,slot_id,"slot_missed",
+                                 {"reason":"account serialization exceeded max_late_minutes"})
+                return
+            account_row=_load_slot_account(lock_conn,slot_id,user_id)
+            if account_row["status"]!="active":
+                with lock_conn.transaction():
+                    transition_slot(lock_conn,slot_id,"container_ready","failed",dispatcher_id,
+                                    last_error="connected account is not active",
+                                    lease_owner=None,lease_until=None)
+                return
+            if not account_row.get("token_ciphertext"):
+                raise RuntimeError("Instagram account has no encrypted access token; run bootstrap_user.py")
+            token=decrypt_token(account_row["token_ciphertext"])
+            _publish_one(slot,dispatcher_id,
+                         {"external_id":account_row["external_id"],"access_token":token},
+                         {"graph_version":os.environ.get("IG_GRAPH_VERSION","v25.0")},
+                         db_conn=lock_conn)
+    finally:
+        lock_stop.set()
+        heartbeat.join(timeout=2)
 
 
 def run_dispatcher(poll_seconds=0.5, claim_limit=None):
@@ -229,7 +273,8 @@ def run_dispatcher(poll_seconds=0.5, claim_limit=None):
     log.info("dispatcher online id=%s concurrency=%d",dispatcher_id,max_workers)
     with ThreadPoolExecutor(max_workers=max_workers,thread_name_prefix="ig-publish") as pool:
         inflight=set()
-        while True:
+        stop_event=threading.Event()
+        while not stop_event.is_set():
             try:
                 completed={f for f in inflight if f.done()}
                 for future in completed:
@@ -249,7 +294,7 @@ def run_dispatcher(poll_seconds=0.5, claim_limit=None):
                         slots=claim_slots_near_due(conn,dispatcher_id,seconds_ahead=3,
                                                    limit=min(free,claim_limit),lease_seconds=45)
                 for slot in slots:
-                    inflight.add(pool.submit(_dispatch_claimed_slot,slot,dispatcher_id))
+                    inflight.add(pool.submit(_dispatch_claimed_slot,slot,dispatcher_id,stop_event))
                 if inflight:
                     wait(inflight,timeout=poll_seconds,return_when=FIRST_COMPLETED)
                 else:
@@ -260,5 +305,13 @@ def run_dispatcher(poll_seconds=0.5, claim_limit=None):
 
 
 if __name__ == "__main__":
+    import signal
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    # Graceful shutdown stops new claims; in-flight publish requests finish or
+    # become uncertain, while future slots release their leases for takeover.
+    shutdown=threading.Event()
+    def _signal_handler(_signum,_frame):
+        shutdown.set()
+    signal.signal(signal.SIGTERM,_signal_handler)
+    signal.signal(signal.SIGINT,_signal_handler)
     run_dispatcher()
