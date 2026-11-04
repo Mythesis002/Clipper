@@ -42,8 +42,13 @@ def _record_exhausted(user_id,job_id,kind,payload,error):
                 cur.execute(
                     """UPDATE slots SET state='failed',last_error=%s,lease_owner=NULL,lease_until=NULL,
                        updated_at=now() WHERE id=%s AND user_id=%s
-                       AND state IN ('assigned','preparing','verified','container_uploading')""",
+                       AND state IN ('assigned','preparing','verified','container_uploading')
+                       RETURNING clip_id""",
                     (error,slot_id,user_id))
+                row=cur.fetchone()
+                if row and row[0] is not None:
+                    cur.execute("UPDATE clips SET status='needs_review',updated_at=now() WHERE user_id=%s AND id=%s AND status='assigned'",
+                                (user_id,row[0]))
                 cur.execute(
                     """INSERT INTO events(user_id,slot_id,type,detail)
                        VALUES (%s,%s,'job_exhausted',%s::jsonb)""",
