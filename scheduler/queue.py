@@ -69,7 +69,7 @@ def finish_job(conn, job_id, worker_id: str, success: bool, error: str | None = 
         cur.execute(
             """UPDATE jobs SET state=%s, lease_owner=NULL, lease_until=NULL,
                    last_error=%s, updated_at=now()
-               WHERE id=%s AND state='leased' AND lease_owner=%s
+               WHERE id=%s AND state='leased' AND lease_owner=%s AND lease_until > now()
                RETURNING id""",
             ("succeeded" if success else "retry", (error or "")[:1000] or None, job_id, worker_id),
         )
