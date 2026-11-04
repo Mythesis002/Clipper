@@ -15,7 +15,7 @@ import yaml
 import podcast_clipper as pipeline
 from db import connect
 from scheduler.queue import append_event\nfrom scheduler.planner import _enqueue
-from storage import upload_file,download_file
+from storage import upload_file,download_file\nfrom scheduler.instagram_limits import assert_publish_quota_available
 
 log=logging.getLogger("clipper.handlers")
 BASE=Path(__file__).resolve().parents[1]
@@ -87,13 +87,21 @@ def upload_container(user_id,payload):
             row=cur.fetchone()
     if not row or not row[0]: raise RuntimeError("rendered clip storage key missing")
     storage_key,clip=row
+    ig_id=os.environ.get("IG_USER_ID","").strip()
+    token=os.environ.get("IG_ACCESS_TOKEN","").strip()
+    quota=assert_publish_quota_available(
+        os.environ.get("IG_GRAPH_VERSION","v25.0"),ig_id,token
+    )
     with tempfile.TemporaryDirectory(prefix="clipper-container-") as temp:
         path=download_file(storage_key,Path(temp)/"clip.mp4")
         cfg=_cfg()
         container_id=pipeline.upload_reel_container(cfg,path,str(clip.get("caption") or ""))
     _update_slot(slot_id,"container_uploading","container_ready",user_id,container_id=str(container_id))
     with connect() as conn,conn.transaction():
-        append_event(conn,user_id,slot_id,"container_ready",{"container_id":str(container_id)})
+        with conn.cursor() as cur:
+            cur.execute("UPDATE slots SET quota_checked_at=now(),quota_snapshot=%s::jsonb WHERE id=%s AND state='container_ready'",
+                        (json.dumps(quota),slot_id))
+        append_event(conn,user_id,slot_id,"container_ready",{"container_id":str(container_id),"quota":quota})
     return {"container_id":str(container_id)}
 
 
