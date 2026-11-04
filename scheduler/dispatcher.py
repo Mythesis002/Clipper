@@ -19,8 +19,7 @@ from contextlib import contextmanager
 
 from db import connect
 from scheduler.crypto import decrypt_token
-from scheduler.provider_limits import provider_request,ProviderCircuitOpen
-from scheduler.provider_limits import provider_request
+from scheduler.provider_limits import provider_request, ProviderCircuitOpen
 from scheduler.instagram_limits import assert_publish_quota_available
 from scheduler.queue import (
     append_event, claim_slots_near_due, heartbeat_slot, transition_slot,
@@ -208,8 +207,14 @@ def _dispatch_claimed_slot(slot, dispatcher_id, stop_event=None):
             db_now=cur.fetchone()[0]
     delay=(run_at-db_now).total_seconds()
     if delay>0:
+        # Claimed slots are at most seconds_ahead into the future and carry a
+        # 45-second lease. Do not open a DB connection every 250 ms per slot:
+        # that creates a connection storm during synchronized bursts.
         deadline=time.monotonic()+delay
-        while time.monotonic()<deadline:
+        while True:
+            remaining=deadline-time.monotonic()
+            if remaining<=0:
+                break
             if stop_event is not None and stop_event.is_set():
                 log.warning("shutdown requested while waiting; release slot lease id=%s",slot_id)
                 with connect() as conn,conn.transaction():
@@ -217,12 +222,7 @@ def _dispatch_claimed_slot(slot, dispatcher_id, stop_event=None):
                         cur.execute("UPDATE slots SET lease_owner=NULL,lease_until=NULL,updated_at=now() WHERE id=%s AND state='container_ready' AND lease_owner=%s",
                                     (slot_id,dispatcher_id))
                 return
-            with connect() as conn,conn.transaction():
-                lease_ok=heartbeat_slot(conn,slot_id,dispatcher_id,lease_seconds=45)
-            if not lease_ok:
-                log.warning("slot lease lost during wait; skip slot=%s",slot_id)
-                return
-            time.sleep(min(0.25,max(0.01,deadline-time.monotonic())))
+            time.sleep(min(0.1,remaining))
     if stop_event is not None and stop_event.is_set():
         with connect() as conn,conn.transaction():
             with conn.cursor() as cur:
