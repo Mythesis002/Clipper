@@ -14,7 +14,7 @@ import yaml
 
 import podcast_clipper as pipeline
 from db import connect
-from scheduler.queue import append_event
+from scheduler.queue import append_event\nfrom scheduler.planner import _enqueue
 from storage import upload_file,download_file
 
 log=logging.getLogger("clipper.handlers")
@@ -97,4 +97,4 @@ def upload_container(user_id,payload):
     return {"container_id":str(container_id)}
 
 
-JOB_HANDLERS={"prepare_clip":prepare_clip,"upload_container":upload_container}
+JOB_HANDLERS={"prepare_clip":prepare_clip,"upload_container":upload_container,"produce":produce_for_slot}
