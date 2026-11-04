@@ -2604,7 +2604,9 @@ def publish_next(cfg, wait=True, force=False):
                 REVIEW_DIR.mkdir(parents=True, exist_ok=True)
                 review_path = REVIEW_DIR / f"clip_{clip['id']}.mp4"
                 shutil.copy2(path, review_path)
-                clip["editorial_review_required"] = True
+                # Preserve human-review holds for uncertain content, but allow bounded retries
+                # when the screen itself failed transiently (API/response error).
+                clip["editorial_review_required"] = not bool(clip.get("promotion_screen_error"))
                 clip.update(status="needs_review", review_artifact_file=review_path.name,
                             error="Manual editorial review required: " + "; ".join(issues)[:300])
                 # API/response failures can be transient. Schedule a bounded retry; low-confidence
