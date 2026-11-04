@@ -226,7 +226,7 @@ def quarantine_stuck_publishing(conn,limit=200):
                UPDATE slots s SET state='publish_uncertain',
                  last_error='dispatcher lease expired after publish_started; reconcile provider outcome',
                  lease_owner=NULL,lease_until=NULL,updated_at=now()
-               FROM stuck x WHERE s.id=x.id RETURNING s.id,s.user_id""",(limit,))
+               FROM stuck x WHERE s.id=x.id RETURNING s.id,s.user_id,s.clip_id""",(limit,))
         rows=cur.fetchall()
         for slot_id,user_id in rows:
             append_event(conn,user_id,slot_id,"publish_uncertain",
