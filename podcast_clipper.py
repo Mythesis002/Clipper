@@ -28,6 +28,7 @@ import logging
 import os
 import random
 import re
+import random
 import shutil
 import subprocess
 import sys
@@ -684,7 +685,7 @@ def _gemini_post(model, body, key, timeout=(GEMINI_CONNECT_TIMEOUT, GEMINI_TEXT_
                     f"{model} request timed out or lost its connection after "
                     f"{max_attempts} attempts: {ex}"
                 ) from ex
-            wait = min(2 ** (attempt + 1), 10)
+            wait = min(2 ** (attempt + 1), 10) * random.uniform(0.75, 1.25)
             log.warning(
                 "Gemini %s network attempt %d/%d failed (%s); retrying in %ds",
                 model, attempt + 1, max_attempts, type(ex).__name__, wait,
@@ -698,6 +699,7 @@ def _gemini_post(model, body, key, timeout=(GEMINI_CONNECT_TIMEOUT, GEMINI_TEXT_
             except (TypeError, ValueError):
                 retry_after = 0
             wait = min(retry_after or 2 ** (attempt + 1), 30)
+            wait += random.uniform(0, min(2.0, wait * 0.2))
             log.warning(
                 "Gemini %s returned HTTP %d on attempt %d/%d; retrying in %ds",
                 model, response.status_code, attempt + 1, max_attempts, wait,
@@ -744,6 +746,8 @@ def gemini_text(cfg, parts, temperature=0.2, max_tokens=8192, response_schema=No
         from scheduler.provider_limits import provider_request
         with provider_request("gemini"):
             response = _gemini_post(GEMINI_MODEL, body, key, timeout=timeout)
+            if response.status_code in (408,429,500,502,503,504):
+                raise GeminiError(f"Gemini transient HTTP {response.status_code} after retries")
     else:
         response = _gemini_post(GEMINI_MODEL, body, key, timeout=timeout)
 
