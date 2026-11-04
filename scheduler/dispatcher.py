@@ -17,6 +17,7 @@ import requests
 from contextlib import contextmanager
 
 from db import connect
+from scheduler.crypto import decrypt_token
 from scheduler.instagram_limits import assert_publish_quota_available
 from scheduler.queue import (
     append_event, claim_slots_near_due, heartbeat_slot, transition_slot,
@@ -198,9 +199,9 @@ def _dispatch_claimed_slot(slot, dispatcher_id):
                             last_error="connected account is not active",
                             lease_owner=None,lease_until=None)
         return
-    token=os.environ.get("IG_ACCESS_TOKEN","").strip()
-    if not token:
-        raise RuntimeError("IG_ACCESS_TOKEN is not configured for Phase 1 dispatcher")
+    if not account_row.get("token_ciphertext"):
+        raise RuntimeError("Instagram account has no encrypted access token; run bootstrap_user.py")
+    token=decrypt_token(account_row["token_ciphertext"])
     with _account_publish_lock(account_id) as lock_conn:
         _publish_one(slot,dispatcher_id,
                      {"external_id":account_row["external_id"],"access_token":token},
