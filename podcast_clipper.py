@@ -3088,6 +3088,11 @@ def main():
                         handlers=[logging.StreamHandler(sys.stdout)])
     cfg = load_config(args.config)
     ok = True
+    postgres_scheduler_mode = os.environ.get("CLIPPER_STATE_BACKEND", "json").strip().lower() == "postgres"
+    if postgres_scheduler_mode and args.command in {"tick", "publish-now", "publish"}:
+        ap.error("Legacy publish commands are disabled in Postgres scheduler mode. Start scheduler/dispatcher services; use the scheduler CLI/API.")
+    if postgres_scheduler_mode and args.command == "approve" and args.force:
+        ap.error("Legacy approve --force is disabled in Postgres scheduler mode; approve via scheduler control plane.")
     if args.command in {"tick", "publish-now"}:
         # publish-now is the unambiguous manual path: fill the queue if needed, then
         # run the normal QA and publishing pipeline immediately, bypassing slot wait.
