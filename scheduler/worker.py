@@ -11,6 +11,7 @@ import os
 import socket
 import time
 import threading
+import random
 from pathlib import Path
 
 from db import connect
@@ -80,7 +81,7 @@ def run_worker(poll_seconds=2):
             except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"[:1000]
                 state = "failed" if attempts >= max_attempts else "retry"
-                delay = min(3600, 15 * (2 ** min(attempts - 1, 8)))
+                delay = min(3600, 15 * (2 ** min(attempts - 1, 8))) * random.uniform(0.75, 1.25)
                 with conn.transaction():
                     with conn.cursor() as cur:
                         cur.execute(
