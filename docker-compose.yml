@@ -65,6 +65,7 @@ services:
     environment:
       <<: *clipper_env
       CLIPPER_JOB_HANDLER_MODULE: scheduler.clipper_handlers
+    secrets: [token_encryption_key]
     depends_on:
       postgres: {condition: service_healthy}
       minio-init: {condition: service_completed_successfully}
@@ -76,10 +77,15 @@ services:
     command: python -m scheduler.dispatcher
     restart: unless-stopped
     environment: *clipper_env
+    secrets: [token_encryption_key]
     depends_on:
       postgres: {condition: service_healthy}
     deploy:
       replicas: 2
+
+secrets:
+  token_encryption_key:
+    file: ${TOKEN_ENCRYPTION_KEY_FILE_PATH:-./secrets/token_encryption_key}
 
 volumes:
   postgres_data:
