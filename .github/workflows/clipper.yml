@@ -6,10 +6,10 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: "Default publishes one Reel now. Scheduled runs use the weekday-specific slots in config.yaml."
+        description: "Diagnostics and clip production only. Production publishing is handled by PostgreSQL dispatcher services."
         type: choice
-        default: publish-now
-        options: [check-live, check, produce, publish-now, tick, publish, metrics, status, approve, reject, feedback, confirm-post, retry-uncertain]
+        default: check-live
+        options: [check-live, check, produce, metrics, status, reject, feedback, confirm-post]
       dry_run:
         description: "produce: analyse only, queue nothing"
         type: boolean
