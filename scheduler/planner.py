@@ -199,20 +199,19 @@ def mark_expired_slots(conn, limit=500):
     with conn.cursor() as cur:
         cur.execute(
             """WITH expired AS (
-                 SELECT s.id,s.user_id FROM slots s
+                 SELECT s.id,s.user_id,s.state FROM slots s
                  WHERE s.state IN ('scheduled','assigned','preparing','verified','container_uploading','container_ready')
                    AND s.run_at_utc + (s.max_late_minutes * interval '1 minute') < now()
                  ORDER BY s.run_at_utc LIMIT %s FOR UPDATE OF s SKIP LOCKED
                )
                UPDATE slots s SET state='missed',last_error='max_late_minutes exceeded',
                  lease_owner=NULL,lease_until=NULL,updated_at=now()
-               FROM expired e WHERE s.id=e.id RETURNING s.id,s.user_id""",(limit,))
+               FROM expired e WHERE s.id=e.id RETURNING s.id,s.user_id,e.state""",(limit,))
         rows=cur.fetchall()
-        for slot_id,user_id in rows:
-            append_event(conn,user_id,slot_id,"slot_missed",{"reason":"max_late_minutes exceeded"})
+        for slot_id,user_id,previous_state in rows:
+            append_event(conn,user_id,slot_id,"slot_missed",
+                         {"reason":"max_late_minutes exceeded","previous_state":previous_state})
         return len(rows)
-
-
 
 
 def quarantine_stuck_publishing(conn,limit=200):
