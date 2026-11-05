@@ -240,7 +240,7 @@
     "ig_reels_video_view_total_time": 65377,
     "reels_skip_rate": 50
    },
-   "metrics_at": "2026-11-04T14:37:48+00:00",
+   "metrics_at": "2026-11-05T20:18:51+00:00",
    "performance_detail": {
     "score": 0.3947,
     "avg_watch_s": 16.344,
@@ -2655,17 +2655,17 @@
     }
    },
    "metrics": {
-    "views": 152,
-    "reach": 116,
+    "views": 153,
+    "reach": 117,
     "likes": 1,
     "comments": 0,
     "shares": 0,
     "saved": 0,
-    "ig_reels_avg_watch_time": 15399,
-    "ig_reels_video_view_total_time": 1817190,
-    "reels_skip_rate": 42.4
+    "ig_reels_avg_watch_time": 15277,
+    "ig_reels_video_view_total_time": 1818078,
+    "reels_skip_rate": 42.9
    },
-   "metrics_at": "2026-11-04T14:37:52+00:00",
+   "metrics_at": "2026-11-05T20:18:53+00:00",
    "metric_snapshots": [
     {
      "band": "24h",
@@ -2682,19 +2682,35 @@
       "ig_reels_video_view_total_time": 1815993,
       "reels_skip_rate": 41.9
      }
+    },
+    {
+     "band": "72h",
+     "age_hours": 80.6,
+     "sampled_at": "2026-11-05T20:18:53+00:00",
+     "metrics": {
+      "views": 153,
+      "reach": 117,
+      "likes": 1,
+      "comments": 0,
+      "shares": 0,
+      "saved": 0,
+      "ig_reels_avg_watch_time": 15277,
+      "ig_reels_video_view_total_time": 1818078,
+      "reels_skip_rate": 42.9
+     }
     }
    ],
    "performance_detail": {
-    "score": 0.3598,
-    "avg_watch_s": 15.399,
-    "retention_pct": 49.1,
+    "score": 0.3569,
+    "avg_watch_s": 15.277,
+    "retention_pct": 48.71,
     "share_rate": 0.0,
     "save_rate": 0.0,
-    "like_rate": 0.00862,
-    "skip_rate": 0.424,
+    "like_rate": 0.00855,
+    "skip_rate": 0.429,
     "evidence_count": 5
    },
-   "performance_score": 0.3598
+   "performance_score": 0.3569
   },
   {
    "id": 11,
@@ -3248,7 +3264,7 @@
     "ig_reels_video_view_total_time": 975704,
     "reels_skip_rate": 41
    },
-   "metrics_at": "2026-11-04T20:08:41+00:00",
+   "metrics_at": "2026-11-05T20:18:55+00:00",
    "metric_snapshots": [
     {
      "band": "24h",
