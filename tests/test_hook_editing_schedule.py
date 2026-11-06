@@ -53,8 +53,8 @@ class DailyScheduleTests(unittest.TestCase):
     def test_daily_slot_diagnostic_shows_one_2pm_slot(self):
         cfg = {
             "timezone": "Asia/Kolkata",
-            "post_times": ["06:00", "18:00"],
-            "schedule": {"max_wait_min": 25, "catchup_hours": 6},
+            "post_times": ["14:00"],
+            "schedule": {"max_wait_min": 25, "catchup_hours": 7},
         }
         now = datetime(2026, 11, 7, 13, 40, tzinfo=ZoneInfo("Asia/Kolkata"))
         diagnostic = clipper.posting_slot_diagnostic(cfg, {"clips": []}, now=now)
