@@ -1,8 +1,8 @@
 timezone: Asia/Kolkata
-post_times: ["06:00", "18:00"]          # Daily posting slots; same times every day.
+post_times: ["14:00"]                  # Exactly one daily posting slot at 2 PM IST.
 schedule:
-  max_wait_min: 25                    # cron starts 10 minutes before the slot; wait only for small early triggers
-  catchup_hours: 6                    # tolerate delayed/dropped GitHub schedule runs and the one-hour retry
+  max_wait_min: 25                    # scheduled run at 2 PM; tolerate small early triggers
+  catchup_hours: 7                    # allow late runs through 9 PM IST; exactly one daily slot
 
 queue:
   clips_per_episode: 3
