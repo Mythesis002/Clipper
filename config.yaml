@@ -1,17 +1,8 @@
 timezone: Asia/Kolkata
-post_times: ["06:00", "18:00"]        # Fallback; weekly_post_times is the active schedule.
-weekly_post_times:
-  Monday: ["06:00", "18:00"]
-  Tuesday: ["06:00", "18:00"]
-  Wednesday: ["06:00", "18:00"]
-  Thursday: ["06:00", "18:00"]
-  Friday: ["06:00", "18:00"]
-  Saturday: ["06:00", "18:00"]
-  Sunday: ["06:00", "18:00"]
-
+post_times: ["14:00"]                  # Exactly one daily posting slot at 2 PM IST.
 schedule:
-  max_wait_min: 25                    # runner starts shortly after the slot; wait only for small early triggers
-  catchup_hours: 6                    # tolerate delayed/dropped GitHub schedule runs
+  max_wait_min: 25                    # scheduled run at 2 PM; tolerate small early triggers
+  catchup_hours: 7.5                  # allow late runs through 9:30 PM IST; exactly one daily slot
 
 queue:
   clips_per_episode: 3

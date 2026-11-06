@@ -33,31 +33,45 @@ class PremiumCaptionPlanTests(unittest.TestCase):
         self.assertEqual(plan["title_duration_s"], 5.0)
 
 
-class WeekdayScheduleTests(unittest.TestCase):
-    def test_due_slot_uses_weekday_config(self):
+class DailyScheduleTests(unittest.TestCase):
+    def test_due_slot_uses_one_daily_2pm_slot_on_weekdays_and_weekends(self):
         cfg = {
             "timezone": "Asia/Kolkata",
-            "post_times": ["19:00"],
-            "weekly_post_times": {"Monday": ["19:00"], "Saturday": ["12:00"]},
-            "schedule": {"max_wait_min": 25, "catchup_hours": 6},
+            "post_times": ["14:00"],
+            "schedule": {"max_wait_min": 25, "catchup_hours": 7.5},
         }
-        now = datetime(2026, 11, 2, 18, 55, tzinfo=ZoneInfo("Asia/Kolkata"))
-        result = clipper.due_slot(cfg, {"clips": []}, now=now)
-        self.assertIsNotNone(result)
-        self.assertEqual(result[0].strftime("%A %H:%M"), "Monday 19:00")
+        for now, expected in (
+            (datetime(2026, 11, 2, 13, 55, tzinfo=ZoneInfo("Asia/Kolkata")), "Monday 14:00"),
+            (datetime(2026, 11, 7, 13, 55, tzinfo=ZoneInfo("Asia/Kolkata")), "Saturday 14:00"),
+            (datetime(2026, 11, 8, 13, 55, tzinfo=ZoneInfo("Asia/Kolkata")), "Sunday 14:00"),
+        ):
+            with self.subTest(now=now):
+                result = clipper.due_slot(cfg, {"clips": []}, now=now)
+                self.assertIsNotNone(result)
+                self.assertEqual(result[0].strftime("%A %H:%M"), expected)
 
-    def test_diagnostic_mentions_weekday_slots(self):
+    def test_daily_slot_diagnostic_shows_one_2pm_slot(self):
         cfg = {
             "timezone": "Asia/Kolkata",
-            "post_times": ["19:00"],
-            "weekly_post_times": {"Saturday": ["12:00"]},
-            "schedule": {"max_wait_min": 25, "catchup_hours": 6},
+            "post_times": ["14:00"],
+            "schedule": {"max_wait_min": 25, "catchup_hours": 7.5},
         }
-        now = datetime(2026, 11, 7, 11, 40, tzinfo=ZoneInfo("Asia/Kolkata"))
+        now = datetime(2026, 11, 7, 13, 40, tzinfo=ZoneInfo("Asia/Kolkata"))
         diagnostic = clipper.posting_slot_diagnostic(cfg, {"clips": []}, now=now)
-        self.assertIn("Saturday", diagnostic)
-        self.assertIn("12:00", diagnostic)
+        self.assertIn("configured_slots=14:00 IST", diagnostic)
+        self.assertNotIn("weekly_slots", diagnostic)
+        self.assertNotIn("Saturday", diagnostic)
 
+    def test_catchup_allows_4_to_7_hours_late_but_expires_after_7_hours(self):
+        cfg = {"timezone": "Asia/Kolkata", "post_times": ["14:00"],
+               "schedule": {"max_wait_min": 25, "catchup_hours": 7.5}}
+        tz = ZoneInfo("Asia/Kolkata")
+        for now in (datetime(2026, 11, 6, 18, 0, tzinfo=tz),
+                    datetime(2026, 11, 6, 21, 29, tzinfo=tz)):
+            with self.subTest(now=now):
+                self.assertIsNotNone(clipper.due_slot(cfg, {"clips": []}, now=now))
+        expired = datetime(2026, 11, 6, 21, 31, tzinfo=tz)
+        self.assertIsNone(clipper.due_slot(cfg, {"clips": []}, now=expired))
 
 class CaptionRenderTests(unittest.TestCase):
     def test_title_is_short_lived_and_kinetic_word_has_ass_animation(self):

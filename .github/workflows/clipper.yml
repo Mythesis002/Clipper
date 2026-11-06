@@ -2,18 +2,15 @@ name: podcast-clipper
 
 on:
   schedule:
-    # GitHub scheduled events are best-effort and may be delayed or dropped.
-    # Primary: 06:17/18:17 IST. Retry: 07:17/19:17 IST (one hour later).
-    # UTC: 00:47, 01:47, 12:47, 13:47. tick's 6-hour catch-up window makes retries safe:
-    # state records a post against its slot, so a retry won't publish a second clip for that slot.
-    - cron: "47 0 * * *"
-    - cron: "47 1 * * *"
-    - cron: "47 12 * * *"
-    - cron: "47 13 * * *"
+    # Daily 2 PM IST (08:30 UTC), then hourly recovery attempts through 9:30 PM IST (16:00 UTC).
+    # One slot/day is enforced by state; catch-up expires 7 hours after the 2 PM slot.
+    # GitHub schedule is best-effort, so these retries help recover delayed or dropped runs.
+    - cron: "30 8-15 * * *"
+    - cron: "0 16 * * *"
   workflow_dispatch:
     inputs:
       command:
-        description: "Default publishes one Reel now. Scheduled runs use the weekday-specific slots in config.yaml."
+        description: "Default publishes one Reel now. Scheduled runs target the daily 2 PM IST slot in config.yaml."
         type: choice
         default: publish-now
         options: [check-live, check, produce, publish-now, tick, publish, metrics, status, approve, reject, feedback, confirm-post, retry-uncertain]
