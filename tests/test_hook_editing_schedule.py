@@ -54,7 +54,7 @@ class DailyScheduleTests(unittest.TestCase):
         cfg = {
             "timezone": "Asia/Kolkata",
             "post_times": ["14:00"],
-            "schedule": {"max_wait_min": 25, "catchup_hours": 7},
+            "schedule": {"max_wait_min": 25, "catchup_hours": 7.5},
         }
         now = datetime(2026, 11, 7, 13, 40, tzinfo=ZoneInfo("Asia/Kolkata"))
         diagnostic = clipper.posting_slot_diagnostic(cfg, {"clips": []}, now=now)
@@ -64,7 +64,7 @@ class DailyScheduleTests(unittest.TestCase):
 
     def test_catchup_allows_4_to_7_hours_late_but_expires_after_7_hours(self):
         cfg = {"timezone": "Asia/Kolkata", "post_times": ["14:00"],
-               "schedule": {"max_wait_min": 25, "catchup_hours": 7}}
+               "schedule": {"max_wait_min": 25, "catchup_hours": 7.5}}
         tz = ZoneInfo("Asia/Kolkata")
         for now in (datetime(2026, 11, 6, 18, 0, tzinfo=tz),
                     datetime(2026, 11, 6, 21, 29, tzinfo=tz)):
