@@ -2,14 +2,14 @@ name: podcast-clipper
 
 on:
   schedule:
-    # Daily at 6 AM and 6 PM IST (UTC+05:30).
-    # GitHub scheduled events are best-effort and can be delayed or skipped.
-    - cron: "30 0 * * *"
-    - cron: "30 12 * * *"
+    # Daily 2 PM IST (08:30 UTC), then hourly recovery attempts through 9 PM IST (15:30 UTC).
+    # One slot/day is enforced by state; catch-up expires 7 hours after the 2 PM slot.
+    # GitHub schedule is best-effort, so these retries help recover delayed or dropped runs.
+    - cron: "30 8-15 * * *"
   workflow_dispatch:
     inputs:
       command:
-        description: "Default publishes one Reel now. Scheduled runs use the daily 6 AM and 6 PM IST slots in config.yaml."
+        description: "Default publishes one Reel now. Scheduled runs target the daily 2 PM IST slot in config.yaml."
         type: choice
         default: publish-now
         options: [check-live, check, produce, publish-now, tick, publish, metrics, status, approve, reject, feedback, confirm-post, retry-uncertain]
