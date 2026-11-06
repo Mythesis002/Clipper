@@ -38,7 +38,7 @@ class DailyScheduleTests(unittest.TestCase):
         cfg = {
             "timezone": "Asia/Kolkata",
             "post_times": ["14:00"],
-            "schedule": {"max_wait_min": 25, "catchup_hours": 7},
+            "schedule": {"max_wait_min": 25, "catchup_hours": 7.5},
         }
         for now, expected in (
             (datetime(2026, 11, 2, 13, 55, tzinfo=ZoneInfo("Asia/Kolkata")), "Monday 14:00"),
@@ -67,10 +67,10 @@ class DailyScheduleTests(unittest.TestCase):
                "schedule": {"max_wait_min": 25, "catchup_hours": 7}}
         tz = ZoneInfo("Asia/Kolkata")
         for now in (datetime(2026, 11, 6, 18, 0, tzinfo=tz),
-                    datetime(2026, 11, 6, 20, 59, tzinfo=tz)):
+                    datetime(2026, 11, 6, 21, 29, tzinfo=tz)):
             with self.subTest(now=now):
                 self.assertIsNotNone(clipper.due_slot(cfg, {"clips": []}, now=now))
-        expired = datetime(2026, 11, 6, 21, 1, tzinfo=tz)
+        expired = datetime(2026, 11, 6, 21, 31, tzinfo=tz)
         self.assertIsNone(clipper.due_slot(cfg, {"clips": []}, now=expired))
 
 class CaptionRenderTests(unittest.TestCase):
