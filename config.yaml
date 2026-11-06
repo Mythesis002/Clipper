@@ -2,7 +2,7 @@ timezone: Asia/Kolkata
 post_times: ["14:00"]                  # Exactly one daily posting slot at 2 PM IST.
 schedule:
   max_wait_min: 25                    # scheduled run at 2 PM; tolerate small early triggers
-  catchup_hours: 7                    # allow late runs through 9 PM IST; exactly one daily slot
+  catchup_hours: 7.5                  # allow late runs through 9:30 PM IST; exactly one daily slot
 
 queue:
   clips_per_episode: 3
