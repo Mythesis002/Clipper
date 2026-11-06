@@ -5190,14 +5190,21 @@
     "llm": 0.75,
     "vid": 0.865,
     "hook_type": "number_or_stat",
-    "duration_bucket": "30-39s"
+    "duration_bucket": "30-39s",
+    "speaker_count": 1,
+    "speaker_turns": 7,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0,
+    "speaker_count_bucket": "1"
    },
    "title": "The '70s Self-Image Experiment: How a Fake Scar Changed Perceptions",
    "caption": "Let me tell you about a study that was conducted in the '70s and it opens your mind as to the power of the self-image.\n\n🎙️ Jay Shetty (@jayshetty)\nFull episode on YouTube: https://www.youtube.com/watch?v=nebunAmduIM\n\nFollow for daily podcast clips\n\n#SelfBelief #Confidence #SelfDoubt #PersonalGrowth #Psychology",
-   "content_type": "story",
+   "content_type": "explanation",
    "promotion_type": "none",
    "promotion_confidence": 1.0,
-   "promotion_evidence": "",
+   "promotion_evidence": "a psychology professor by the name of Robert Kleck from Dartmouth, he conducted this fascinating experiment",
    "editorial_review_required": false,
    "editorial_gate_reason": "",
    "editorial_scores": {
@@ -5230,527 +5237,45 @@
     "rationale": "Natural pacing for a story."
    },
    "polished": true,
-   "words": [
-    [
-     105.6,
-     "Let"
-    ],
-    [
-     105.72,
-     "me"
-    ],
-    [
-     105.8,
-     "tell"
-    ],
-    [
-     105.96,
-     "you"
-    ],
-    [
-     106.04,
-     "about"
-    ],
-    [
-     106.24,
-     "a"
-    ],
-    [
-     106.28,
-     "study"
-    ],
-    [
-     106.56,
-     "that"
-    ],
-    [
-     106.64,
-     "was"
-    ],
-    [
-     106.76,
-     "conducted"
-    ],
-    [
-     107.12,
-     "in"
-    ],
-    [
-     107.2,
-     "the"
-    ],
-    [
-     107.32,
-     "'70s,"
-    ],
-    [
-     108.4,
-     "and"
-    ],
-    [
-     108.56,
-     "it"
-    ],
-    [
-     108.84,
-     "opens"
-    ],
-    [
-     109.2,
-     "your"
-    ],
-    [
-     109.32,
-     "mind"
-    ],
-    [
-     109.68,
-     "as"
-    ],
-    [
-     109.8,
-     "to"
-    ],
-    [
-     109.92,
-     "the"
-    ],
-    [
-     110.0,
-     "power"
-    ],
-    [
-     110.36,
-     "of"
-    ],
-    [
-     110.64,
-     "the"
-    ],
-    [
-     110.76,
-     "self-image"
-    ],
-    [
-     111.4,
-     "that"
-    ],
-    [
-     111.52,
-     "we"
-    ],
-    [
-     111.64,
-     "have"
-    ],
-    [
-     111.84,
-     "about"
-    ],
-    [
-     112.08,
-     "ourselves"
-    ],
-    [
-     113.16,
-     "and"
-    ],
-    [
-     113.32,
-     "how"
-    ],
-    [
-     113.48,
-     "that"
-    ],
-    [
-     113.72,
-     "keeps"
-    ],
-    [
-     114.16,
-     "repeating"
-    ],
-    [
-     115.12,
-     "throughout"
-    ],
-    [
-     115.44,
-     "our"
-    ],
-    [
-     115.52,
-     "lives."
-    ],
-    [
-     116.44,
-     "So,"
-    ],
-    [
-     116.56,
-     "in"
-    ],
-    [
-     116.64,
-     "the"
-    ],
-    [
-     116.72,
-     "1970s,"
-    ],
-    [
-     117.48,
-     "a"
-    ],
-    [
-     117.64,
-     "psychology"
-    ],
-    [
-     118.12,
-     "professor"
-    ],
-    [
-     118.56,
-     "by"
-    ],
-    [
-     118.68,
-     "the"
-    ],
-    [
-     118.76,
-     "name"
-    ],
-    [
-     118.96,
-     "of"
-    ],
-    [
-     119.08,
-     "Robert"
-    ],
-    [
-     119.44,
-     "Kleck"
-    ],
-    [
-     120.16,
-     "from"
-    ],
-    [
-     120.64,
-     "Dartmouth,"
-    ],
-    [
-     121.56,
-     "he"
-    ],
-    [
-     121.64,
-     "conducted"
-    ],
-    [
-     122.04,
-     "this"
-    ],
-    [
-     122.16,
-     "fascinating"
-    ],
-    [
-     122.64,
-     "experiment"
-    ],
-    [
-     123.16,
-     "where"
-    ],
-    [
-     123.28,
-     "he"
-    ],
-    [
-     123.44,
-     "brought"
-    ],
-    [
-     123.72,
-     "people"
-    ],
-    [
-     124.0,
-     "together."
-    ],
-    [
-     124.36,
-     "He"
-    ],
-    [
-     124.48,
-     "split"
-    ],
-    [
-     124.8,
-     "them"
-    ],
-    [
-     124.92,
-     "into"
-    ],
-    [
-     125.08,
-     "groups,"
-    ],
-    [
-     125.84,
-     "and"
-    ],
-    [
-     126.0,
-     "with"
-    ],
-    [
-     126.2,
-     "one"
-    ],
-    [
-     126.4,
-     "group"
-    ],
-    [
-     126.68,
-     "he"
-    ],
-    [
-     126.8,
-     "drew"
-    ],
-    [
-     127.04,
-     "a"
-    ],
-    [
-     127.12,
-     "scar"
-    ],
-    [
-     127.68,
-     "on"
-    ],
-    [
-     127.8,
-     "their"
-    ],
-    [
-     127.96,
-     "face"
-    ],
-    [
-     128.92,
-     "from"
-    ],
-    [
-     129.12,
-     "their"
-    ],
-    [
-     129.32,
-     "right"
-    ],
-    [
-     129.68,
-     "ear"
-    ],
-    [
-     130.2,
-     "to"
-    ],
-    [
-     130.28,
-     "the"
-    ],
-    [
-     130.36,
-     "side"
-    ],
-    [
-     130.88,
-     "of"
-    ],
-    [
-     131.0,
-     "their"
-    ],
-    [
-     131.16,
-     "mouth."
-    ],
-    [
-     132.04,
-     "Big,"
-    ],
-    [
-     132.32,
-     "ugly"
-    ],
-    [
-     132.6,
-     "scar,"
-    ],
-    [
-     132.92,
-     "and"
-    ],
-    [
-     133.0,
-     "he"
-    ],
-    [
-     133.08,
-     "let"
-    ],
-    [
-     133.24,
-     "them"
-    ],
-    [
-     133.4,
-     "see"
-    ],
-    [
-     133.56,
-     "themselves"
-    ],
-    [
-     134.0,
-     "in"
-    ],
-    [
-     134.08,
-     "a"
-    ],
-    [
-     134.16,
-     "hand"
-    ],
-    [
-     134.48,
-     "mirror."
-    ],
-    [
-     135.48,
-     "Then"
-    ],
-    [
-     135.76,
-     "he"
-    ],
-    [
-     135.92,
-     "sends"
-    ],
-    [
-     136.96,
-     "the"
-    ],
-    [
-     137.12,
-     "groups"
-    ],
-    [
-     137.44,
-     "out"
-    ],
-    [
-     137.68,
-     "to"
-    ],
-    [
-     137.76,
-     "have"
-    ],
-    [
-     137.88,
-     "conversation"
-    ],
-    [
-     138.44,
-     "with"
-    ],
-    [
-     138.6,
-     "strangers,"
-    ],
-    [
-     139.16,
-     "right?"
-    ],
-    [
-     139.4,
-     "So,"
-    ],
-    [
-     139.52,
-     "you"
-    ],
-    [
-     139.6,
-     "have"
-    ],
-    [
-     139.76,
-     "one"
-    ],
-    [
-     139.96,
-     "group"
-    ],
-    [
-     140.16,
-     "that"
-    ],
-    [
-     140.28,
-     "has"
-    ],
-    [
-     140.48,
-     "a"
-    ],
-    [
-     140.52,
-     "scar,"
-    ],
-    [
-     141.28,
-     "another"
-    ],
-    [
-     141.52,
-     "group"
-    ],
-    [
-     141.84,
-     "has"
-    ],
-    [
-     142.0,
-     "no"
-    ],
-    [
-     142.12,
-     "scar."
-    ],
-    [
-     143.08,
-     "After"
-    ]
-   ],
-   "status": "queued",
+   "status": "posted",
    "attempts": 0,
-   "created_at": "2026-11-04T14:37:43+00:00"
+   "created_at": "2026-11-04T14:37:43+00:00",
+   "speaker_analysis": {
+    "speaker_count": 1,
+    "speaker_turns": 7,
+    "speaker_switches": 0,
+    "dominant_speaker_ratio": 1.0,
+    "speaker_overlap_s": 0.0,
+    "speaker_score": 1.0
+   },
+   "promotion_screen_version": "publish-promotion-screen-v2",
+   "promotion_screened_at": "2026-11-06T11:51:33+00:00",
+   "classification_confidence": 1.0,
+   "promotion_screen_attempts": 2,
+   "promotion_screen_error": null,
+   "qa": {
+    "verdict": "pass",
+    "score": 9.0,
+    "issues": []
+   },
+   "error": null,
+   "media_id": "18496549402109986",
+   "posted_at": "2026-11-06T11:53:27+00:00",
+   "platforms": {
+    "instagram": {
+     "status": "posted",
+     "media_id": "18496549402109986",
+     "url": "https://www.instagram.com/reel/18496549402109986/",
+     "posted_at": "2026-11-06T11:53:27+00:00"
+    },
+    "youtube": {
+     "status": "uploaded",
+     "video_id": "E_Jcqs5IUEQ",
+     "url": "https://www.youtube.com/watch?v=E_Jcqs5IUEQ",
+     "uploaded_at": "2026-11-06T11:53:29+00:00",
+     "error": null
+    }
+   }
   },
   {
    "id": 19,
@@ -7876,6 +7401,26 @@
    "video": "r5LF5kp8wLI",
    "channel": "Jay Shetty",
    "clips": 3
+  },
+  {
+   "t": "2026-11-06T11:51:49+00:00",
+   "event": "publish_started",
+   "clip": 18,
+   "channel": "Jay Shetty"
+  },
+  {
+   "t": "2026-11-06T11:53:27+00:00",
+   "event": "posted",
+   "clip": 18,
+   "media": "18496549402109986",
+   "channel": "Jay Shetty",
+   "qa": "pass"
+  },
+  {
+   "t": "2026-11-06T11:53:29+00:00",
+   "event": "youtube_uploaded",
+   "clip": 18,
+   "video": "E_Jcqs5IUEQ"
   }
  ],
  "candidate_decisions": [
