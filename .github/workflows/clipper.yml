@@ -2,10 +2,11 @@ name: podcast-clipper
 
 on:
   schedule:
-    # Daily 2 PM IST (08:30 UTC), then hourly recovery attempts through 9 PM IST (15:30 UTC).
+    # Daily 2 PM IST (08:30 UTC), then hourly recovery attempts through 9:30 PM IST (16:00 UTC).
     # One slot/day is enforced by state; catch-up expires 7 hours after the 2 PM slot.
     # GitHub schedule is best-effort, so these retries help recover delayed or dropped runs.
     - cron: "30 8-15 * * *"
+    - cron: "0 16 * * *"
   workflow_dispatch:
     inputs:
       command:
